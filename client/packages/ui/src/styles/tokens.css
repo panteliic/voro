@@ -1,0 +1,153 @@
+@theme inline {
+  --color-voro-primary-400: var(--voro-primary-400);
+  --color-voro-primary-500: var(--voro-primary-500);
+  --color-voro-neutral-50: var(--voro-neutral-50);
+  --color-voro-neutral-200: var(--voro-neutral-200);
+  --color-voro-neutral-400: var(--voro-neutral-400);
+  --color-voro-neutral-600: var(--voro-neutral-600);
+  --color-voro-neutral-700: var(--voro-neutral-700);
+  --color-voro-neutral-800: var(--voro-neutral-800);
+
+  --color-surface: var(--bg-main);
+  --color-card: var(--bg-card);
+  --color-content: var(--text-main);
+  --color-muted: var(--text-muted);
+  --color-line: var(--border-color);
+  --color-action: var(--btn-primary-bg);
+  --color-action-hover: var(--btn-primary-hover);
+  --color-action-text: var(--btn-text);
+
+  --font-main: var(--font-family-main);
+
+  --text-voro-xs: var(--text-xs);
+  --text-voro-sm: var(--text-sm);
+  --text-voro-base: var(--text-base);
+  --text-voro-lg: var(--text-lg);
+  --text-voro-xl: var(--text-xl);
+  --text-voro-2xl: var(--text-2xl);
+
+  --radius-voro-sm: var(--radius-sm);
+  --radius-voro-md: var(--radius-md);
+  --radius-voro-lg: var(--radius-lg);
+  --radius-voro-xl: var(--radius-xl);
+
+  --shadow-voro-sm: var(--shadow-sm);
+  --shadow-voro-md: var(--shadow-md);
+  --shadow-voro-lg: var(--shadow-lg);
+  --shadow-voro-floating: var(--shadow-floating);
+}
+
+:root,
+.light-theme {
+  --voro-primary-400: hsl(11, 81%, 62%);
+  --voro-primary-500: hsl(11, 81%, 54%);
+
+  --voro-neutral-50: hsl(220, 26%, 98%);
+  --voro-neutral-200: hsl(220, 26%, 88%);
+  --voro-neutral-400: hsl(220, 26%, 60%);
+  --voro-neutral-600: hsl(220, 26%, 32%);
+  --voro-neutral-700: hsl(220, 26%, 22%);
+  --voro-neutral-800: hsl(220, 26%, 14%);
+
+  --bg-main: var(--voro-neutral-50);
+  --bg-card: #ffffff;
+  --text-main: var(--voro-neutral-800);
+  --text-muted: var(--voro-neutral-400);
+  --border-color: var(--voro-neutral-200);
+
+  --btn-primary-bg: var(--voro-primary-500);
+  --btn-primary-hover: var(--voro-primary-400);
+  --btn-text: #ffffff;
+
+  --font-family-main: 'Montserrat', 'Inter', sans-serif;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+
+  --font-regular: 400;
+  --font-medium: 500;
+  --font-bold: 700;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 2px 4px rgba(26, 32, 44, 0.05);
+  --shadow-md: 0 4px 6px rgba(26, 32, 44, 0.1);
+  --shadow-lg: 0 10px 15px rgba(26, 32, 44, 0.1);
+  --shadow-floating: 0 20px 25px rgba(233, 77, 41, 0.15);
+
+  --transition-fast: 150ms ease-in-out;
+  --transition-normal: 300ms ease-in-out;
+}
+
+.dark-theme {
+  --bg-main: var(--voro-neutral-800);
+  --bg-card: var(--voro-neutral-700);
+  --text-main: #ffffff;
+  --text-muted: var(--voro-neutral-400);
+  --border-color: var(--voro-neutral-600);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-main: var(--voro-neutral-800);
+    --bg-card: var(--voro-neutral-700);
+    --text-main: #ffffff;
+    --text-muted: var(--voro-neutral-400);
+    --border-color: var(--voro-neutral-600);
+  }
+}
+
+@layer base {
+  html {
+    font-family: var(--font-family-main);
+  }
+
+  body {
+    background: var(--bg-main);
+    color: var(--text-main);
+  }
+}
+
+@layer components {
+  .voro-card {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    background: var(--bg-card);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .voro-card-strong {
+    border: 2px solid var(--voro-primary-500);
+    box-shadow: var(--shadow-floating);
+  }
+
+  .voro-button-primary {
+    border-radius: var(--radius-lg);
+    background: var(--btn-primary-bg);
+    color: var(--btn-text);
+    box-shadow: var(--shadow-floating);
+    font-weight: var(--font-bold);
+    transition:
+      background-color var(--transition-fast),
+      transform var(--transition-fast),
+      box-shadow var(--transition-fast);
+  }
+
+  .voro-button-primary:hover {
+    background: var(--btn-primary-hover);
+    transform: translateY(-1px);
+  }
+
+  .voro-button-primary:focus-visible {
+    outline: 2px solid var(--voro-primary-400);
+    outline-offset: 3px;
+  }
+}

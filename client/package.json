@@ -1,0 +1,18 @@
+{
+  "name": "voro",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:customer": "npm run dev --workspace=customer-app",
+    "dev:restaurant": "npm run dev --workspace=restaurant-app",
+    "dev:driver": "npm run dev --workspace=driver-app",
+    "dev:all": "concurrently -k -n customer,restaurant,driver -c cyan,magenta,green \"npm run dev:customer\" \"npm run dev:restaurant\" \"npm run dev:driver\"",
+    "build": "npm run build --workspaces --if-present",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check"
+  },
+  "devDependencies": {
+    "@tailwindcss/
