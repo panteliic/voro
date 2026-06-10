@@ -9,10 +9,16 @@ services:
       DB_HOST: host.docker.internal
       DB_PORT: 5432
       DB_NAME: voro
-      DB_USER: postgres
-      DB_PASSWORD: tvojalozinka
+      DB_USER: admin
+      DB_PASSWORD: admin
       JWT_SECRET: voro_secret_key
       CLIENT_URLS: http://localhost:5173,http://localhost:5174,http://localhost:5175
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-your-email@gmail.com}
+      SMTP_PASS: ${SMTP_PASS:-your-app-password}
+      SMTP_FROM: ${SMTP_FROM:-Voro <your-email@gmail.com>}
     ports:
       - "5000:5000"
     healthcheck:

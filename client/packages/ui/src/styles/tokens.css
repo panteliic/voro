@@ -1,3 +1,8 @@
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *, .dark-theme *));
+
 @theme inline {
   --color-voro-primary-400: var(--voro-primary-400);
   --color-voro-primary-500: var(--voro-primary-500);
@@ -10,14 +15,48 @@
 
   --color-surface: var(--bg-main);
   --color-card: var(--bg-card);
+  --color-card-foreground: var(--text-main);
   --color-content: var(--text-main);
-  --color-muted: var(--text-muted);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--text-muted);
   --color-line: var(--border-color);
   --color-action: var(--btn-primary-bg);
   --color-action-hover: var(--btn-primary-hover);
   --color-action-text: var(--btn-text);
 
+  --color-background: var(--bg-main);
+  --color-foreground: var(--text-main);
+  --color-popover: var(--bg-card);
+  --color-popover-foreground: var(--text-main);
+  --color-primary: var(--btn-primary-bg);
+  --color-primary-foreground: var(--btn-text);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--text-main);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--text-main);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border-color);
+  --color-input: var(--input);
+  --color-ring: var(--voro-primary-400);
+
+  --color-sidebar: var(--bg-card);
+  --color-sidebar-foreground: var(--text-main);
+  --color-sidebar-primary: var(--btn-primary-bg);
+  --color-sidebar-primary-foreground: var(--btn-text);
+  --color-sidebar-accent: var(--accent);
+  --color-sidebar-accent-foreground: var(--text-main);
+  --color-sidebar-border: var(--border-color);
+  --color-sidebar-ring: var(--voro-primary-400);
+
+  --color-chart-1: var(--voro-primary-500);
+  --color-chart-2: var(--voro-primary-400);
+  --color-chart-3: var(--voro-neutral-600);
+  --color-chart-4: var(--voro-neutral-400);
+  --color-chart-5: var(--voro-neutral-200);
+
   --font-main: var(--font-family-main);
+  --font-sans: var(--font-family-main);
+  --font-heading: var(--font-family-main);
 
   --text-voro-xs: var(--text-xs);
   --text-voro-sm: var(--text-sm);
@@ -30,6 +69,11 @@
   --radius-voro-md: var(--radius-md);
   --radius-voro-lg: var(--radius-lg);
   --radius-voro-xl: var(--radius-xl);
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 12px;
 
   --shadow-voro-sm: var(--shadow-sm);
   --shadow-voro-md: var(--shadow-md);
@@ -54,6 +98,11 @@
   --text-main: var(--voro-neutral-800);
   --text-muted: var(--voro-neutral-400);
   --border-color: var(--voro-neutral-200);
+  --muted: hsl(220, 26%, 94%);
+  --secondary: hsl(220, 26%, 95%);
+  --accent: hsl(11, 81%, 96%);
+  --input: #ffffff;
+  --destructive: hsl(0, 76%, 52%);
 
   --btn-primary-bg: var(--voro-primary-500);
   --btn-primary-hover: var(--voro-primary-400);
@@ -61,58 +110,73 @@
 
   --font-family-main: 'Montserrat', 'Inter', sans-serif;
 
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.25rem;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
   --text-2xl: 1.5rem;
 
   --font-regular: 400;
   --font-medium: 500;
   --font-bold: 700;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
   --radius-full: 9999px;
 
-  --shadow-sm: 0 2px 4px rgba(26, 32, 44, 0.05);
-  --shadow-md: 0 4px 6px rgba(26, 32, 44, 0.1);
-  --shadow-lg: 0 10px 15px rgba(26, 32, 44, 0.1);
-  --shadow-floating: 0 20px 25px rgba(233, 77, 41, 0.15);
+  --space-control-y: 0.625rem;
+  --space-control-x: 0.875rem;
+  --space-card: 1rem;
+  --space-card-sm: 0.75rem;
+
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-floating: none;
 
   --transition-fast: 150ms ease-in-out;
   --transition-normal: 300ms ease-in-out;
 }
 
+.dark,
 .dark-theme {
   --bg-main: var(--voro-neutral-800);
   --bg-card: var(--voro-neutral-700);
   --text-main: #ffffff;
   --text-muted: var(--voro-neutral-400);
   --border-color: var(--voro-neutral-600);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-main: var(--voro-neutral-800);
-    --bg-card: var(--voro-neutral-700);
-    --text-main: #ffffff;
-    --text-muted: var(--voro-neutral-400);
-    --border-color: var(--voro-neutral-600);
-  }
+  --muted: hsl(220, 26%, 18%);
+  --secondary: hsl(220, 26%, 20%);
+  --accent: hsl(11, 60%, 20%);
+  --input: hsl(220, 26%, 18%);
+  --destructive: hsl(0, 72%, 61%);
 }
 
 @layer base {
   html {
     font-family: var(--font-family-main);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  * {
+    box-sizing: border-box;
+    border-color: var(--border-color);
   }
 
   body {
+    min-width: 320px;
+    min-height: 100vh;
+    margin: 0;
     background: var(--bg-main);
     color: var(--text-main);
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
   }
 }
 
@@ -147,7 +211,6 @@
   }
 
   .voro-button-primary:focus-visible {
-    outline: 2px solid var(--voro-primary-400);
-    outline-offset: 3px;
+    outline: none;
   }
 }

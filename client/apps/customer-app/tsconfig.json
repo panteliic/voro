@@ -16,6 +16,8 @@
       "@/*":          ["./src/*"],
       "@voro/shared": ["../../packages/shared/src/index.ts"],
       "@voro/ui":     ["../../packages/ui/src/index.ts"],
+      "@voro/ui/components/ui/*": ["../../packages/ui/src/components/ui/*"],
+      "@voro/ui/ui/*": ["../../packages/ui/src/components/ui/*"],
       "@voro/socket": ["../../packages/socket/src/index.ts"]
     }
   },

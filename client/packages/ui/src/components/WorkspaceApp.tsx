@@ -66,7 +66,7 @@ export function WorkspaceApp({ config }: { config: WorkspaceAppConfig }) {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
         <header className="flex flex-col gap-4 border-b border-line pb-5 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-voro-sm font-medium text-muted">{config.eyebrow}</p>
+            <p className="text-voro-sm font-medium text-muted-foreground">{config.eyebrow}</p>
             <h1 className="mt-2 text-voro-2xl font-bold leading-tight text-content sm:text-4xl">
               {config.appName}
             </h1>
@@ -87,7 +87,7 @@ export function WorkspaceApp({ config }: { config: WorkspaceAppConfig }) {
             <h2 className="mt-4 text-voro-2xl font-bold leading-snug sm:text-3xl">
               {config.headline}
             </h2>
-            <p className="mt-3 max-w-2xl text-voro-base leading-7 text-muted">
+            <p className="mt-3 max-w-2xl text-voro-base leading-7 text-muted-foreground">
               {config.description}
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
@@ -106,7 +106,7 @@ export function WorkspaceApp({ config }: { config: WorkspaceAppConfig }) {
           <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
             {config.metrics.map((metric) => (
               <article className="voro-card p-4" key={metric.label}>
-                <p className="text-voro-sm text-muted">{metric.label}</p>
+                <p className="text-voro-sm text-muted-foreground">{metric.label}</p>
                 <p className="mt-2 text-voro-2xl font-bold text-content">{metric.value}</p>
               </article>
             ))}
@@ -125,7 +125,7 @@ export function WorkspaceApp({ config }: { config: WorkspaceAppConfig }) {
               >
                 <div>
                   <p className="font-medium text-content">{item.label}</p>
-                  <p className="text-voro-sm text-muted">{item.value}</p>
+                  <p className="text-voro-sm text-muted-foreground">{item.value}</p>
                 </div>
                 <span
                   className={cx(
