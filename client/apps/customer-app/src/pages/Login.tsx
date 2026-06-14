@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@voro/ui'
 import { ArrowRight, KeyRound, Mail } from 'lucide-react'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
@@ -12,6 +12,7 @@ import { clearAuthFeedback, loginUser } from '../features/auth/authSlice'
 
 function Login() {
   const dispatch = useAppDispatch()
+  const navigate = useNavigate()
   const { error, loginStatus, message } = useAppSelector((state) => state.auth)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -21,9 +22,13 @@ function Login() {
     dispatch(clearAuthFeedback())
   }, [dispatch])
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    void dispatch(loginUser({ email, password }))
+    const result = await dispatch(loginUser({ email, password }))
+
+    if (loginUser.fulfilled.match(result)) {
+      navigate('/', { replace: true })
+    }
   }
 
   return (
