@@ -24,6 +24,20 @@ export type RefreshTokenPayload = {
   refreshToken: string
 }
 
+export type RequestPasswordResetPayload = {
+  email: string
+}
+
+export type ResetPasswordPayload = {
+  resetToken: string
+  password: string
+}
+
+export type VerifyPasswordResetCodePayload = {
+  email: string
+  code: string
+}
+
 export type VerifyEmailPayload = {
   email: string
   code: string

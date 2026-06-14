@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap');
-@import "tailwindcss";
-@import "@voro/ui/styles.css";
+@import 'tailwindcss';
+@import '@voro/ui/styles.css';
 @config "../../../tailwind.config.js";
 @source "../../../packages/ui/src";
 

@@ -3,10 +3,18 @@ import jwt, { type SignOptions } from 'jsonwebtoken'
 import crypto from 'crypto'
 import { env } from '../config/env'
 import * as authRepository from '../repositories/authRepository'
-import type { LoginPayload, RefreshTokenPayload, SignupPayload, VerifyEmailPayload } from '../types/auth'
+import type {
+  LoginPayload,
+  RefreshTokenPayload,
+  RequestPasswordResetPayload,
+  ResetPasswordPayload,
+  SignupPayload,
+  VerifyPasswordResetCodePayload,
+  VerifyEmailPayload,
+} from '../types/auth'
 import { HttpError } from '../utils/httpError'
 import { generateOtp } from '../utils/otp'
-import { sendOtpEmail } from './mailService'
+import { sendOtpEmail, sendPasswordResetEmail } from './mailService'
 
 function devCode(code: string) {
   return env.isProduction || env.smtp.enabled ? undefined : code
@@ -18,6 +26,12 @@ type RefreshTokenClaims = {
   type: 'refresh'
 }
 
+type PasswordResetTokenClaims = {
+  userId: number
+  email: string
+  type: 'password_reset'
+}
+
 function signAccessToken(payload: { userId: number; email: string }) {
   return jwt.sign({ ...payload, type: 'access' }, env.jwtSecret, {
     expiresIn: env.accessTokenTtl as SignOptions['expiresIn'],
@@ -27,6 +41,13 @@ function signAccessToken(payload: { userId: number; email: string }) {
 function signRefreshToken(payload: { userId: number; email: string }) {
   return jwt.sign({ ...payload, type: 'refresh' }, env.jwtSecret, {
     expiresIn: Math.floor(env.refreshTokenTtlMs / 1000),
+    jwtid: crypto.randomUUID(),
+  })
+}
+
+function signPasswordResetToken(payload: { userId: number; email: string }) {
+  return jwt.sign({ ...payload, type: 'password_reset' }, env.jwtSecret, {
+    expiresIn: '10m',
     jwtid: crypto.randomUUID(),
   })
 }
@@ -59,6 +80,20 @@ function verifyRefreshToken(refreshToken: string) {
   }
 }
 
+function verifyPasswordResetToken(resetToken: string) {
+  try {
+    const decoded = jwt.verify(resetToken, env.jwtSecret) as PasswordResetTokenClaims
+
+    if (decoded.type !== 'password_reset' || !decoded.userId || !decoded.email) {
+      throw new HttpError(401, 'Invalid password reset token.')
+    }
+
+    return decoded
+  } catch {
+    throw new HttpError(401, 'Invalid password reset token.')
+  }
+}
+
 async function issueVerificationCode(userId: number, email: string) {
   const code = generateOtp()
   const codeHash = await bcrypt.hash(code, 10)
@@ -69,6 +104,20 @@ async function issueVerificationCode(userId: number, email: string) {
     expiresAt: new Date(Date.now() + env.otpTtlMs),
   })
   await sendOtpEmail(email, code)
+
+  return code
+}
+
+async function issuePasswordResetCode(userId: number, email: string) {
+  const code = generateOtp()
+  const codeHash = await bcrypt.hash(code, 10)
+
+  await authRepository.savePasswordResetCode({
+    userId,
+    codeHash,
+    expiresAt: new Date(Date.now() + env.otpTtlMs),
+  })
+  await sendPasswordResetEmail(email, code)
 
   return code
 }
@@ -260,4 +309,85 @@ export async function logout(payload: RefreshTokenPayload) {
   }
 
   return { message: 'Signed out.' }
+}
+
+export async function requestPasswordReset(payload: RequestPasswordResetPayload) {
+  const { email } = payload
+
+  if (!email) {
+    throw new HttpError(400, 'Email is required.')
+  }
+
+  const user = await authRepository.findUserByEmail(email)
+
+  if (!user || !user.emailVerified) {
+    return { message: 'If that email exists, a password reset code has been sent.', email }
+  }
+
+  const code = await issuePasswordResetCode(user.id, user.email)
+
+  return {
+    message: 'Password reset code sent.',
+    email: user.email,
+    devCode: devCode(code),
+  }
+}
+
+export async function verifyPasswordResetCode(payload: VerifyPasswordResetCodePayload) {
+  const { email, code } = payload
+
+  if (!email || !code) {
+    throw new HttpError(400, 'Email and reset code are required.')
+  }
+
+  const user = await authRepository.findUserByEmail(email)
+  const resetCode = await authRepository.findActivePasswordResetCode(email)
+
+  if (!user || !resetCode) {
+    throw new HttpError(404, 'No active password reset code found for this email.')
+  }
+
+  if (new Date() > resetCode.expiresAt) {
+    await authRepository.consumePasswordResetCode(resetCode.id)
+    throw new HttpError(410, 'Password reset code expired. Please request a new one.')
+  }
+
+  const isCodeValid = await bcrypt.compare(code, resetCode.codeHash)
+
+  if (!isCodeValid) {
+    throw new HttpError(400, 'Invalid password reset code.')
+  }
+
+  await authRepository.consumePasswordResetCode(resetCode.id)
+
+  return {
+    message: 'Password reset code verified.',
+    email: user.email,
+    resetToken: signPasswordResetToken({ userId: user.id, email: user.email }),
+  }
+}
+
+export async function resetPassword(payload: ResetPasswordPayload) {
+  const { resetToken, password } = payload
+
+  if (!resetToken || !password) {
+    throw new HttpError(400, 'Reset token and new password are required.')
+  }
+
+  if (password.length < 8) {
+    throw new HttpError(400, 'Password must be at least 8 characters.')
+  }
+
+  const decoded = verifyPasswordResetToken(resetToken)
+  const user = await authRepository.findUserById(decoded.userId)
+
+  if (!user || user.email !== decoded.email) {
+    throw new HttpError(401, 'Invalid password reset token.')
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10)
+  await authRepository.updateUserPassword({ userId: user.id, passwordHash })
+  await authRepository.revokeAllUserRefreshTokens(user.id)
+
+  return { message: 'Password updated. You can sign in now.', email: user.email }
 }

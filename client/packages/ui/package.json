@@ -18,6 +18,7 @@
       "types": "./src/components/ui/*.tsx",
       "import": "./src/components/ui/*.tsx"
     },
+    "./assets/*.svg": "./src/assets/*.svg",
     "./styles.css": "./src/styles/tokens.css"
   },
   "dependencies": {
@@ -26,6 +27,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^2.30.0",
+    "input-otp": "^1.4.2",
     "lucide-react": "^1.17.0",
     "radix-ui": "^1.5.0",
     "react-day-picker": "^10.0.1",

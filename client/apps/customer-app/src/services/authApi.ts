@@ -7,10 +7,16 @@ import type {
   LogoutResponse,
   RefreshTokenRequest,
   RefreshTokenResponse,
+  RequestPasswordResetRequest,
+  RequestPasswordResetResponse,
+  ResetPasswordRequest,
+  ResetPasswordResponse,
   SignupRequest,
   SignupResponse,
   VerifyEmailRequest,
   VerifyEmailResponse,
+  VerifyPasswordResetCodeRequest,
+  VerifyPasswordResetCodeResponse,
 } from '../types/auth'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
@@ -41,6 +47,18 @@ export const authApi = {
 
   logout(payload: LogoutRequest) {
     return request<LogoutResponse>('/auth/logout', payload)
+  },
+
+  requestPasswordReset(payload: RequestPasswordResetRequest) {
+    return request<RequestPasswordResetResponse>('/auth/request-password-reset', payload)
+  },
+
+  resetPassword(payload: ResetPasswordRequest) {
+    return request<ResetPasswordResponse>('/auth/reset-password', payload)
+  },
+
+  verifyPasswordResetCode(payload: VerifyPasswordResetCodeRequest) {
+    return request<VerifyPasswordResetCodeResponse>('/auth/verify-password-reset-code', payload)
   },
 
   signup(payload: SignupRequest) {

@@ -5,9 +5,12 @@ import type {
   LoginRequest,
   LogoutRequest,
   RefreshTokenRequest,
+  RequestPasswordResetRequest,
   ResendCodeRequest,
+  ResetPasswordRequest,
   SignupRequest,
   VerifyEmailRequest,
+  VerifyPasswordResetCodeRequest,
 } from '../../types/auth'
 
 type RequestStatus = 'idle' | 'loading' | 'succeeded' | 'failed'
@@ -21,6 +24,9 @@ type AuthState = {
   loginStatus: RequestStatus
   refreshStatus: RequestStatus
   logoutStatus: RequestStatus
+  requestPasswordResetStatus: RequestStatus
+  verifyPasswordResetCodeStatus: RequestStatus
+  resetPasswordStatus: RequestStatus
   signupStatus: RequestStatus
   verifyStatus: RequestStatus
   resendStatus: RequestStatus
@@ -37,6 +43,9 @@ const initialState: AuthState = {
   loginStatus: 'idle',
   refreshStatus: 'idle',
   logoutStatus: 'idle',
+  requestPasswordResetStatus: 'idle',
+  verifyPasswordResetCodeStatus: 'idle',
+  resetPasswordStatus: 'idle',
   signupStatus: 'idle',
   verifyStatus: 'idle',
   resendStatus: 'idle',
@@ -86,6 +95,39 @@ export const logoutUser = createAsyncThunk(
   async (payload: LogoutRequest, { rejectWithValue }) => {
     try {
       return await authApi.logout(payload)
+    } catch (error) {
+      return rejectWithValue(errorMessage(error))
+    }
+  },
+)
+
+export const requestPasswordReset = createAsyncThunk(
+  'auth/requestPasswordReset',
+  async (payload: RequestPasswordResetRequest, { rejectWithValue }) => {
+    try {
+      return await authApi.requestPasswordReset(payload)
+    } catch (error) {
+      return rejectWithValue(errorMessage(error))
+    }
+  },
+)
+
+export const resetPassword = createAsyncThunk(
+  'auth/resetPassword',
+  async (payload: ResetPasswordRequest, { rejectWithValue }) => {
+    try {
+      return await authApi.resetPassword(payload)
+    } catch (error) {
+      return rejectWithValue(errorMessage(error))
+    }
+  },
+)
+
+export const verifyPasswordResetCode = createAsyncThunk(
+  'auth/verifyPasswordResetCode',
+  async (payload: VerifyPasswordResetCodeRequest, { rejectWithValue }) => {
+    try {
+      return await authApi.verifyPasswordResetCode(payload)
     } catch (error) {
       return rejectWithValue(errorMessage(error))
     }
@@ -192,6 +234,51 @@ const authSlice = createSlice({
         state.refreshToken = ''
         localStorage.removeItem('voro_access_token')
         localStorage.removeItem('voro_refresh_token')
+      })
+      .addCase(requestPasswordReset.pending, (state) => {
+        state.requestPasswordResetStatus = 'loading'
+        state.error = ''
+        state.message = ''
+      })
+      .addCase(requestPasswordReset.fulfilled, (state, action) => {
+        state.requestPasswordResetStatus = 'succeeded'
+        state.pendingEmail = action.payload.email
+        state.devCode = action.payload.devCode || ''
+        state.message = action.payload.devCode
+          ? `Dev reset code: ${action.payload.devCode}`
+          : action.payload.message
+      })
+      .addCase(requestPasswordReset.rejected, (state, action) => {
+        state.requestPasswordResetStatus = 'failed'
+        state.error = String(action.payload || 'Could not send reset code.')
+      })
+      .addCase(verifyPasswordResetCode.pending, (state) => {
+        state.verifyPasswordResetCodeStatus = 'loading'
+        state.error = ''
+      })
+      .addCase(verifyPasswordResetCode.fulfilled, (state, action) => {
+        state.verifyPasswordResetCodeStatus = 'succeeded'
+        state.pendingEmail = action.payload.email
+        state.message = action.payload.message
+        state.error = ''
+      })
+      .addCase(verifyPasswordResetCode.rejected, (state, action) => {
+        state.verifyPasswordResetCodeStatus = 'failed'
+        state.error = String(action.payload || 'Could not verify reset code.')
+      })
+      .addCase(resetPassword.pending, (state) => {
+        state.resetPasswordStatus = 'loading'
+        state.error = ''
+      })
+      .addCase(resetPassword.fulfilled, (state, action) => {
+        state.resetPasswordStatus = 'succeeded'
+        state.message = action.payload.message
+        state.error = ''
+        state.devCode = ''
+      })
+      .addCase(resetPassword.rejected, (state, action) => {
+        state.resetPasswordStatus = 'failed'
+        state.error = String(action.payload || 'Could not reset password.')
       })
       .addCase(signupUser.pending, (state) => {
         state.signupStatus = 'loading'

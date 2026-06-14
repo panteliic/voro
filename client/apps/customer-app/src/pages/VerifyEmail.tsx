@@ -1,12 +1,18 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@voro/ui'
-import { ArrowRight, Mail, RefreshCw, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Mail, RefreshCw } from 'lucide-react'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import { AuthField } from '../components/auth/AuthField'
 import { AuthHeader } from '../components/auth/AuthHeader'
 import { AuthLayout } from '../components/auth/AuthLayout'
-import { clearAuthFeedback, resendCode, setPendingEmail, verifyEmail } from '../features/auth/authSlice'
+import { AuthOtpInput } from '../components/auth/AuthOtpInput'
+import {
+  clearAuthFeedback,
+  resendCode,
+  setPendingEmail,
+  verifyEmail,
+} from '../features/auth/authSlice'
 
 function VerifyEmail() {
   const dispatch = useAppDispatch()
@@ -68,17 +74,10 @@ function VerifyEmail() {
           type="email"
           value={email}
         />
-        <AuthField
-          className="tracking-[0.35em]"
-          icon={ShieldCheck}
-          inputMode="numeric"
-          label="Verification code"
-          maxLength={6}
-          onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))}
-          placeholder="000000"
-          type="text"
-          value={code}
-        />
+        <label className="grid gap-2 text-sm font-medium text-content">
+          Verification code
+          <AuthOtpInput disabled={isVerifying} onChange={setCode} value={code} />
+        </label>
 
         <Button className="w-full cursor-pointer gap-2" disabled={isVerifying} type="submit">
           {isVerifying ? 'Verifying...' : 'Verify email'}
