@@ -9,10 +9,12 @@ import { AuthHeader } from '../components/auth/AuthHeader'
 import { AuthLayout } from '../components/auth/AuthLayout'
 import { SocialButtons } from '../components/auth/SocialButtons'
 import { clearAuthFeedback, loginUser } from '../features/auth/authSlice'
+import { useI18n } from '../i18n/i18n'
 
 function Login() {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
+  const { t } = useI18n()
   const { error, loginStatus, message } = useAppSelector((state) => state.auth)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -33,17 +35,17 @@ function Login() {
 
   return (
     <AuthLayout
-      title="Fast food delivery, without the noise."
-      description="Manage orders, customers, and routes from one clean Voro workspace."
-      panelTitle="Voro Customer"
-      panelDescription="Sign in to continue."
+      title={t('auth.hero.loginTitle')}
+      description={t('auth.hero.loginDesc')}
+      panelTitle={t('auth.hero.customer')}
+      panelDescription={t('auth.hero.signInContinue')}
     >
-      <AuthHeader title="Welcome back" description="Enter your details to sign in." />
+      <AuthHeader title={t('auth.login.welcome')} description={t('auth.login.desc')} />
 
       <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
         <AuthField
           icon={Mail}
-          label="Email"
+          label={t('common.email')}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="john.doe@example.com"
           type="email"
@@ -51,9 +53,9 @@ function Login() {
         />
         <AuthField
           icon={KeyRound}
-          label="Password"
+          label={t('common.password')}
           onChange={(event) => setPassword(event.target.value)}
-          placeholder="Enter your password"
+          placeholder={t('auth.login.passwordPlaceholder')}
           type="password"
           value={password}
         />
@@ -61,10 +63,10 @@ function Login() {
         <div className="flex items-center justify-between text-sm">
           <label className="flex items-center gap-2 text-muted-foreground">
             <input className="size-4 accent-[var(--btn-primary-bg)]" type="checkbox" />
-            Remember me
+            {t('auth.login.remember')}
           </label>
           <Link className="font-medium text-action hover:underline" to="/forgot-password">
-            Forgot password?
+            {t('auth.login.forgot')}
           </Link>
         </div>
 
@@ -75,7 +77,7 @@ function Login() {
         ) : null}
 
         <Button className="w-full cursor-pointer gap-2" disabled={isLoading} type="submit">
-          {isLoading ? 'Signing in...' : 'Sign In'}
+          {isLoading ? t('auth.login.submitting') : t('auth.login.submit')}
           <ArrowRight className="size-4" />
         </Button>
       </form>
@@ -84,9 +86,9 @@ function Login() {
       <SocialButtons />
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        Don't have an account?{' '}
+        {t('auth.login.noAccount')}{' '}
         <Link className="font-medium text-action hover:underline" to="/signup">
-          Sign up
+          {t('auth.login.signup')}
         </Link>
       </p>
     </AuthLayout>

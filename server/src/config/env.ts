@@ -27,8 +27,10 @@ const smtpEnabled = Boolean(
 export const env = {
   port: Number(process.env.PORT || 3000),
   clientUrls,
+  apiUrl: process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`,
   isProduction: process.env.NODE_ENV === "production",
   jwtSecret: process.env.JWT_SECRET || "voro_secret_key",
+  paymentCardEncryptionKey: process.env.PAYMENT_CARD_ENCRYPTION_KEY || "",
   accessTokenTtl: process.env.ACCESS_TOKEN_TTL || "15m",
   refreshTokenTtlMs: Number(process.env.REFRESH_TOKEN_TTL_DAYS || 30) * 24 * 60 * 60 * 1000,
   otpTtlMs: 10 * 60 * 1000,
@@ -47,5 +49,15 @@ export const env = {
     user: smtpUser,
     pass: smtpPass,
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
+  },
+  auth0: {
+    domain: process.env.AUTH0_DOMAIN || "",
+    clientId: process.env.AUTH0_CLIENT_ID || "",
+    clientSecret: process.env.AUTH0_CLIENT_SECRET || "",
+    callbackUrl:
+      process.env.AUTH0_CALLBACK_URL ||
+      `${process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`}/auth/auth0/callback`,
+    clientRedirectUrl:
+      process.env.AUTH0_CLIENT_REDIRECT_URL || `${clientUrls[0] || "http://localhost:5173"}/auth/callback`,
   },
 };

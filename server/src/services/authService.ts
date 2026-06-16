@@ -4,6 +4,7 @@ import crypto from 'crypto'
 import { env } from '../config/env'
 import * as authRepository from '../repositories/authRepository'
 import type {
+  ChangePasswordPayload,
   LoginPayload,
   RefreshTokenPayload,
   RequestPasswordResetPayload,
@@ -32,6 +33,38 @@ type PasswordResetTokenClaims = {
   type: 'password_reset'
 }
 
+type Auth0StateClaims = {
+  provider: Auth0Provider
+  returnTo: string
+  type: 'auth0_state'
+}
+
+type Auth0Provider = 'google' | 'facebook'
+
+type Auth0UserInfo = {
+  email?: string
+  email_verified?: boolean
+  name?: string
+  nickname?: string
+}
+
+const auth0Connections: Record<Auth0Provider, string> = {
+  google: 'google-oauth2',
+  facebook: 'facebook',
+}
+
+function getAuth0Config() {
+  if (!env.auth0.domain || !env.auth0.clientId || !env.auth0.clientSecret) {
+    throw new HttpError(500, 'Auth0 is not configured.')
+  }
+
+  return env.auth0
+}
+
+function isAuth0Provider(provider: string): provider is Auth0Provider {
+  return provider === 'google' || provider === 'facebook'
+}
+
 function signAccessToken(payload: { userId: number; email: string }) {
   return jwt.sign({ ...payload, type: 'access' }, env.jwtSecret, {
     expiresIn: env.accessTokenTtl as SignOptions['expiresIn'],
@@ -47,6 +80,13 @@ function signRefreshToken(payload: { userId: number; email: string }) {
 
 function signPasswordResetToken(payload: { userId: number; email: string }) {
   return jwt.sign({ ...payload, type: 'password_reset' }, env.jwtSecret, {
+    expiresIn: '10m',
+    jwtid: crypto.randomUUID(),
+  })
+}
+
+function signAuth0State(payload: { provider: Auth0Provider; returnTo: string }) {
+  return jwt.sign({ ...payload, type: 'auth0_state' }, env.jwtSecret, {
     expiresIn: '10m',
     jwtid: crypto.randomUUID(),
   })
@@ -91,6 +131,20 @@ function verifyPasswordResetToken(resetToken: string) {
     return decoded
   } catch {
     throw new HttpError(401, 'Invalid password reset token.')
+  }
+}
+
+function verifyAuth0State(state: string) {
+  try {
+    const decoded = jwt.verify(state, env.jwtSecret) as Auth0StateClaims
+
+    if (decoded.type !== 'auth0_state' || !isAuth0Provider(decoded.provider) || !decoded.returnTo) {
+      throw new HttpError(401, 'Invalid Auth0 state.')
+    }
+
+    return decoded
+  } catch {
+    throw new HttpError(401, 'Invalid Auth0 state.')
   }
 }
 
@@ -248,6 +302,103 @@ export async function login(payload: LoginPayload) {
   }
 }
 
+export function getAuth0LoginUrl(provider: string) {
+  if (!isAuth0Provider(provider)) {
+    throw new HttpError(404, 'Unsupported social login provider.')
+  }
+
+  const auth0 = getAuth0Config()
+  const state = signAuth0State({ provider, returnTo: auth0.clientRedirectUrl })
+  const url = new URL(`https://${auth0.domain}/authorize`)
+
+  url.searchParams.set('response_type', 'code')
+  url.searchParams.set('client_id', auth0.clientId)
+  url.searchParams.set('redirect_uri', auth0.callbackUrl)
+  url.searchParams.set('scope', 'openid profile email')
+  url.searchParams.set('connection', auth0Connections[provider])
+  url.searchParams.set('state', state)
+
+  return url.toString()
+}
+
+export async function auth0Callback(payload: {
+  code?: string
+  state?: string
+  error?: string
+  errorDescription?: string
+}) {
+  if (payload.error) {
+    throw new HttpError(401, payload.errorDescription || payload.error)
+  }
+
+  if (!payload.code || !payload.state) {
+    throw new HttpError(400, 'Auth0 code and state are required.')
+  }
+
+  const auth0 = getAuth0Config()
+  const state = verifyAuth0State(payload.state)
+  const tokenResponse = await fetch(`https://${auth0.domain}/oauth/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      grant_type: 'authorization_code',
+      client_id: auth0.clientId,
+      client_secret: auth0.clientSecret,
+      code: payload.code,
+      redirect_uri: auth0.callbackUrl,
+    }),
+  })
+  const tokenData = (await tokenResponse.json()) as { access_token?: string; error_description?: string }
+
+  if (!tokenResponse.ok || !tokenData.access_token) {
+    throw new HttpError(401, tokenData.error_description || 'Could not complete Auth0 login.')
+  }
+
+  const userInfoResponse = await fetch(`https://${auth0.domain}/userinfo`, {
+    headers: { Authorization: `Bearer ${tokenData.access_token}` },
+  })
+  const userInfo = (await userInfoResponse.json()) as Auth0UserInfo
+
+  if (!userInfoResponse.ok || !userInfo.email) {
+    throw new HttpError(401, 'Auth0 did not return an email address.')
+  }
+
+  if (userInfo.email_verified !== true) {
+    throw new HttpError(403, 'Auth0 email address is not verified.')
+  }
+
+  const email = userInfo.email.toLowerCase()
+  const name = userInfo.name || userInfo.nickname || email.split('@')[0]
+  let user = await authRepository.findUserByEmail(email)
+
+  if (!user) {
+    const passwordHash = await bcrypt.hash(crypto.randomUUID(), 10)
+    user = await authRepository.createUser({ name, email, passwordHash })
+  }
+
+  if (!user.emailVerified) {
+    const verifiedUser = await authRepository.verifyUserEmail(user.id)
+
+    if (verifiedUser) {
+      user = verifiedUser
+    }
+  }
+
+  const tokenPair = await issueTokenPair(user)
+
+  return {
+    returnTo: state.returnTo,
+    message: 'Signed in with Auth0.',
+    accessToken: tokenPair.accessToken,
+    refreshToken: tokenPair.refreshToken,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+    },
+  }
+}
+
 export async function refresh(payload: RefreshTokenPayload) {
   const { refreshToken } = payload
 
@@ -390,4 +541,38 @@ export async function resetPassword(payload: ResetPasswordPayload) {
   await authRepository.revokeAllUserRefreshTokens(user.id)
 
   return { message: 'Password updated. You can sign in now.', email: user.email }
+}
+
+export async function changePassword(payload: ChangePasswordPayload) {
+  const { currentPassword, newPassword, userId } = payload
+
+  if (!currentPassword || !newPassword) {
+    throw new HttpError(400, 'Current password and new password are required.')
+  }
+
+  if (newPassword.length < 8) {
+    throw new HttpError(400, 'Password must be at least 8 characters.')
+  }
+
+  if (currentPassword === newPassword) {
+    throw new HttpError(400, 'New password must be different from current password.')
+  }
+
+  const user = await authRepository.findUserById(userId)
+
+  if (!user || !user.emailVerified) {
+    throw new HttpError(404, 'User not found.')
+  }
+
+  const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash)
+
+  if (!isCurrentPasswordValid) {
+    throw new HttpError(401, 'Current password is incorrect.')
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10)
+  await authRepository.updateUserPassword({ userId: user.id, passwordHash })
+  await authRepository.revokeAllUserRefreshTokens(user.id)
+
+  return { message: 'Password updated. Please sign in again.', email: user.email }
 }

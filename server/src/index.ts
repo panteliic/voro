@@ -5,6 +5,7 @@ import helmet from 'helmet'
 import morgan from 'morgan'
 import { env } from './config/env'
 import { authRoutes } from './api/routes/authRoutes'
+import { customerRoutes } from './api/routes/customerRoutes'
 import { systemRoutes } from './api/routes/systemRoutes'
 
 const app = express()
@@ -17,6 +18,7 @@ app.use(morgan('dev'))
 
 app.use('/', systemRoutes)
 app.use('/auth', authRoutes)
+app.use('/customer', customerRoutes)
 
 server.listen(env.port, () => {
   console.log(`Server radi na http://localhost:${env.port}`)

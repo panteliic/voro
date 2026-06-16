@@ -13,10 +13,12 @@ import {
   setPendingEmail,
   verifyEmail,
 } from '../features/auth/authSlice'
+import { useI18n } from '../i18n/i18n'
 
 function VerifyEmail() {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
+  const { t } = useI18n()
   const { devCode, error, message, pendingEmail, resendStatus, verifyStatus } = useAppSelector(
     (state) => state.auth,
   )
@@ -24,7 +26,7 @@ function VerifyEmail() {
   const [code, setCode] = useState(devCode)
   const isVerifying = verifyStatus === 'loading'
   const isResending = resendStatus === 'loading'
-  const helperText = error || message || 'Enter the six-digit code from your email.'
+  const helperText = error || message || t('auth.verify.helper')
 
   useEffect(() => {
     setEmail(pendingEmail)
@@ -58,29 +60,29 @@ function VerifyEmail() {
 
   return (
     <AuthLayout
-      title="One quick check before your first order."
-      description="The code keeps your account tied to the right inbox and helps protect your orders."
-      panelTitle="Code expires in 10 minutes"
-      panelDescription="You can request a new one if needed."
+      title={t('auth.verify.heroTitle')}
+      description={t('auth.verify.heroDesc')}
+      panelTitle={t('auth.verify.panelTitle')}
+      panelDescription={t('auth.verify.panelDesc')}
     >
-      <AuthHeader title="Verify your email" description={helperText} />
+      <AuthHeader title={t('auth.verify.title')} description={helperText} />
 
       <form className="flex flex-col gap-4" onSubmit={handleVerify}>
         <AuthField
           icon={Mail}
-          label="Email"
+          label={t('common.email')}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="john.doe@example.com"
           type="email"
           value={email}
         />
         <label className="grid gap-2 text-sm font-medium text-content">
-          Verification code
+          {t('auth.verify.code')}
           <AuthOtpInput disabled={isVerifying} onChange={setCode} value={code} />
         </label>
 
         <Button className="w-full cursor-pointer gap-2" disabled={isVerifying} type="submit">
-          {isVerifying ? 'Verifying...' : 'Verify email'}
+          {isVerifying ? t('auth.verify.submitting') : t('auth.verify.submit')}
           <ArrowRight className="size-4" />
         </Button>
       </form>
@@ -93,13 +95,13 @@ function VerifyEmail() {
         variant="outline"
       >
         <RefreshCw className="size-4" />
-        {isResending ? 'Sending...' : 'Resend code'}
+        {isResending ? t('auth.verify.resending') : t('auth.verify.resend')}
       </Button>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        Wrong email?{' '}
+        {t('auth.verify.wrongEmail')}{' '}
         <Link className="font-medium text-action hover:underline" to="/signup">
-          Create account again
+          {t('auth.verify.createAgain')}
         </Link>
       </p>
     </AuthLayout>

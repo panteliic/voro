@@ -13,6 +13,7 @@ export type AuthUser = {
   id: number
   name: string
   email: string
+  phone?: string
 }
 
 export type LoginResponse = {
@@ -52,6 +53,16 @@ export type ResetPasswordRequest = {
 }
 
 export type ResetPasswordResponse = {
+  message: string
+  email: string
+}
+
+export type ChangePasswordRequest = {
+  currentPassword: string
+  newPassword: string
+}
+
+export type ChangePasswordResponse = {
   message: string
   email: string
 }

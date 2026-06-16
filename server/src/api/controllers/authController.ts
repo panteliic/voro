@@ -1,5 +1,7 @@
 import type { Request, Response } from 'express'
+import { env } from '../../config/env'
 import * as authService from '../../services/authService'
+import type { AuthenticatedRequest } from '../middleware/authenticate'
 import { normalizeEmail, normalizePassword, normalizeText } from '../../utils/authInput'
 import { sendError } from '../../utils/sendError'
 
@@ -27,6 +29,40 @@ export async function login(req: Request, res: Response) {
     res.json(result)
   } catch (error) {
     sendError(error, res)
+  }
+}
+
+export function startAuth0Login(req: Request, res: Response) {
+  try {
+    const redirectUrl = authService.getAuth0LoginUrl(normalizeText(req.params.provider))
+
+    res.redirect(redirectUrl)
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function auth0Callback(req: Request, res: Response) {
+  try {
+    const result = await authService.auth0Callback({
+      code: normalizeText(req.query.code),
+      state: normalizeText(req.query.state),
+      error: normalizeText(req.query.error),
+      errorDescription: normalizeText(req.query.error_description),
+    })
+    const params = new URLSearchParams({
+      message: result.message,
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      user: JSON.stringify(result.user),
+    })
+
+    res.redirect(`${result.returnTo}#${params.toString()}`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Could not complete social login.'
+    const params = new URLSearchParams({ error: message })
+
+    res.redirect(`${env.auth0.clientRedirectUrl}?${params.toString()}`)
   }
 }
 
@@ -71,6 +107,20 @@ export async function resetPassword(req: Request, res: Response) {
     const result = await authService.resetPassword({
       resetToken: normalizeText(req.body.resetToken),
       password: normalizePassword(req.body.password),
+    })
+
+    res.json(result)
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function changePassword(req: Request, res: Response) {
+  try {
+    const result = await authService.changePassword({
+      userId: (req as AuthenticatedRequest).auth.userId,
+      currentPassword: normalizePassword(req.body.currentPassword),
+      newPassword: normalizePassword(req.body.newPassword),
     })
 
     res.json(result)

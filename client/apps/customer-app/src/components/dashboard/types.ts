@@ -1,0 +1,26 @@
+import type { ComponentType } from 'react'
+
+export type DashboardView = 'overview' | 'orders' | 'addresses' | 'payments' | 'settings'
+export type ActiveSettingsSection = SettingsSection | null
+export type SettingsSection =
+  | 'account'
+  | 'theme'
+  | 'delivery'
+  | 'payments'
+  | 'notifications'
+  | 'security'
+
+export type DashboardNavItem = {
+  id: DashboardView
+  label: string
+  path: string
+  icon: ComponentType<{ className?: string }>
+}
+
+export type SettingsNavItem = {
+  id: SettingsSection
+  label: string
+  description: string
+  path: string
+  icon: ComponentType<{ className?: string }>
+}

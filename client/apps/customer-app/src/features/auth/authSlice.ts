@@ -2,6 +2,7 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
 import { authApi } from '../../services/authApi'
 import type {
   AuthUser,
+  LoginResponse,
   LoginRequest,
   LogoutRequest,
   RefreshTokenRequest,
@@ -174,6 +175,20 @@ const authSlice = createSlice({
       localStorage.removeItem('voro_access_token')
       localStorage.removeItem('voro_refresh_token')
     },
+    setAuthSession(state, action: { payload: LoginResponse }) {
+      state.user = action.payload.user
+      state.accessToken = action.payload.accessToken
+      state.refreshToken = action.payload.refreshToken
+      state.message = action.payload.message
+      state.error = ''
+      localStorage.setItem('voro_access_token', action.payload.accessToken)
+      localStorage.setItem('voro_refresh_token', action.payload.refreshToken)
+    },
+    updateAuthUser(state, action: { payload: Partial<AuthUser> }) {
+      if (state.user) {
+        state.user = { ...state.user, ...action.payload }
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -329,5 +344,6 @@ const authSlice = createSlice({
   },
 })
 
-export const { clearAuthFeedback, logout, setPendingEmail } = authSlice.actions
+export const { clearAuthFeedback, logout, setAuthSession, setPendingEmail, updateAuthUser } =
+  authSlice.actions
 export const authReducer = authSlice.reducer

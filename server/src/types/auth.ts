@@ -33,6 +33,12 @@ export type ResetPasswordPayload = {
   password: string
 }
 
+export type ChangePasswordPayload = {
+  userId: number
+  currentPassword: string
+  newPassword: string
+}
+
 export type VerifyPasswordResetCodePayload = {
   email: string
   code: string

@@ -1,4 +1,6 @@
 import type {
+  ChangePasswordRequest,
+  ChangePasswordResponse,
   ResendCodeRequest,
   ResendCodeResponse,
   LoginRequest,
@@ -36,6 +38,25 @@ async function request<TResponse>(path: string, body: unknown) {
   return data
 }
 
+async function authenticatedRequest<TResponse>(path: string, body: unknown) {
+  const token = localStorage.getItem('voro_access_token') || ''
+  const response = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  })
+  const data = (await response.json()) as TResponse & { message?: string }
+
+  if (!response.ok) {
+    throw new Error(data.message || 'Request failed.')
+  }
+
+  return data
+}
+
 export const authApi = {
   login(payload: LoginRequest) {
     return request<LoginResponse>('/auth/login', payload)
@@ -55,6 +76,10 @@ export const authApi = {
 
   resetPassword(payload: ResetPasswordRequest) {
     return request<ResetPasswordResponse>('/auth/reset-password', payload)
+  },
+
+  changePassword(payload: ChangePasswordRequest) {
+    return authenticatedRequest<ChangePasswordResponse>('/auth/change-password', payload)
   },
 
   verifyPasswordResetCode(payload: VerifyPasswordResetCodeRequest) {

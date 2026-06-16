@@ -13,10 +13,12 @@ import {
   setPendingEmail,
   verifyPasswordResetCode,
 } from '../features/auth/authSlice'
+import { useI18n } from '../i18n/i18n'
 
 function ForgotPassword() {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
+  const { t } = useI18n()
   const {
     devCode,
     error,
@@ -62,7 +64,7 @@ function ForgotPassword() {
     setLocalError('')
 
     if (!email || !code) {
-      setLocalError('Enter the code sent to your email.')
+      setLocalError(t('auth.forgot.enterCode'))
       return
     }
 
@@ -79,12 +81,12 @@ function ForgotPassword() {
     setLocalError('')
 
     if (password !== confirmPassword) {
-      setLocalError('Passwords do not match.')
+      setLocalError(t('auth.signup.passwordMismatch'))
       return
     }
 
     if (!resetToken) {
-      setLocalError('Verify the code before setting a new password.')
+      setLocalError(t('auth.forgot.verifyFirst'))
       setStep('code')
       return
     }
@@ -98,21 +100,21 @@ function ForgotPassword() {
 
   return (
     <AuthLayout
-      title="Reset your password without leaving the flow."
-      description="We send a short code to your email, then you choose a new password."
-      panelTitle="Password recovery"
-      panelDescription="Codes expire after 10 minutes."
+      title={t('auth.forgot.heroTitle')}
+      description={t('auth.forgot.heroDesc')}
+      panelTitle={t('auth.forgot.panelTitle')}
+      panelDescription={t('auth.forgot.panelDesc')}
     >
       <AuthHeader
-        title="Forgot password"
-        description={error || message || 'Enter your email to receive a reset code.'}
+        title={t('auth.forgot.title')}
+        description={error || message || t('auth.forgot.desc')}
       />
 
       {step === 'email' ? (
         <form className="flex flex-col gap-4" onSubmit={handleRequestCode}>
           <AuthField
             icon={Mail}
-            label="Email"
+            label={t('common.email')}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="john.doe@example.com"
             type="email"
@@ -120,20 +122,20 @@ function ForgotPassword() {
           />
 
           <Button className="w-full cursor-pointer gap-2" disabled={isSending} type="submit">
-            {isSending ? 'Sending code...' : 'Send reset code'}
+            {isSending ? t('auth.forgot.sendingCode') : t('auth.forgot.sendCode')}
             <ArrowRight className="size-4" />
           </Button>
         </form>
       ) : step === 'code' ? (
         <form className="flex flex-col gap-4" onSubmit={handleVerifyCode}>
           <div className="rounded-voro-lg border border-line bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-            Code sent to <span className="font-medium text-content">{email}</span>
+            {t('auth.forgot.codeSentTo')} <span className="font-medium text-content">{email}</span>
           </div>
           <AuthField
             className="tracking-[0.35em]"
             icon={ShieldCheck}
             inputMode="numeric"
-            label="Reset code"
+            label={t('auth.forgot.resetCode')}
             maxLength={6}
             onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))}
             placeholder="000000"
@@ -144,7 +146,7 @@ function ForgotPassword() {
           {localError ? <p className="text-sm font-medium text-destructive">{localError}</p> : null}
 
           <Button className="w-full cursor-pointer gap-2" disabled={isVerifying} type="submit">
-            {isVerifying ? 'Verifying...' : 'Verify code'}
+            {isVerifying ? t('auth.forgot.verifying') : t('auth.forgot.verifyCode')}
             <ArrowRight className="size-4" />
           </Button>
 
@@ -154,27 +156,27 @@ function ForgotPassword() {
             type="button"
             variant="outline"
           >
-            Use another email
+            {t('auth.forgot.useAnotherEmail')}
           </Button>
         </form>
       ) : (
         <form className="flex flex-col gap-4" onSubmit={handleResetPassword}>
           <div className="rounded-voro-lg border border-line bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-            Verified for <span className="font-medium text-content">{email}</span>
+            {t('auth.forgot.verifiedFor')} <span className="font-medium text-content">{email}</span>
           </div>
           <AuthField
             icon={KeyRound}
-            label="New password"
+            label={t('auth.forgot.newPassword')}
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="At least 8 characters"
+            placeholder={t('auth.signup.passwordPlaceholder')}
             type="password"
             value={password}
           />
           <AuthField
             icon={KeyRound}
-            label="Confirm password"
+            label={t('auth.forgot.confirmPassword')}
             onChange={(event) => setConfirmPassword(event.target.value)}
-            placeholder="Repeat new password"
+            placeholder={t('auth.forgot.repeatNewPassword')}
             type="password"
             value={confirmPassword}
           />
@@ -182,7 +184,7 @@ function ForgotPassword() {
           {localError ? <p className="text-sm font-medium text-destructive">{localError}</p> : null}
 
           <Button className="w-full cursor-pointer gap-2" disabled={isResetting} type="submit">
-            {isResetting ? 'Updating password...' : 'Update password'}
+            {isResetting ? t('auth.forgot.updatingPassword') : t('auth.forgot.updatePassword')}
             <ArrowRight className="size-4" />
           </Button>
 
@@ -195,15 +197,15 @@ function ForgotPassword() {
             type="button"
             variant="outline"
           >
-            Back to code
+            {t('auth.forgot.backToCode')}
           </Button>
         </form>
       )}
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        Remembered it?{' '}
+        {t('auth.forgot.remembered')}{' '}
         <Link className="font-medium text-action hover:underline" to="/login">
-          Sign in
+          {t('auth.signup.signin')}
         </Link>
       </p>
     </AuthLayout>

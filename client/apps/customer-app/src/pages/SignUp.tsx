@@ -3,14 +3,18 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@voro/ui'
 import { ArrowRight, KeyRound, Mail, ShieldCheck, UserRound } from 'lucide-react'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
+import { AuthDivider } from '../components/auth/AuthDivider'
 import { AuthField } from '../components/auth/AuthField'
 import { AuthHeader } from '../components/auth/AuthHeader'
 import { AuthLayout } from '../components/auth/AuthLayout'
+import { SocialButtons } from '../components/auth/SocialButtons'
 import { clearAuthFeedback, signupUser } from '../features/auth/authSlice'
+import { useI18n } from '../i18n/i18n'
 
 function SignUp() {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
+  const { t } = useI18n()
   const { signupStatus, error } = useAppSelector((state) => state.auth)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -28,7 +32,7 @@ function SignUp() {
     setLocalError('')
 
     if (password !== confirmPassword) {
-      setLocalError('Passwords do not match.')
+      setLocalError(t('auth.signup.passwordMismatch'))
       return
     }
 
@@ -41,20 +45,20 @@ function SignUp() {
 
   return (
     <AuthLayout
-      title="Start ordering with a cleaner delivery flow."
-      description="Create your Voro account, verify your email, and keep every order in one simple place."
-      panelTitle="Email verification"
-      panelDescription="A six-digit code protects every new account."
+      title={t('auth.signup.heroTitle')}
+      description={t('auth.signup.heroDesc')}
+      panelTitle={t('auth.signup.panelTitle')}
+      panelDescription={t('auth.signup.panelDesc')}
     >
       <AuthHeader
-        title="Create account"
-        description="We will send a verification code to your email."
+        title={t('auth.signup.title')}
+        description={t('auth.signup.desc')}
       />
 
       <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
         <AuthField
           icon={UserRound}
-          label="Full name"
+          label={t('auth.signup.fullName')}
           onChange={(event) => setName(event.target.value)}
           placeholder="John Doe"
           type="text"
@@ -62,7 +66,7 @@ function SignUp() {
         />
         <AuthField
           icon={Mail}
-          label="Email"
+          label={t('common.email')}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="john.doe@example.com"
           type="email"
@@ -70,17 +74,17 @@ function SignUp() {
         />
         <AuthField
           icon={KeyRound}
-          label="Password"
+          label={t('common.password')}
           onChange={(event) => setPassword(event.target.value)}
-          placeholder="At least 8 characters"
+          placeholder={t('auth.signup.passwordPlaceholder')}
           type="password"
           value={password}
         />
         <AuthField
           icon={ShieldCheck}
-          label="Confirm password"
+          label={t('auth.signup.confirmPassword')}
           onChange={(event) => setConfirmPassword(event.target.value)}
-          placeholder="Repeat your password"
+          placeholder={t('auth.signup.confirmPlaceholder')}
           type="password"
           value={confirmPassword}
         />
@@ -90,15 +94,18 @@ function SignUp() {
         ) : null}
 
         <Button className="w-full cursor-pointer gap-2" disabled={isLoading} type="submit">
-          {isLoading ? 'Sending code...' : 'Create account'}
+          {isLoading ? t('auth.signup.submitting') : t('auth.signup.submit')}
           <ArrowRight className="size-4" />
         </Button>
       </form>
 
+      <AuthDivider />
+      <SocialButtons action="signup" />
+
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        Already have an account?{' '}
+        {t('auth.signup.hasAccount')}{' '}
         <Link className="font-medium text-action hover:underline" to="/login">
-          Sign in
+          {t('auth.signup.signin')}
         </Link>
       </p>
     </AuthLayout>
