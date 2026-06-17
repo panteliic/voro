@@ -1,13 +1,25 @@
 import { useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
-import { Button } from '@voro/ui'
-import { Menu } from 'lucide-react'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import {
+  Avatar,
+  AvatarFallback,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@voro/ui'
+import { LogOut, Settings, UserRound } from 'lucide-react'
 import { DashboardHeader } from '../components/dashboard/DashboardHeader'
 import { DashboardSidebar } from '../components/dashboard/DashboardSidebar'
 import {
   getDashboardView,
   getSettingsSection,
+  getInitials,
 } from '../components/dashboard/utils/dashboardUtils'
+import { dashboardNavItems } from '../components/dashboard/data/dashboardData'
 import { OverviewPanel } from '../components/dashboard/OverviewPanel'
 import { PlaceholderPanel } from '../components/dashboard/PlaceholderPanel'
 import { SettingsPanel } from '../components/dashboard/settings/SettingsPanel'
@@ -32,17 +44,14 @@ function Home() {
   const { t } = useI18n()
   const { logoutStatus, refreshToken, user } = useAppSelector((state) => state.auth)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const activeView = getDashboardView(location.pathname)
   const activeSettingsSection = getSettingsSection(location.pathname)
   const [profile, setProfile] = useState<CustomerProfile | null>(null)
   const [profileError, setProfileError] = useState('')
   const name = user?.name || 'korisnice'
+  const displayName = profile?.user.name || user?.name || name
+  const displayEmail = profile?.user.email || user?.email || ''
   const isLoggingOut = logoutStatus === 'loading'
-
-  useEffect(() => {
-    setIsMobileSidebarOpen(false)
-  }, [location.pathname])
 
   useEffect(() => {
     let isMounted = true
@@ -78,48 +87,74 @@ function Home() {
 
   return (
     <main className="h-screen overflow-hidden bg-background text-content">
-      {isMobileSidebarOpen ? (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button
-            aria-label={t('sidebar.close')}
-            className="absolute inset-0 cursor-pointer bg-background/70 backdrop-blur-sm"
-            onClick={() => setIsMobileSidebarOpen(false)}
-            type="button"
-          />
-          <DashboardSidebar
-            activeSettingsSection={activeSettingsSection}
-            activeView={activeView}
-            className="relative w-[17rem] shadow-voro-lg"
-            isCollapsed={false}
-            isLoggingOut={isLoggingOut}
-            name={name}
-            onLogout={handleLogout}
-            onNavigate={() => setIsMobileSidebarOpen(false)}
-            onToggleCollapsed={() => setIsMobileSidebarOpen(false)}
-            userName={user?.name}
-          />
-        </div>
-      ) : null}
-
       <div
         className={`grid h-full grid-rows-[auto_1fr] transition-[grid-template-columns] duration-200 lg:grid-rows-1 ${
           isSidebarCollapsed ? 'lg:grid-cols-[6rem_1fr]' : 'lg:grid-cols-[17rem_1fr]'
         }`}
       >
-        <header className="flex h-16 items-center justify-between border-b border-line bg-card px-4 lg:hidden">
-          <div className="flex items-center gap-3">
+        <header className="flex h-16 items-center justify-between border-b border-line bg-card px-4 sm:px-6 lg:hidden">
+          <div className="flex min-w-0 items-center gap-3">
             <img src="/logo.svg" alt="Voro" className="h-9 w-9 shrink-0 object-contain" />
-            <span className="text-sm font-bold text-content">{t('sidebar.appName')}</span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-content">{t('sidebar.appName')}</p>
+              <p className="hidden truncate text-xs text-muted-foreground min-[380px]:block">
+                {t('sidebar.workspace')}
+              </p>
+            </div>
           </div>
-          <Button
-            aria-label={t('sidebar.open')}
-            onClick={() => setIsMobileSidebarOpen(true)}
-            size="icon"
-            type="button"
-            variant="outline"
-          >
-            <Menu className="size-5" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                aria-label={t('sidebar.account')}
+                className="ml-3 rounded-full p-0"
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                <Avatar>
+                  <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>
+                <span className="block truncate text-sm font-bold text-content">
+                  {displayName}
+                </span>
+                {displayEmail ? (
+                  <span className="mt-1 block truncate text-xs font-medium text-muted-foreground">
+                    {displayEmail}
+                  </span>
+                ) : null}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <NavLink className="cursor-pointer gap-2" to="/settings">
+                  <Settings className="size-4" />
+                  {t('nav.settings')}
+                </NavLink>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <NavLink className="cursor-pointer gap-2" to="/settings/account">
+                  <UserRound className="size-4" />
+                  {t('sidebar.account')}
+                </NavLink>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="cursor-pointer gap-2"
+                disabled={isLoggingOut}
+                onSelect={(event) => {
+                  event.preventDefault()
+                  void handleLogout()
+                }}
+                variant="destructive"
+              >
+                <LogOut className="size-4" />
+                {isLoggingOut ? t('common.loggingOut') : t('common.logout')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </header>
 
         <DashboardSidebar
@@ -134,7 +169,7 @@ function Home() {
           userName={user?.name}
         />
 
-        <section className="min-h-0 min-w-0 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+        <section className="min-h-0 min-w-0 overflow-y-auto px-4 pb-24 pt-5 sm:px-6 lg:px-8 lg:py-5">
           {activeView === 'settings' ? (
             <div className="hidden lg:block">
               <DashboardHeader title={t(dashboardTitleKeys[activeView])} />
@@ -183,6 +218,31 @@ function Home() {
           ) : null}
         </section>
       </div>
+
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-card px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-12px_24px_rgba(0,0,0,0.08)] lg:hidden">
+        <div className="grid grid-cols-4 gap-1">
+          {dashboardNavItems.map(({ icon: Icon, id, path }) => {
+            const isActive = activeView === id
+            const label = t(`nav.${id}`)
+
+            return (
+              <NavLink
+                aria-label={label}
+                className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-voro-lg px-1 text-[0.7rem] font-bold leading-none transition ${
+                  isActive
+                    ? 'bg-accent text-content'
+                    : 'text-muted-foreground hover:bg-muted hover:text-content'
+                }`}
+                key={id}
+                to={path}
+              >
+                <Icon className="size-5 shrink-0" />
+                <span className="max-w-full truncate">{label}</span>
+              </NavLink>
+            )
+          })}
+        </div>
+      </nav>
     </main>
   )
 }

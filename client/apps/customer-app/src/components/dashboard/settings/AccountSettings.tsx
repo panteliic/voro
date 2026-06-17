@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { useState, type Dispatch, type SetStateAction } from 'react'
 import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@voro/ui'
 import { UserRound } from 'lucide-react'
 import { useAppDispatch } from '../../../app/hooks'
@@ -21,11 +21,6 @@ export function AccountSettings({ profile, setProfile }: AccountSettingsProps) {
   const [phone, setPhone] = useState(profile.user.phone)
   const [status, setStatus] = useState('')
   const [isSaving, setIsSaving] = useState(false)
-
-  useEffect(() => {
-    setName(profile.user.name)
-    setPhone(profile.user.phone)
-  }, [profile.user.name, profile.user.phone])
 
   async function handleSave() {
     setIsSaving(true)
