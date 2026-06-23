@@ -6,6 +6,8 @@ type UserRow = {
   name: string;
   email: string;
   password: string;
+  role_id: string;
+  role_name: "customer" | "restaurant" | "courier" | "admin";
   email_verified: boolean;
   verified_at: Date | null;
   created_at: Date;
@@ -18,6 +20,8 @@ function toUser(row: UserRow): User {
     name: row.name,
     email: row.email,
     passwordHash: row.password,
+    roleId: Number(row.role_id),
+    roleName: row.role_name,
     emailVerified: row.email_verified,
     verifiedAt: row.verified_at,
     createdAt: row.created_at,
@@ -27,7 +31,12 @@ function toUser(row: UserRow): User {
 
 export async function findUserByEmail(email: string) {
   const result = await pool.query<UserRow>(
-    'SELECT * FROM "user" WHERE LOWER(email) = LOWER($1)',
+    `
+      SELECT u.*, r.name AS role_name
+      FROM "user" u
+      INNER JOIN role r ON r.id = u.role_id
+      WHERE LOWER(u.email) = LOWER($1)
+    `,
     [email],
   );
 
@@ -36,7 +45,12 @@ export async function findUserByEmail(email: string) {
 
 export async function findUserById(userId: number) {
   const result = await pool.query<UserRow>(
-    'SELECT * FROM "user" WHERE id = $1',
+    `
+      SELECT u.*, r.name AS role_name
+      FROM "user" u
+      INNER JOIN role r ON r.id = u.role_id
+      WHERE u.id = $1
+    `,
     [userId],
   );
 
@@ -47,17 +61,52 @@ export async function createUser(payload: {
   name: string;
   email: string;
   passwordHash: string;
+  roleId?: number;
 }) {
   const result = await pool.query<UserRow>(
     `
-      INSERT INTO "user" (name, email, password)
-      VALUES ($1, $2, $3)
-      RETURNING *
+      INSERT INTO "user" (name, email, password, role_id)
+      VALUES ($1, $2, $3, COALESCE($4, 1))
+      RETURNING *,
+        (SELECT name FROM role WHERE id = "user".role_id) AS role_name
     `,
-    [payload.name, payload.email, payload.passwordHash],
+    [payload.name, payload.email, payload.passwordHash, payload.roleId ?? null],
   );
 
   return toUser(result.rows[0]);
+}
+
+export async function createVerifiedUser(payload: {
+  name: string;
+  email: string;
+  passwordHash: string;
+  roleId: number;
+}) {
+  const result = await pool.query<UserRow>(
+    `
+      INSERT INTO "user" (name, email, password, role_id, email_verified, verified_at)
+      VALUES ($1, $2, $3, $4, TRUE, NOW())
+      RETURNING *,
+        (SELECT name FROM role WHERE id = "user".role_id) AS role_name
+    `,
+    [payload.name, payload.email, payload.passwordHash, payload.roleId],
+  );
+
+  return toUser(result.rows[0]);
+}
+
+export async function countUsersByRole(roleName: string) {
+  const result = await pool.query<{ count: string }>(
+    `
+      SELECT COUNT(*) AS count
+      FROM "user" u
+      INNER JOIN role r ON r.id = u.role_id
+      WHERE r.name = $1
+    `,
+    [roleName],
+  );
+
+  return Number(result.rows[0]?.count ?? 0);
 }
 
 export async function updateUnverifiedUser(payload: {
@@ -70,7 +119,8 @@ export async function updateUnverifiedUser(payload: {
       UPDATE "user"
       SET name = $2, password = $3, updated_at = NOW()
       WHERE id = $1 AND email_verified = FALSE
-      RETURNING *
+      RETURNING *,
+        (SELECT name FROM role WHERE id = "user".role_id) AS role_name
     `,
     [payload.userId, payload.name, payload.passwordHash],
   );
@@ -143,7 +193,8 @@ export async function verifyUserEmail(userId: number) {
       UPDATE "user"
       SET email_verified = TRUE, verified_at = NOW(), updated_at = NOW()
       WHERE id = $1
-      RETURNING *
+      RETURNING *,
+        (SELECT name FROM role WHERE id = "user".role_id) AS role_name
     `,
     [userId],
   );
@@ -160,7 +211,8 @@ export async function updateUserPassword(payload: {
       UPDATE "user"
       SET password = $2, updated_at = NOW()
       WHERE id = $1
-      RETURNING *
+      RETURNING *,
+        (SELECT name FROM role WHERE id = "user".role_id) AS role_name
     `,
     [payload.userId, payload.passwordHash],
   );

@@ -24,6 +24,7 @@ function devCode(code: string) {
 type RefreshTokenClaims = {
   userId: number
   email: string
+  role?: string
   type: 'refresh'
 }
 
@@ -65,13 +66,27 @@ function isAuth0Provider(provider: string): provider is Auth0Provider {
   return provider === 'google' || provider === 'facebook'
 }
 
-function signAccessToken(payload: { userId: number; email: string }) {
+function publicUser(user: {
+  id: number
+  name: string
+  email: string
+  roleName: string
+}) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.roleName,
+  }
+}
+
+function signAccessToken(payload: { userId: number; email: string; role: string }) {
   return jwt.sign({ ...payload, type: 'access' }, env.jwtSecret, {
     expiresIn: env.accessTokenTtl as SignOptions['expiresIn'],
   })
 }
 
-function signRefreshToken(payload: { userId: number; email: string }) {
+function signRefreshToken(payload: { userId: number; email: string; role: string }) {
   return jwt.sign({ ...payload, type: 'refresh' }, env.jwtSecret, {
     expiresIn: Math.floor(env.refreshTokenTtlMs / 1000),
     jwtid: crypto.randomUUID(),
@@ -92,9 +107,17 @@ function signAuth0State(payload: { provider: Auth0Provider; returnTo: string }) 
   })
 }
 
-async function issueTokenPair(user: { id: number; email: string }) {
-  const accessToken = signAccessToken({ userId: user.id, email: user.email })
-  const refreshToken = signRefreshToken({ userId: user.id, email: user.email })
+async function issueTokenPair(user: { id: number; email: string; roleName: string }) {
+  const accessToken = signAccessToken({
+    userId: user.id,
+    email: user.email,
+    role: user.roleName,
+  })
+  const refreshToken = signRefreshToken({
+    userId: user.id,
+    email: user.email,
+    role: user.roleName,
+  })
   const refreshTokenHash = await bcrypt.hash(refreshToken, 10)
 
   const refreshTokenId = await authRepository.saveRefreshToken({
@@ -294,11 +317,7 @@ export async function login(payload: LoginPayload) {
     message: 'Signed in.',
     accessToken: tokenPair.accessToken,
     refreshToken: tokenPair.refreshToken,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-    },
+    user: publicUser(user),
   }
 }
 
@@ -391,11 +410,7 @@ export async function auth0Callback(payload: {
     message: 'Signed in with Auth0.',
     accessToken: tokenPair.accessToken,
     refreshToken: tokenPair.refreshToken,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-    },
+    user: publicUser(user),
   }
 }
 
@@ -434,11 +449,7 @@ export async function refresh(payload: RefreshTokenPayload) {
     message: 'Token refreshed.',
     accessToken: tokenPair.accessToken,
     refreshToken: tokenPair.refreshToken,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-    },
+    user: publicUser(user),
   }
 }
 

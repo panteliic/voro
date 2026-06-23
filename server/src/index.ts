@@ -7,6 +7,8 @@ import { env } from './config/env'
 import { authRoutes } from './api/routes/authRoutes'
 import { customerRoutes } from './api/routes/customerRoutes'
 import { systemRoutes } from './api/routes/systemRoutes'
+import { adminRoutes } from './api/routes/adminRoutes'
+import { restaurantRoutes } from './api/routes/restaurantRoutes'
 
 const app = express()
 const server = http.createServer(app)
@@ -18,7 +20,9 @@ app.use(morgan('dev'))
 
 app.use('/', systemRoutes)
 app.use('/auth', authRoutes)
+app.use('/admin', adminRoutes)
 app.use('/customer', customerRoutes)
+app.use('/restaurant', restaurantRoutes)
 
 server.listen(env.port, () => {
   console.log(`Server radi na http://localhost:${env.port}`)

@@ -7,6 +7,7 @@ import { sendError } from '../../utils/sendError'
 type AccessTokenClaims = {
   userId: number
   email: string
+  role?: string
   type: 'access'
 }
 
@@ -14,6 +15,7 @@ export type AuthenticatedRequest = Request & {
   auth: {
     userId: number
     email: string
+    role: string
   }
 }
 
@@ -35,9 +37,26 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
     ;(req as AuthenticatedRequest).auth = {
       userId: decoded.userId,
       email: decoded.email,
+      role: decoded.role || 'customer',
     }
     next()
   } catch (error) {
     sendError(error, res)
+  }
+}
+
+export function requireRole(...roles: string[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const role = (req as AuthenticatedRequest).auth?.role
+
+      if (!role || !roles.includes(role)) {
+        throw new HttpError(403, 'You do not have access to this resource.')
+      }
+
+      next()
+    } catch (error) {
+      sendError(error, res)
+    }
   }
 }

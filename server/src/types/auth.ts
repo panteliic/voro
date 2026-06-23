@@ -3,6 +3,8 @@ export type User = {
   name: string
   email: string
   passwordHash: string
+  roleId: number
+  roleName: 'customer' | 'restaurant' | 'courier' | 'admin'
   emailVerified: boolean
   verifiedAt: Date | null
   createdAt: Date

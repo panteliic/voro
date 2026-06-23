@@ -199,10 +199,10 @@ export function DeliverySettings({
       icon={Truck}
       title={t('settings.delivery.label')}
     >
-      <div className="grid gap-4">
-        <div className="rounded-voro-lg border border-line bg-background p-4">
+      <div className="grid min-w-0 gap-4">
+        <div className="min-w-0 rounded-voro-lg border border-line bg-background p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-bold text-content">{t('delivery.savedLocations')}</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {t('delivery.savedLocationsDesc')}
@@ -228,7 +228,7 @@ export function DeliverySettings({
             ) : null}
             {addresses.map((address) => (
               <button
-                className={`cursor-pointer rounded-voro-md border px-3 py-3 text-left transition ${
+                className={`w-full min-w-0 cursor-pointer rounded-voro-md border px-3 py-3 text-left transition ${
                   editingAddressId === address.id
                     ? 'border-action bg-accent'
                     : 'border-line bg-card hover:border-action/50'
@@ -238,16 +238,16 @@ export function DeliverySettings({
                 type="button"
               >
                 <span className="flex items-center justify-between gap-3">
-                  <span className="font-bold text-content">
+                  <span className="min-w-0 truncate font-bold text-content">
                     {address.label || t('delivery.address')}
                   </span>
                   {address.isDefault ? (
-                    <span className="rounded-voro-md bg-action/15 px-2 py-1 text-xs font-bold text-action">
+                    <span className="shrink-0 rounded-voro-md bg-action/15 px-2 py-1 text-xs font-bold text-action">
                       {t('common.default')}
                     </span>
                   ) : null}
                 </span>
-                <span className="mt-1 block text-sm text-muted-foreground">
+                <span className="mt-1 block break-words text-sm text-muted-foreground">
                   {[address.street, address.apartment, address.postalCode, address.city]
                     .filter(Boolean)
                     .join(', ')}
@@ -257,9 +257,9 @@ export function DeliverySettings({
           </div>
         </div>
 
-        <div className="grid gap-4 rounded-voro-lg border border-line bg-background p-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="grid gap-2 text-sm font-bold text-content">
+        <div className="grid min-w-0 gap-4 rounded-voro-lg border border-line bg-background p-4">
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+            <label className="grid min-w-0 gap-2 text-sm font-bold text-content">
               {t('delivery.placeName')}
               <Input
                 value={addressForm.label}
@@ -267,7 +267,7 @@ export function DeliverySettings({
                 placeholder={t('delivery.placePlaceholder')}
               />
             </label>
-            <label className="grid gap-2 text-sm font-bold text-content">
+            <label className="grid min-w-0 gap-2 text-sm font-bold text-content">
               {t('delivery.apartment')}
               <Input
                 value={addressForm.apartment}
@@ -277,7 +277,7 @@ export function DeliverySettings({
             </label>
           </div>
 
-          <div className="relative grid gap-2 text-sm font-bold text-content">
+          <div className="relative grid min-w-0 gap-2 text-sm font-bold text-content">
             <label htmlFor="street-search">{t('delivery.street')}</label>
             <Input
               id="street-search"
@@ -313,8 +313,8 @@ export function DeliverySettings({
             ) : null}
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            <label className="grid gap-2 text-sm font-bold text-content">
+          <div className="grid min-w-0 gap-3 sm:grid-cols-3">
+            <label className="grid min-w-0 gap-2 text-sm font-bold text-content">
               {t('delivery.city')}
               <Input
                 value={addressForm.city}
@@ -322,7 +322,7 @@ export function DeliverySettings({
                 placeholder={t('delivery.filledFromLocation')}
               />
             </label>
-            <label className="grid gap-2 text-sm font-bold text-content">
+            <label className="grid min-w-0 gap-2 text-sm font-bold text-content">
               {t('delivery.postalCode')}
               <Input
                 value={addressForm.postalCode}
@@ -330,7 +330,7 @@ export function DeliverySettings({
                 placeholder={t('delivery.filledFromLocation')}
               />
             </label>
-            <label className="grid gap-2 text-sm font-bold text-content">
+            <label className="grid min-w-0 gap-2 text-sm font-bold text-content">
               {t('delivery.country')}
               <Input
                 value={addressForm.country}
@@ -340,9 +340,10 @@ export function DeliverySettings({
             </label>
           </div>
 
-          <label className="grid gap-2 text-sm font-bold text-content">
+          <label className="grid min-w-0 gap-2 text-sm font-bold text-content">
             {t('delivery.instructions')}
             <Textarea
+              className="min-w-0"
               value={addressForm.deliveryInstructions}
               onChange={(event) => updateAddressField('deliveryInstructions', event.target.value)}
               placeholder={t('delivery.instructionsPlaceholder')}
@@ -350,8 +351,8 @@ export function DeliverySettings({
           </label>
 
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">{status}</p>
-            <div className="flex gap-2">
+            <p className="min-w-0 break-words text-sm text-muted-foreground">{status}</p>
+            <div className="flex flex-wrap gap-2">
               {editingAddressId ? (
                 <Button
                   onClick={() => void handleSetDefault(editingAddressId)}
@@ -368,7 +369,7 @@ export function DeliverySettings({
           </div>
         </div>
 
-        <div className="rounded-voro-lg border border-line bg-background p-4">
+        <div className="min-w-0 rounded-voro-lg border border-line bg-background p-4">
           <div className="flex items-center gap-2">
             <MapPin className="size-4 text-action" />
             <p className="text-sm font-bold text-content">{t('delivery.mapPreview')}</p>
@@ -387,9 +388,9 @@ export function DeliverySettings({
         </div>
       </div>
 
-      <div className="grid gap-4 rounded-voro-lg border border-line bg-background p-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-2 text-sm font-bold text-content">
+      <div className="grid min-w-0 gap-4 rounded-voro-lg border border-line bg-background p-4">
+        <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+          <label className="grid min-w-0 gap-2 text-sm font-bold text-content">
             {t('delivery.handoff')}
             <Select
               value={preferences.deliveryHandoff}
@@ -407,7 +408,7 @@ export function DeliverySettings({
               </SelectContent>
             </Select>
           </label>
-          <label className="grid gap-2 text-sm font-bold text-content">
+          <label className="grid min-w-0 gap-2 text-sm font-bold text-content">
             {t('delivery.window')}
             <Select
               value={preferences.preferredDeliveryWindow}
@@ -426,17 +427,18 @@ export function DeliverySettings({
             </Select>
           </label>
         </div>
-        <label className="grid gap-2 text-sm font-bold text-content">
+        <label className="grid min-w-0 gap-2 text-sm font-bold text-content">
           {t('delivery.defaultNotes')}
           <Textarea
+            className="min-w-0"
             value={preferences.courierNotes}
             onChange={(event) =>
               void updatePreferences({ ...preferences, courierNotes: event.target.value })
             }
           />
         </label>
-        <div className="flex items-center justify-between gap-4 rounded-voro-lg border border-line bg-card px-4 py-3">
-          <div>
+        <div className="flex min-w-0 items-center justify-between gap-4 rounded-voro-lg border border-line bg-card px-4 py-3">
+          <div className="min-w-0">
             <p className="text-sm font-bold text-content">{t('delivery.substitutions')}</p>
             <p className="mt-1 text-sm text-muted-foreground">
               {t('delivery.substitutionsDesc')}

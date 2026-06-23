@@ -13,7 +13,7 @@ services:
       DB_PASSWORD: admin
       JWT_SECRET: voro_secret_key
       PAYMENT_CARD_ENCRYPTION_KEY: ${PAYMENT_CARD_ENCRYPTION_KEY:-voro_secret_key}
-      CLIENT_URLS: http://localhost:5173,http://localhost:5174,http://localhost:5175
+      CLIENT_URLS: http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176
       SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_SECURE: ${SMTP_SECURE:-false}
@@ -64,6 +64,19 @@ services:
       VITE_API_URL: http://localhost:5000
     ports:
       - "5175:5175"
+    depends_on:
+      backend:
+        condition: service_started
+
+  admin-app:
+    build:
+      context: ./client
+    container_name: voro-admin-app
+    command: npm run dev --workspace=admin-app
+    environment:
+      VITE_API_URL: http://localhost:5000
+    ports:
+      - "5176:5176"
     depends_on:
       backend:
         condition: service_started
