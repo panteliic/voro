@@ -57,7 +57,7 @@ Restaurant  Driver  PostgreSQL
 - TypeScript
 - Vite
 - Redux Toolkit
-- Material UI
+- Shadcn UI
 - React Router
 
 ### Backend
@@ -72,6 +72,7 @@ Restaurant  Driver  PostgreSQL
 ### Database
 
 - PostgreSQL
+- Redis
 
 ### DevOps
 
