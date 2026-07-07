@@ -2,6 +2,7 @@ import { pool } from '../database/pool'
 import type { PoolClient } from 'pg'
 import type {
   CreateRestaurantPayload,
+  RestaurantCategory,
   UpsertProductCategoryPayload,
   UpsertProductPayload,
 } from '../types/restaurant'
@@ -11,6 +12,7 @@ type RestaurantRow = {
   owner_user_id: string
   category_id: string | null
   category_name: string | null
+  categories: RestaurantCategory[] | null
   name: string
   description: string | null
   phone: string | null
@@ -19,6 +21,14 @@ type RestaurantRow = {
   is_active: boolean
   created_at: Date
   updated_at: Date
+}
+
+type RestaurantCategoryRow = {
+  id: string
+  name: string
+  slug: string | null
+  icon: string | null
+  sort_order: number
 }
 
 type ProductCategoryRow = {
@@ -45,11 +55,14 @@ type ProductRow = {
 }
 
 function toRestaurant(row: RestaurantRow) {
+  const categories = Array.isArray(row.categories) ? row.categories : []
+
   return {
     id: Number(row.id),
     ownerUserId: Number(row.owner_user_id),
-    categoryId: row.category_id ? Number(row.category_id) : null,
-    categoryName: row.category_name || '',
+    categoryId: categories[0]?.id ?? (row.category_id ? Number(row.category_id) : null),
+    categoryName: categories.map((category) => category.name).join(', ') || row.category_name || '',
+    categories,
     name: row.name,
     description: row.description || '',
     phone: row.phone || '',
@@ -58,6 +71,16 @@ function toRestaurant(row: RestaurantRow) {
     isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  }
+}
+
+function toRestaurantCategory(row: RestaurantCategoryRow): RestaurantCategory {
+  return {
+    id: Number(row.id),
+    name: row.name,
+    slug: row.slug || '',
+    icon: row.icon || '',
+    sortOrder: row.sort_order,
   }
 }
 
@@ -103,6 +126,68 @@ async function getOrCreateRestaurantCategory(client: PoolClient, categoryName: s
   return Number(result.rows[0].id)
 }
 
+async function resolveRestaurantCategoryIds(client: PoolClient, payload: CreateRestaurantPayload) {
+  const requestedCategoryIds = Array.isArray(payload.categoryIds) ? payload.categoryIds : []
+
+  if (requestedCategoryIds.length > 0) {
+    const result = await client.query<{ id: string }>(
+      `
+        SELECT id
+        FROM restaurant_category
+        WHERE id = ANY($1::BIGINT[])
+        ORDER BY sort_order ASC, name ASC
+      `,
+      [requestedCategoryIds],
+    )
+
+    return result.rows.map((row) => Number(row.id))
+  }
+
+  return [await getOrCreateRestaurantCategory(client, payload.categoryName)]
+}
+
+async function replaceRestaurantCategories(
+  client: PoolClient,
+  restaurantId: number,
+  categoryIds: number[],
+) {
+  await client.query('DELETE FROM restaurant_category_map WHERE restaurant_id = $1', [restaurantId])
+
+  if (categoryIds.length === 0) {
+    return
+  }
+
+  await client.query(
+    `
+      INSERT INTO restaurant_category_map (restaurant_id, category_id)
+      SELECT $1, UNNEST($2::BIGINT[])
+      ON CONFLICT DO NOTHING
+    `,
+    [restaurantId, categoryIds],
+  )
+}
+
+const restaurantSelect = `
+  SELECT r.*, rc.name AS category_name,
+    COALESCE(
+      JSON_AGG(
+        JSON_BUILD_OBJECT(
+          'id', mapped_category.id,
+          'name', mapped_category.name,
+          'slug', mapped_category.slug,
+          'icon', mapped_category.icon,
+          'sortOrder', mapped_category.sort_order
+        )
+        ORDER BY mapped_category.sort_order ASC, mapped_category.name ASC
+      ) FILTER (WHERE mapped_category.id IS NOT NULL),
+      '[]'::JSON
+    ) AS categories
+  FROM restaurant r
+  LEFT JOIN restaurant_category rc ON rc.id = r.category_id
+  LEFT JOIN restaurant_category_map rcm ON rcm.restaurant_id = r.id
+  LEFT JOIN restaurant_category mapped_category ON mapped_category.id = rcm.category_id
+`
+
 export async function createRestaurantWithOwner(payload: CreateRestaurantPayload & {
   ownerPasswordHash: string
 }) {
@@ -110,7 +195,8 @@ export async function createRestaurantWithOwner(payload: CreateRestaurantPayload
 
   try {
     await client.query('BEGIN')
-    const categoryId = await getOrCreateRestaurantCategory(client, payload.categoryName)
+    const categoryIds = await resolveRestaurantCategoryIds(client, payload)
+    const primaryCategoryId = categoryIds[0] || null
     const userResult = await client.query<{ id: string }>(
       `
         INSERT INTO "user" (name, email, password, role_id, email_verified, verified_at)
@@ -138,7 +224,7 @@ export async function createRestaurantWithOwner(payload: CreateRestaurantPayload
       `,
       [
         ownerUserId,
-        categoryId,
+        primaryCategoryId,
         payload.restaurantName,
         payload.description || null,
         payload.phone || null,
@@ -147,10 +233,17 @@ export async function createRestaurantWithOwner(payload: CreateRestaurantPayload
       ],
     )
 
+    await replaceRestaurantCategories(client, Number(restaurantResult.rows[0].id), categoryIds)
+
+    const hydratedRestaurant = await findRestaurantById(
+      Number(restaurantResult.rows[0].id),
+      client,
+    )
+
     await client.query('COMMIT')
 
     return {
-      restaurant: toRestaurant(restaurantResult.rows[0]),
+      restaurant: hydratedRestaurant || toRestaurant(restaurantResult.rows[0]),
       owner: {
         id: ownerUserId,
         name: payload.ownerName,
@@ -168,9 +261,8 @@ export async function createRestaurantWithOwner(payload: CreateRestaurantPayload
 export async function listRestaurants() {
   const result = await pool.query<RestaurantRow>(
     `
-      SELECT r.*, rc.name AS category_name
-      FROM restaurant r
-      LEFT JOIN restaurant_category rc ON rc.id = r.category_id
+      ${restaurantSelect}
+      GROUP BY r.id, rc.name
       ORDER BY r.created_at DESC
     `,
   )
@@ -178,19 +270,148 @@ export async function listRestaurants() {
   return result.rows.map(toRestaurant)
 }
 
+export async function findRestaurantById(restaurantId: number, client: PoolClient | typeof pool = pool) {
+  const result = await client.query<RestaurantRow>(
+    `
+      ${restaurantSelect}
+      WHERE r.id = $1
+      GROUP BY r.id, rc.name
+      LIMIT 1
+    `,
+    [restaurantId],
+  )
+
+  return result.rows[0] ? toRestaurant(result.rows[0]) : null
+}
+
 export async function findRestaurantByOwner(userId: number) {
   const result = await pool.query<RestaurantRow>(
     `
-      SELECT r.*, rc.name AS category_name
-      FROM restaurant r
-      LEFT JOIN restaurant_category rc ON rc.id = r.category_id
+      ${restaurantSelect}
       WHERE r.owner_user_id = $1
+      GROUP BY r.id, rc.name
       LIMIT 1
     `,
     [userId],
   )
 
   return result.rows[0] ? toRestaurant(result.rows[0]) : null
+}
+
+export async function listRestaurantCategories() {
+  const result = await pool.query<RestaurantCategoryRow>(
+    `
+      SELECT id, name, slug, icon, sort_order
+      FROM restaurant_category
+      ORDER BY sort_order ASC, name ASC
+    `,
+  )
+
+  return result.rows.map(toRestaurantCategory)
+}
+
+export async function listDiscoverableRestaurants(categorySlug = '') {
+  const params = categorySlug ? [categorySlug] : []
+  const filter = categorySlug
+    ? `
+      WHERE r.is_active = TRUE
+        AND EXISTS (
+          SELECT 1
+          FROM restaurant_category_map filter_map
+          INNER JOIN restaurant_category filter_category ON filter_category.id = filter_map.category_id
+          WHERE filter_map.restaurant_id = r.id AND filter_category.slug = $1
+        )
+    `
+    : 'WHERE r.is_active = TRUE'
+
+  const result = await pool.query<RestaurantRow>(
+    `
+      ${restaurantSelect}
+      ${filter}
+      GROUP BY r.id, rc.name
+      ORDER BY r.created_at DESC
+    `,
+    params,
+  )
+
+  return result.rows.map(toRestaurant)
+}
+
+export async function updateRestaurant(
+  restaurantId: number,
+  payload: {
+    name: string
+    categoryName: string
+    categoryIds: number[]
+    description: string
+    phone: string
+    email: string
+    imageUrl: string
+    isActive: boolean
+  },
+) {
+  const client = await pool.connect()
+
+  try {
+    await client.query('BEGIN')
+
+    const categoryIds = await resolveRestaurantCategoryIds(client, {
+      ownerName: '',
+      ownerEmail: '',
+      restaurantName: payload.name,
+      description: payload.description,
+      phone: payload.phone,
+      email: payload.email,
+      imageUrl: payload.imageUrl,
+      categoryName: payload.categoryName,
+      categoryIds: payload.categoryIds,
+    })
+    const primaryCategoryId = categoryIds[0] || null
+    const result = await client.query<RestaurantRow>(
+      `
+        UPDATE restaurant
+        SET
+          category_id = $2,
+          name = $3,
+          description = $4,
+          phone = $5,
+          email = $6,
+          image_url = $7,
+          is_active = $8,
+          updated_at = NOW()
+        WHERE id = $1
+        RETURNING *,
+          (SELECT name FROM restaurant_category WHERE id = restaurant.category_id) AS category_name,
+          '[]'::JSON AS categories
+      `,
+      [
+        restaurantId,
+        primaryCategoryId,
+        payload.name,
+        payload.description || null,
+        payload.phone || null,
+        payload.email || null,
+        payload.imageUrl || null,
+        payload.isActive,
+      ],
+    )
+
+    if (!result.rows[0]) {
+      await client.query('ROLLBACK')
+      return null
+    }
+
+    await replaceRestaurantCategories(client, restaurantId, categoryIds)
+    const restaurant = await findRestaurantById(restaurantId, client)
+
+    await client.query('COMMIT')
+    return restaurant
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 export async function listProductCategories(restaurantId: number) {

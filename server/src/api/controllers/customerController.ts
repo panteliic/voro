@@ -13,9 +13,22 @@ function numericParam(value: unknown) {
   return Number.isInteger(parsedValue) && parsedValue > 0 ? parsedValue : 0
 }
 
+function queryText(value: unknown) {
+  const param = Array.isArray(value) ? value[0] : value
+  return String(param || '').trim()
+}
+
 export async function getProfile(req: Request, res: Response) {
   try {
     res.json(await customerService.getCustomerProfile(auth(req).userId))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function listRestaurants(req: Request, res: Response) {
+  try {
+    res.json(await customerService.getRestaurantDiscovery(queryText(req.query.category)))
   } catch (error) {
     sendError(error, res)
   }

@@ -8,6 +8,7 @@ type UserRow = {
   password: string;
   role_id: string;
   role_name: "customer" | "restaurant" | "courier" | "admin";
+  is_active: boolean;
   email_verified: boolean;
   verified_at: Date | null;
   created_at: Date;
@@ -22,6 +23,7 @@ function toUser(row: UserRow): User {
     passwordHash: row.password,
     roleId: Number(row.role_id),
     roleName: row.role_name,
+    isActive: row.is_active,
     emailVerified: row.email_verified,
     verifiedAt: row.verified_at,
     createdAt: row.created_at,

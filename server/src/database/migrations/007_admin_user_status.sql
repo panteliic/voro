@@ -1,0 +1,4 @@
+ALTER TABLE "user"
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+
+CREATE INDEX IF NOT EXISTS user_is_active_idx ON "user" (is_active);

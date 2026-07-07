@@ -121,7 +121,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'auth.callback.back': 'Back to login',
     'auth.callback.completing': 'Completing social login...',
 
-    'nav.overview': 'Overview',
+    'nav.overview': 'Home',
+    'nav.search': 'Search',
     'nav.orders': 'Orders',
     'nav.addresses': 'Addresses',
     'nav.payments': 'Payments',
@@ -153,6 +154,19 @@ const dictionaries: Record<Language, Record<string, string>> = {
       'Saved homes, offices, delivery notes, access codes, and preferred handoff details will live here.',
     'placeholder.payments':
       'Cards, wallet balance, promo credits, invoices, and default payment method settings will live here.',
+
+    'restaurants.title': 'Find restaurants',
+    'restaurants.desc': 'Browse restaurants by food type, like pizza, burgers, sushi, desserts, and healthy meals.',
+    'restaurants.all': 'All',
+    'restaurants.count': '{count} restaurants',
+    'restaurants.loading': 'Loading restaurants...',
+    'restaurants.error': 'Could not load restaurants.',
+    'restaurants.empty': 'No restaurants found in this category.',
+    'restaurants.noDescription': 'Restaurant details coming soon.',
+    'restaurants.general': 'General',
+    'search.title': 'Search restaurants',
+    'search.desc': 'Search by restaurant name, food type, or cuisine category.',
+    'search.placeholder': 'Search pizza, burgers, sushi...',
 
     'settings.title': 'Settings',
     'settings.desc': 'Preferences are split by the things a delivery customer changes most often.',
@@ -393,7 +407,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'auth.callback.back': 'Nazad na prijavu',
     'auth.callback.completing': 'Završavanje social login-a...',
 
-    'nav.overview': 'Pregled',
+    'nav.overview': 'Početna',
+    'nav.search': 'Pretraga',
     'nav.orders': 'Porudžbine',
     'nav.addresses': 'Adrese',
     'nav.payments': 'Plaćanja',
@@ -425,6 +440,20 @@ const dictionaries: Record<Language, Record<string, string>> = {
       'Ovde će biti sačuvane kućne i poslovne adrese, napomene za dostavu i detalji predaje.',
     'placeholder.payments':
       'Ovde će biti kartice, wallet stanje, promo krediti, fakture i podrazumevano plaćanje.',
+
+    'restaurants.title': 'Pronađi restorane',
+    'restaurants.desc':
+      'Pregledaj restorane po tipu hrane, kao pizza, burgeri, sushi, dezerti i zdravi obroci.',
+    'restaurants.all': 'Sve',
+    'restaurants.count': '{count} restorana',
+    'restaurants.loading': 'Učitavanje restorana...',
+    'restaurants.error': 'Restorani nisu mogli da se učitaju.',
+    'restaurants.empty': 'Nema restorana u ovoj kategoriji.',
+    'restaurants.noDescription': 'Detalji restorana stižu uskoro.',
+    'restaurants.general': 'Opšte',
+    'search.title': 'Pretraga restorana',
+    'search.desc': 'Pretraži po nazivu restorana, tipu hrane ili kategoriji.',
+    'search.placeholder': 'Pretraži pizza, burgeri, sushi...',
 
     'settings.title': 'Podešavanja',
     'settings.desc': 'Podešavanja su podeljena po stvarima koje korisnik dostave najčešće menja.',

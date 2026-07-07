@@ -15,16 +15,12 @@ import { settingsNavItems } from '../data/dashboardData'
 import type { ActiveSettingsSection, DashboardView } from '../types'
 
 export function getDashboardView(pathname: string): DashboardView {
+  if (pathname.startsWith('/search')) {
+    return 'search'
+  }
+
   if (pathname.startsWith('/orders')) {
     return 'orders'
-  }
-
-  if (pathname.startsWith('/addresses')) {
-    return 'addresses'
-  }
-
-  if (pathname.startsWith('/payments')) {
-    return 'payments'
   }
 
   if (pathname.startsWith('/settings')) {
@@ -50,12 +46,8 @@ export function getDashboardTitle(view: DashboardView) {
     return 'Orders'
   }
 
-  if (view === 'addresses') {
-    return 'Addresses'
-  }
-
-  if (view === 'payments') {
-    return 'Payments'
+  if (view === 'search') {
+    return 'Search'
   }
 
   return 'Settings'

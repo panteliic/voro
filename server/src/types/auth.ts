@@ -5,6 +5,7 @@ export type User = {
   passwordHash: string
   roleId: number
   roleName: 'customer' | 'restaurant' | 'courier' | 'admin'
+  isActive: boolean
   emailVerified: boolean
   verifiedAt: Date | null
   createdAt: Date

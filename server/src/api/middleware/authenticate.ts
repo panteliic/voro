@@ -41,6 +41,16 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
     }
     next()
   } catch (error) {
+    if (error instanceof jwt.TokenExpiredError) {
+      sendError(new HttpError(401, 'Session expired. Please sign in again.'), res)
+      return
+    }
+
+    if (error instanceof jwt.JsonWebTokenError) {
+      sendError(new HttpError(401, 'Invalid access token.'), res)
+      return
+    }
+
     sendError(error, res)
   }
 }

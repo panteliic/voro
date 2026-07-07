@@ -6,6 +6,7 @@ export const customerRoutes = Router()
 
 customerRoutes.use(authenticate)
 customerRoutes.get('/profile', customerController.getProfile)
+customerRoutes.get('/restaurants', customerController.listRestaurants)
 customerRoutes.patch('/profile', customerController.updateProfile)
 customerRoutes.patch('/preferences', customerController.updatePreferences)
 customerRoutes.post('/addresses', customerController.createAddress)

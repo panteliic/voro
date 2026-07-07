@@ -7,6 +7,15 @@ export type CreateRestaurantPayload = {
   email: string
   imageUrl: string
   categoryName: string
+  categoryIds: number[]
+}
+
+export type RestaurantCategory = {
+  id: number
+  name: string
+  slug: string
+  icon: string
+  sortOrder: number
 }
 
 export type UpsertProductCategoryPayload = {

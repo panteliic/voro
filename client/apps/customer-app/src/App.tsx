@@ -51,9 +51,10 @@ function App() {
       <TooltipProvider>
         <Routes>
           <Route path="/" element={protectedHome} />
+          <Route path="/search" element={protectedHome} />
           <Route path="/orders" element={protectedHome} />
-          <Route path="/addresses" element={protectedHome} />
-          <Route path="/payments" element={protectedHome} />
+          <Route path="/addresses" element={<Navigate to="/settings/delivery" replace />} />
+          <Route path="/payments" element={<Navigate to="/settings/payments" replace />} />
           <Route path="/settings" element={protectedHome} />
           <Route path="/settings/:section" element={protectedHome} />
           <Route path="/auth/callback" element={<AuthCallback />} />

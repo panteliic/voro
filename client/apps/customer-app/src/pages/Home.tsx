@@ -20,8 +20,8 @@ import {
   getInitials,
 } from '../components/dashboard/utils/dashboardUtils'
 import { dashboardNavItems } from '../components/dashboard/data/dashboardData'
-import { OverviewPanel } from '../components/dashboard/OverviewPanel'
 import { PlaceholderPanel } from '../components/dashboard/PlaceholderPanel'
+import { RestaurantDiscoveryPanel } from '../components/dashboard/RestaurantDiscoveryPanel'
 import { SettingsPanel } from '../components/dashboard/settings/SettingsPanel'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import { logout, logoutUser } from '../features/auth/authSlice'
@@ -30,10 +30,9 @@ import { customerApi } from '../services/customerApi'
 import type { CustomerProfile } from '../types/customer'
 
 const dashboardTitleKeys = {
-  overview: 'nav.dashboard',
+  overview: 'nav.overview',
+  search: 'nav.search',
   orders: 'nav.orders',
-  addresses: 'nav.addresses',
-  payments: 'nav.payments',
   settings: 'nav.settings',
 } as const
 
@@ -185,28 +184,15 @@ function Home() {
           ) : null}
 
           {activeView === 'overview' ? (
-            <OverviewPanel
-              addressCount={profile?.addresses.length ?? 0}
-              name={profile?.user.name || name}
-              paymentMethodCount={profile?.paymentMethods.length ?? 0}
-            />
+            <RestaurantDiscoveryPanel />
+          ) : null}
+          {activeView === 'search' ? (
+            <RestaurantDiscoveryPanel showSearch />
           ) : null}
           {activeView === 'orders' ? (
             <PlaceholderPanel
               title={t('nav.orders')}
               description={t('placeholder.orders')}
-            />
-          ) : null}
-          {activeView === 'addresses' ? (
-            <PlaceholderPanel
-              title={t('nav.addresses')}
-              description={t('placeholder.addresses')}
-            />
-          ) : null}
-          {activeView === 'payments' ? (
-            <PlaceholderPanel
-              title={t('nav.payments')}
-              description={t('placeholder.payments')}
             />
           ) : null}
           {activeView === 'settings' ? (
@@ -220,7 +206,7 @@ function Home() {
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-card px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-12px_24px_rgba(0,0,0,0.08)] lg:hidden">
-        <div className="grid grid-cols-4 gap-1">
+        <div className="grid grid-cols-3 gap-1">
           {dashboardNavItems.map(({ icon: Icon, id, path }) => {
             const isActive = activeView === id
             const label = t(`nav.${id}`)

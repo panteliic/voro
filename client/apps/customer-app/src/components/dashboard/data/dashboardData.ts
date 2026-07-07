@@ -1,22 +1,20 @@
 import {
   Bell,
   HomeIcon,
-  MapPin,
   Moon,
   CreditCard,
   ReceiptText,
+  Search,
   ShieldCheck,
   Truck,
   UserRound,
-  WalletCards,
 } from 'lucide-react'
 import type { DashboardNavItem, SettingsNavItem } from '../types'
 
 export const dashboardNavItems: DashboardNavItem[] = [
-  { id: 'overview', label: 'Overview', path: '/', icon: HomeIcon },
+  { id: 'overview', label: 'Home', path: '/', icon: HomeIcon },
+  { id: 'search', label: 'Search', path: '/search', icon: Search },
   { id: 'orders', label: 'Orders', path: '/orders', icon: ReceiptText },
-  { id: 'addresses', label: 'Addresses', path: '/addresses', icon: MapPin },
-  { id: 'payments', label: 'Payments', path: '/payments', icon: WalletCards },
 ]
 
 export const settingsNavItems: SettingsNavItem[] = [

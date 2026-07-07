@@ -305,6 +305,10 @@ export async function login(payload: LoginPayload) {
     throw new HttpError(403, 'Please verify your email before signing in.')
   }
 
+  if (!user.isActive) {
+    throw new HttpError(403, 'This account has been blocked.')
+  }
+
   const isPasswordValid = await bcrypt.compare(password, user.passwordHash)
 
   if (!isPasswordValid) {
@@ -403,6 +407,10 @@ export async function auth0Callback(payload: {
     }
   }
 
+  if (!user.isActive) {
+    throw new HttpError(403, 'This account has been blocked.')
+  }
+
   const tokenPair = await issueTokenPair(user)
 
   return {
@@ -424,7 +432,7 @@ export async function refresh(payload: RefreshTokenPayload) {
   const decoded = verifyRefreshToken(refreshToken)
   const user = await authRepository.findUserById(decoded.userId)
 
-  if (!user || !user.emailVerified) {
+  if (!user || !user.emailVerified || !user.isActive) {
     throw new HttpError(401, 'Invalid refresh token.')
   }
 
@@ -543,7 +551,7 @@ export async function resetPassword(payload: ResetPasswordPayload) {
   const decoded = verifyPasswordResetToken(resetToken)
   const user = await authRepository.findUserById(decoded.userId)
 
-  if (!user || user.email !== decoded.email) {
+  if (!user || !user.isActive || user.email !== decoded.email) {
     throw new HttpError(401, 'Invalid password reset token.')
   }
 
@@ -571,7 +579,7 @@ export async function changePassword(payload: ChangePasswordPayload) {
 
   const user = await authRepository.findUserById(userId)
 
-  if (!user || !user.emailVerified) {
+  if (!user || !user.emailVerified || !user.isActive) {
     throw new HttpError(404, 'User not found.')
   }
 

@@ -4,6 +4,7 @@ import type {
   CustomerPreferences,
   CustomerProfile,
   CustomerUserProfile,
+  RestaurantDiscovery,
 } from '../types/customer'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
@@ -37,6 +38,11 @@ function jsonRequest<TResponse>(path: string, method: string, body: unknown) {
 export const customerApi = {
   getProfile() {
     return request<CustomerProfile>('/customer/profile')
+  },
+
+  getRestaurantDiscovery(categorySlug = '') {
+    const query = categorySlug ? `?category=${encodeURIComponent(categorySlug)}` : ''
+    return request<RestaurantDiscovery>(`/customer/restaurants${query}`)
   },
 
   updateProfile(payload: Pick<CustomerUserProfile, 'name' | 'phone'>) {

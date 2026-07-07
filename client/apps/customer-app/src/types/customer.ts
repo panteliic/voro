@@ -53,6 +53,31 @@ export type CustomerProfile = {
   paymentMethods: CustomerPaymentMethod[]
 }
 
+export type RestaurantCategory = {
+  id: number
+  name: string
+  slug: string
+  icon: string
+  sortOrder: number
+}
+
+export type DiscoverableRestaurant = {
+  id: number
+  name: string
+  description: string
+  phone: string
+  email: string
+  imageUrl: string
+  categoryName: string
+  categories: RestaurantCategory[]
+  isActive: boolean
+}
+
+export type RestaurantDiscovery = {
+  categories: RestaurantCategory[]
+  restaurants: DiscoverableRestaurant[]
+}
+
 export type CustomerAddressPayload = Omit<CustomerAddress, 'id' | 'userId' | 'isDefault'>
 export type CustomerPaymentMethodPayload = Omit<
   CustomerPaymentMethod,

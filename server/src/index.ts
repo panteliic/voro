@@ -9,6 +9,7 @@ import { customerRoutes } from './api/routes/customerRoutes'
 import { systemRoutes } from './api/routes/systemRoutes'
 import { adminRoutes } from './api/routes/adminRoutes'
 import { restaurantRoutes } from './api/routes/restaurantRoutes'
+import { driverRoutes } from './api/routes/driverRoutes'
 
 const app = express()
 const server = http.createServer(app)
@@ -23,6 +24,7 @@ app.use('/auth', authRoutes)
 app.use('/admin', adminRoutes)
 app.use('/customer', customerRoutes)
 app.use('/restaurant', restaurantRoutes)
+app.use('/driver', driverRoutes)
 
 server.listen(env.port, () => {
   console.log(`Server radi na http://localhost:${env.port}`)
