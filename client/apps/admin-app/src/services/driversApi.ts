@@ -1,4 +1,5 @@
 import type { CreateDriverPayload, Driver } from '../types/driver'
+import type { DriverAnalytics } from '../types/analytics'
 import { apiRequest } from './apiClient'
 
 export function listDrivers() {
@@ -7,6 +8,10 @@ export function listDrivers() {
 
 export function getDriver(driverId: number) {
   return apiRequest<{ courier: Driver }>(`/admin/drivers/${driverId}`)
+}
+
+export function getDriverAnalytics(driverId: number) {
+  return apiRequest<DriverAnalytics>(`/admin/drivers/${driverId}/analytics`)
 }
 
 export function createDriver(payload: CreateDriverPayload) {

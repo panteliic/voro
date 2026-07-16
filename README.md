@@ -174,6 +174,30 @@ npm install
 npm run dev
 ```
 
+### Demo podaci za testiranje
+
+Za lokalni razvoj možeš da ubaciš kompletan demo set podataka:
+
+```bash
+cd server
+npm run seed:demo
+```
+
+Ova eksplicitna seed migracija dodaje 50 restorana iz Beograda, 150 stavki menija,
+20 kupaca, 20 dostavljača i 160 porudžbina. Podaci o nalozima, cenama i menijima
+su test podaci; imena restorana i kategorije hrane su preuzeti iz javnih dostavnih
+ponuda.
+
+Svi demo nalozi koriste lozinku `password123`:
+
+- Admin: `admin@seed.voro.test`
+- Restaurant nalozi: npr. `restaurant.pizzeria-trg@voro.test`
+- Dostavljači: npr. `marko.jovanovic@driver.voro.test`
+- Kupci: `customer.*@seed.voro.test`
+
+`seed:demo` se namerno ne pokreće uz običnu komandu `npm run migrate`, pa demo
+podaci ne mogu slučajno da se ubace u produkcionu bazu.
+
 ### Customer Application
 
 ```bash

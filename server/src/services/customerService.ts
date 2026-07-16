@@ -1,6 +1,7 @@
 import * as customerRepository from "../repositories/customerRepository";
 import * as restaurantRepository from "../repositories/restaurantRepository";
 import type {
+  CreateCustomerOrderPayload,
   CustomerAddressPayload,
   CustomerPaymentMethodPayload,
   CustomerPreferencesPayload,
@@ -15,6 +16,15 @@ const handoffOptions = new Set([
   "meet_outside",
 ]);
 const deliveryWindowOptions = new Set(["asap", "lunch", "evening"]);
+const deliveryFee = 250;
+
+const deliveryEstimateByStatus = {
+  pending: { min: 35, max: 45 },
+  accepted: { min: 25, max: 35 },
+  preparing: { min: 15, max: 25 },
+  ready: { min: 10, max: 15 },
+  picked_up: { min: 5, max: 10 },
+} as const;
 
 function trim(value: string) {
   return value.trim();
@@ -27,6 +37,11 @@ function nullableNumber(value: unknown) {
 
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function positiveInteger(value: unknown) {
+  const numberValue = Number(value);
+  return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : null;
 }
 
 function booleanValue(value: unknown, fallback: boolean) {
@@ -199,6 +214,51 @@ function normalizePaymentMethod(
   };
 }
 
+function normalizeOrder(
+  payload: Record<string, unknown>,
+): CreateCustomerOrderPayload {
+  const restaurantId = positiveInteger(payload.restaurantId);
+  const addressId = payload.addressId === undefined || payload.addressId === null
+    ? null
+    : positiveInteger(payload.addressId);
+  const note = trim(String(payload.note || "")).slice(0, 500);
+  const rawItems = Array.isArray(payload.items) ? payload.items : [];
+
+  if (!restaurantId) {
+    throw new HttpError(400, "Choose a restaurant before placing an order.");
+  }
+
+  if (payload.addressId !== undefined && payload.addressId !== null && !addressId) {
+    throw new HttpError(400, "Choose a valid delivery address.");
+  }
+
+  if (rawItems.length === 0 || rawItems.length > 20) {
+    throw new HttpError(400, "Add between 1 and 20 menu items to an order.");
+  }
+
+  const quantities = new Map<number, number>();
+
+  for (const rawItem of rawItems) {
+    const item = rawItem as Record<string, unknown>;
+    const productId = positiveInteger(item.productId);
+    const quantity = positiveInteger(item.quantity);
+
+    if (!productId || !quantity || quantity > 20) {
+      throw new HttpError(400, "Each order item needs a valid quantity.");
+    }
+
+    quantities.set(productId, (quantities.get(productId) || 0) + quantity);
+  }
+
+  const items = [...quantities].map(([productId, quantity]) => ({ productId, quantity }));
+
+  if (items.some((item) => item.quantity > 20)) {
+    throw new HttpError(400, "You can order up to 20 of each menu item.");
+  }
+
+  return { restaurantId, addressId, note, items };
+}
+
 export async function getCustomerProfile(userId: number) {
   const user = await customerRepository.getUserProfile(userId);
 
@@ -227,6 +287,85 @@ export async function getRestaurantDiscovery(categorySlug = "") {
   ]);
 
   return { categories, restaurants };
+}
+
+export async function getRestaurantMenu(restaurantId: number) {
+  const restaurant = await restaurantRepository.findRestaurantById(restaurantId);
+
+  if (!restaurant || !restaurant.isActive) {
+    throw new HttpError(404, "Restaurant not found.");
+  }
+
+  const [categories, products] = await Promise.all([
+    restaurantRepository.listProductCategories(restaurant.id),
+    customerRepository.listAvailableProducts(restaurant.id),
+  ]);
+
+  return { restaurant, categories, products };
+}
+
+export async function createOrder(userId: number, payload: Record<string, unknown>) {
+  const normalized = normalizeOrder(payload);
+  const restaurant = await restaurantRepository.findRestaurantById(normalized.restaurantId);
+
+  if (!restaurant || !restaurant.isActive) {
+    throw new HttpError(404, "Restaurant not found.");
+  }
+
+  const addresses = await customerRepository.listAddresses(userId);
+  const address = normalized.addressId
+    ? addresses.find((item) => item.id === normalized.addressId)
+    : addresses.find((item) => item.isDefault) || addresses[0];
+
+  if (!address) {
+    throw new HttpError(400, "Add a delivery address before placing an order.");
+  }
+
+  const order = await customerRepository.createCustomerOrder(
+    userId,
+    { ...normalized, addressId: address.id },
+    deliveryFee,
+  );
+
+  if (!order) {
+    throw new HttpError(400, "One or more selected menu items are unavailable.");
+  }
+
+  return { order };
+}
+
+export async function getOrders(userId: number) {
+  const orders = await customerRepository.listCustomerOrders(userId)
+
+  return {
+    orders: orders.map((order) => {
+      const estimate = deliveryEstimateByStatus[
+        order.status as keyof typeof deliveryEstimateByStatus
+      ]
+
+      if (!estimate) {
+        return {
+          ...order,
+          estimatedDeliveryMinutes: null,
+          estimatedDeliveryRange: null,
+        }
+      }
+
+      const extraPreparationMinutes = Math.min(
+        12,
+        Math.max(0, order.items.reduce((total, item) => total + item.quantity, 0) - 1) * 2,
+      )
+
+      return {
+        ...order,
+        estimatedDeliveryMinutes: estimate.max + extraPreparationMinutes,
+        estimatedDeliveryRange: {
+          min: estimate.min + extraPreparationMinutes,
+          max: estimate.max + extraPreparationMinutes,
+        },
+      }
+    }),
+  }
 }
 
 export async function updateProfile(

@@ -17,6 +17,10 @@ export type AdminOverview = {
   recentRestaurants: Restaurant[]
   recentUsers: AdminUser[]
   recentOrders: Order[]
+  orderVolume: Array<{
+    date: string
+    orders: number
+  }>
 }
 
 export type SetupResult = {

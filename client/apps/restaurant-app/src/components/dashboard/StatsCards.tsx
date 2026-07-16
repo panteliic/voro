@@ -1,6 +1,5 @@
 import { Bell, CheckCircle2, Flame, Utensils, type LucideIcon } from 'lucide-react'
 import type { DashboardResponse } from '../../types/restaurant'
-import { demoOrders } from '../../data/demoOrders'
 import { useI18n } from '../../i18n/i18n'
 
 type StatItem = {
@@ -11,23 +10,21 @@ type StatItem = {
 
 export function StatsCards({ dashboard }: { dashboard: DashboardResponse | null }) {
   const { t } = useI18n()
-  const activeOrders = demoOrders.filter((order) =>
-    ['New', 'Preparing', 'Ready'].includes(order.status),
-  )
+  const orders = dashboard?.orders || []
   const stats: StatItem[] = [
     {
       labelKey: 'stats.newOrders',
-      value: String(activeOrders.filter((order) => order.status === 'New').length),
+      value: String(orders.filter((order) => order.status === 'pending').length),
       icon: Bell,
     },
     {
       labelKey: 'stats.preparing',
-      value: String(activeOrders.filter((order) => order.status === 'Preparing').length),
+      value: String(orders.filter((order) => ['accepted', 'preparing'].includes(order.status)).length),
       icon: Flame,
     },
     {
       labelKey: 'stats.ready',
-      value: String(activeOrders.filter((order) => order.status === 'Ready').length),
+      value: String(orders.filter((order) => order.status === 'ready').length),
       icon: CheckCircle2,
     },
     { labelKey: 'stats.activeItems', value: String(dashboard?.products.length || 0), icon: Utensils },

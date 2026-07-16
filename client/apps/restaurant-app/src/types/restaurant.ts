@@ -30,22 +30,31 @@ export type DashboardResponse = {
   restaurant: Restaurant
   categories: ProductCategory[]
   products: Product[]
+  orders: RestaurantOrder[]
 }
 
-export type OrderStatus = 'New' | 'Preparing' | 'Ready' | 'Delivered' | 'Cancelled'
+export type OrderStatus =
+  | 'pending'
+  | 'accepted'
+  | 'preparing'
+  | 'ready'
+  | 'picked_up'
+  | 'delivered'
+  | 'cancelled'
 
 export type RestaurantOrder = {
-  id: string
-  customer: string
+  id: number
+  customerName: string
   status: OrderStatus
-  eta: string
-  total: string
-  items: string[]
+  subtotal: number
+  deliveryFee: number
+  total: number
+  note: string
+  items: Array<{ name: string; quantity: number }>
   createdAt: string
-  completedAt?: string
-  pickupCode: string
-  driver?: string
+  updatedAt: string
   address: string
+  driverName: string
 }
 
 export type CategoryForm = {

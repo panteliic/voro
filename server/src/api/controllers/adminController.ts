@@ -143,6 +143,14 @@ export async function getRestaurant(req: Request, res: Response) {
   }
 }
 
+export async function getRestaurantAnalytics(req: Request, res: Response) {
+  try {
+    res.json(await adminService.getRestaurantAnalytics(numericParam(req.params.restaurantId)))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
 export async function createRestaurant(req: Request, res: Response) {
   try {
     const result = await adminService.createRestaurant({
@@ -218,6 +226,14 @@ export async function listCouriers(_req: Request, res: Response) {
 export async function getCourier(req: Request, res: Response) {
   try {
     res.json({ courier: await adminService.getCourier(numericParam(req.params.driverId)) })
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function getCourierAnalytics(req: Request, res: Response) {
+  try {
+    res.json(await adminService.getCourierAnalytics(numericParam(req.params.driverId)))
   } catch (error) {
     sendError(error, res)
   }

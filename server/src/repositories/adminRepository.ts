@@ -66,6 +66,40 @@ type StatsRow = {
   available_drivers: string
 }
 
+type OrderVolumeRow = {
+  date: string
+  orders: string
+}
+
+type AnalyticsSummaryRow = {
+  total_amount: string
+  completed_count: string
+  average_amount: string
+  active_count: string
+  this_week_amount: string
+  last_week_amount: string
+  this_month_amount: string
+  last_month_amount: string
+}
+
+type AnalyticsDayRow = {
+  date: string
+  amount: string
+  count: string
+}
+
+type DriverDeliveryHistoryRow = {
+  id: string
+  order_id: string
+  status: string
+  restaurant_name: string
+  customer_name: string
+  total: string
+  earning: string
+  created_at: Date
+  delivered_at: Date | null
+}
+
 type RestaurantRow = {
   id: string
   owner_user_id: string
@@ -179,6 +213,263 @@ export async function getStats(): Promise<AdminStats> {
     activeRestaurants: Number(row.active_restaurants),
     availableDrivers: Number(row.available_drivers),
   }
+}
+
+export async function getOrderVolumeByDay(days = 7) {
+  const safeDays = Math.max(1, Math.min(days, 31))
+  const result = await pool.query<OrderVolumeRow>(
+    `
+      WITH calendar_days AS (
+        SELECT generate_series(
+          CURRENT_DATE - ($1 - 1) * INTERVAL '1 day',
+          CURRENT_DATE,
+          INTERVAL '1 day'
+        )::DATE AS day
+      )
+      SELECT
+        TO_CHAR(calendar_days.day, 'YYYY-MM-DD') AS date,
+        COUNT(o.id)::TEXT AS orders
+      FROM calendar_days
+      LEFT JOIN "order" o
+        ON o.created_at >= calendar_days.day
+        AND o.created_at < calendar_days.day + INTERVAL '1 day'
+      GROUP BY calendar_days.day
+      ORDER BY calendar_days.day
+    `,
+    [safeDays],
+  )
+
+  return result.rows.map((row) => ({
+    date: row.date,
+    orders: Number(row.orders),
+  }))
+}
+
+function toAnalyticsSummary(row: AnalyticsSummaryRow) {
+  return {
+    totalAmount: Number(row.total_amount),
+    completedCount: Number(row.completed_count),
+    averageAmount: Number(row.average_amount),
+    activeCount: Number(row.active_count),
+    thisWeekAmount: Number(row.this_week_amount),
+    lastWeekAmount: Number(row.last_week_amount),
+    thisMonthAmount: Number(row.this_month_amount),
+    lastMonthAmount: Number(row.last_month_amount),
+  }
+}
+
+export async function getRestaurantRevenueSummary(restaurantId: number) {
+  const result = await pool.query<AnalyticsSummaryRow>(
+    `
+      SELECT
+        COALESCE(SUM(o.subtotal) FILTER (WHERE os.name = 'delivered'), 0)::TEXT AS total_amount,
+        COUNT(o.id) FILTER (WHERE os.name = 'delivered')::TEXT AS completed_count,
+        COALESCE(AVG(o.subtotal) FILTER (WHERE os.name = 'delivered'), 0)::TEXT AS average_amount,
+        COUNT(o.id) FILTER (WHERE os.name NOT IN ('delivered', 'cancelled'))::TEXT AS active_count,
+        COALESCE(SUM(o.subtotal) FILTER (
+          WHERE os.name = 'delivered' AND o.created_at >= DATE_TRUNC('week', CURRENT_DATE)
+        ), 0)::TEXT AS this_week_amount,
+        COALESCE(SUM(o.subtotal) FILTER (
+          WHERE os.name = 'delivered'
+            AND o.created_at >= DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '1 week'
+            AND o.created_at < DATE_TRUNC('week', CURRENT_DATE)
+        ), 0)::TEXT AS last_week_amount,
+        COALESCE(SUM(o.subtotal) FILTER (
+          WHERE os.name = 'delivered' AND o.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+        ), 0)::TEXT AS this_month_amount,
+        COALESCE(SUM(o.subtotal) FILTER (
+          WHERE os.name = 'delivered'
+            AND o.created_at >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month'
+            AND o.created_at < DATE_TRUNC('month', CURRENT_DATE)
+        ), 0)::TEXT AS last_month_amount
+      FROM "order" o
+      INNER JOIN order_status os ON os.id = o.status_id
+      WHERE o.restaurant_id = $1
+    `,
+    [restaurantId],
+  )
+
+  return toAnalyticsSummary(result.rows[0])
+}
+
+export async function getRestaurantRevenueByDay(restaurantId: number, days = 7) {
+  const safeDays = Math.max(1, Math.min(days, 31))
+  const result = await pool.query<AnalyticsDayRow>(
+    `
+      WITH calendar_days AS (
+        SELECT generate_series(
+          CURRENT_DATE - ($2 - 1) * INTERVAL '1 day',
+          CURRENT_DATE,
+          INTERVAL '1 day'
+        )::DATE AS day
+      )
+      SELECT
+        TO_CHAR(calendar_days.day, 'YYYY-MM-DD') AS date,
+        COALESCE(SUM(o.subtotal) FILTER (WHERE os.name = 'delivered'), 0)::TEXT AS amount,
+        COUNT(o.id) FILTER (WHERE os.name = 'delivered')::TEXT AS count
+      FROM calendar_days
+      LEFT JOIN "order" o
+        ON o.restaurant_id = $1
+        AND o.created_at >= calendar_days.day
+        AND o.created_at < calendar_days.day + INTERVAL '1 day'
+      LEFT JOIN order_status os ON os.id = o.status_id
+      GROUP BY calendar_days.day
+      ORDER BY calendar_days.day
+    `,
+    [restaurantId, safeDays],
+  )
+
+  return result.rows.map((row) => ({
+    date: row.date,
+    amount: Number(row.amount),
+    count: Number(row.count),
+  }))
+}
+
+export async function listRecentRestaurantOrders(restaurantId: number) {
+  const result = await pool.query<OrderRow>(
+    `
+      SELECT
+        o.id,
+        o.user_id,
+        customer.name AS customer_name,
+        customer.email AS customer_email,
+        o.restaurant_id,
+        restaurant.name AS restaurant_name,
+        courier.id AS courier_id,
+        courier_user.name AS courier_name,
+        os.name AS status,
+        ds.name AS delivery_status,
+        o.subtotal,
+        o.delivery_fee,
+        o.total,
+        o.note,
+        o.created_at,
+        o.updated_at
+      FROM "order" o
+      INNER JOIN "user" customer ON customer.id = o.user_id
+      INNER JOIN restaurant ON restaurant.id = o.restaurant_id
+      INNER JOIN order_status os ON os.id = o.status_id
+      LEFT JOIN delivery ON delivery.order_id = o.id
+      LEFT JOIN delivery_status ds ON ds.id = delivery.status_id
+      LEFT JOIN courier ON courier.id = delivery.courier_id
+      LEFT JOIN "user" courier_user ON courier_user.id = courier.user_id
+      WHERE o.restaurant_id = $1
+      ORDER BY o.created_at DESC
+      LIMIT 8
+    `,
+    [restaurantId],
+  )
+
+  return result.rows.map(toOrder)
+}
+
+export async function getDriverEarningsSummary(courierId: number) {
+  const result = await pool.query<AnalyticsSummaryRow>(
+    `
+      SELECT
+        COALESCE(SUM(o.delivery_fee) FILTER (WHERE ds.name = 'delivered'), 0)::TEXT AS total_amount,
+        COUNT(d.id) FILTER (WHERE ds.name = 'delivered')::TEXT AS completed_count,
+        COALESCE(AVG(o.delivery_fee) FILTER (WHERE ds.name = 'delivered'), 0)::TEXT AS average_amount,
+        COUNT(d.id) FILTER (WHERE ds.name NOT IN ('delivered', 'failed', 'cancelled'))::TEXT AS active_count,
+        COALESCE(SUM(o.delivery_fee) FILTER (
+          WHERE ds.name = 'delivered' AND d.delivered_at >= DATE_TRUNC('week', CURRENT_DATE)
+        ), 0)::TEXT AS this_week_amount,
+        COALESCE(SUM(o.delivery_fee) FILTER (
+          WHERE ds.name = 'delivered'
+            AND d.delivered_at >= DATE_TRUNC('week', CURRENT_DATE) - INTERVAL '1 week'
+            AND d.delivered_at < DATE_TRUNC('week', CURRENT_DATE)
+        ), 0)::TEXT AS last_week_amount,
+        COALESCE(SUM(o.delivery_fee) FILTER (
+          WHERE ds.name = 'delivered' AND d.delivered_at >= DATE_TRUNC('month', CURRENT_DATE)
+        ), 0)::TEXT AS this_month_amount,
+        COALESCE(SUM(o.delivery_fee) FILTER (
+          WHERE ds.name = 'delivered'
+            AND d.delivered_at >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month'
+            AND d.delivered_at < DATE_TRUNC('month', CURRENT_DATE)
+        ), 0)::TEXT AS last_month_amount
+      FROM delivery d
+      INNER JOIN delivery_status ds ON ds.id = d.status_id
+      INNER JOIN "order" o ON o.id = d.order_id
+      WHERE d.courier_id = $1
+    `,
+    [courierId],
+  )
+
+  return toAnalyticsSummary(result.rows[0])
+}
+
+export async function getDriverEarningsByDay(courierId: number, days = 7) {
+  const safeDays = Math.max(1, Math.min(days, 31))
+  const result = await pool.query<AnalyticsDayRow>(
+    `
+      WITH calendar_days AS (
+        SELECT generate_series(
+          CURRENT_DATE - ($2 - 1) * INTERVAL '1 day',
+          CURRENT_DATE,
+          INTERVAL '1 day'
+        )::DATE AS day
+      )
+      SELECT
+        TO_CHAR(calendar_days.day, 'YYYY-MM-DD') AS date,
+        COALESCE(SUM(o.delivery_fee) FILTER (WHERE ds.name = 'delivered'), 0)::TEXT AS amount,
+        COUNT(d.id) FILTER (WHERE ds.name = 'delivered')::TEXT AS count
+      FROM calendar_days
+      LEFT JOIN delivery d
+        ON d.courier_id = $1
+        AND d.delivered_at >= calendar_days.day
+        AND d.delivered_at < calendar_days.day + INTERVAL '1 day'
+      LEFT JOIN delivery_status ds ON ds.id = d.status_id
+      LEFT JOIN "order" o ON o.id = d.order_id
+      GROUP BY calendar_days.day
+      ORDER BY calendar_days.day
+    `,
+    [courierId, safeDays],
+  )
+
+  return result.rows.map((row) => ({
+    date: row.date,
+    amount: Number(row.amount),
+    count: Number(row.count),
+  }))
+}
+
+export async function listRecentDriverDeliveries(courierId: number) {
+  const result = await pool.query<DriverDeliveryHistoryRow>(
+    `
+      SELECT
+        d.id,
+        d.order_id,
+        ds.name AS status,
+        restaurant.name AS restaurant_name,
+        customer.name AS customer_name,
+        o.total,
+        o.delivery_fee AS earning,
+        d.created_at,
+        d.delivered_at
+      FROM delivery d
+      INNER JOIN delivery_status ds ON ds.id = d.status_id
+      INNER JOIN "order" o ON o.id = d.order_id
+      INNER JOIN restaurant ON restaurant.id = o.restaurant_id
+      INNER JOIN "user" customer ON customer.id = o.user_id
+      WHERE d.courier_id = $1
+      ORDER BY d.created_at DESC
+      LIMIT 8
+    `,
+    [courierId],
+  )
+
+  return result.rows.map((row) => ({
+    id: Number(row.id),
+    orderId: Number(row.order_id),
+    status: row.status,
+    restaurantName: row.restaurant_name,
+    customerName: row.customer_name,
+    total: Number(row.total),
+    earning: Number(row.earning),
+    createdAt: row.created_at,
+    deliveredAt: row.delivered_at,
+  }))
 }
 
 export async function listUsers() {

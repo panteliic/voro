@@ -10,6 +10,7 @@ import type { AuthUser } from '../types/auth'
 import type {
   CategoryForm,
   DashboardResponse,
+  OrderStatus,
   ProductForm,
 } from '../types/restaurant'
 
@@ -20,10 +21,12 @@ type DashboardPageProps = {
   isLoading: boolean
   isSavingCategory: boolean
   isSavingProduct: boolean
+  isUpdatingOrderId: number | null
   onRefresh: () => void
   onLogout: () => void
   onCreateCategory: (payload: CategoryForm) => Promise<void>
   onSaveProduct: (payload: ProductForm, editingProductId: number | null) => Promise<void>
+  onUpdateOrderStatus: (orderId: number, status: OrderStatus) => Promise<void>
 }
 
 export function DashboardPage({
@@ -31,10 +34,12 @@ export function DashboardPage({
   isLoading,
   isSavingCategory,
   isSavingProduct,
+  isUpdatingOrderId,
   onCreateCategory,
   onLogout,
   onRefresh,
   onSaveProduct,
+  onUpdateOrderStatus,
   status,
   user,
 }: DashboardPageProps) {
@@ -59,7 +64,16 @@ export function DashboardPage({
           ) : null}
 
           <Routes>
-            <Route element={<ActiveOrdersPage />} path="/" />
+            <Route
+              element={
+                <ActiveOrdersPage
+                  dashboard={dashboard}
+                  isUpdatingOrderId={isUpdatingOrderId}
+                  onUpdateOrderStatus={onUpdateOrderStatus}
+                />
+              }
+              path="/"
+            />
             <Route
               element={<DashboardOverviewPage dashboard={dashboard} />}
               path="/dashboard"

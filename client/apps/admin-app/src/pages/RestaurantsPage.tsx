@@ -161,7 +161,7 @@ export function RestaurantsPage() {
             header: t('dashboard.restaurant'),
             render: (restaurant) => (
               <div>
-                <p className="font-bold">{restaurant.name}</p>
+                <Link className="font-bold text-content hover:text-action" to={`/restaurants/${restaurant.id}`}>{restaurant.name}</Link>
                 <p className="text-xs text-muted-foreground">{restaurant.email || t('common.noEmail')}</p>
               </div>
             ),

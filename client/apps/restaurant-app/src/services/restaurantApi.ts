@@ -1,6 +1,7 @@
 import type {
   CategoryForm,
   DashboardResponse,
+  OrderStatus,
   Product,
   ProductCategory,
   ProductForm,
@@ -9,6 +10,17 @@ import { request } from './apiClient'
 
 export function getRestaurantDashboard(token: string) {
   return request<DashboardResponse>('/restaurant/me', token)
+}
+
+export function updateOrderStatus(token: string, orderId: number, status: OrderStatus) {
+  return request<{ order: { id: number; status: OrderStatus } }>(
+    `/restaurant/orders/${orderId}/status`,
+    token,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    },
+  )
 }
 
 export function createCategory(token: string, payload: CategoryForm) {

@@ -1,10 +1,14 @@
 import type {
   CustomerAddressPayload,
+  CreatedCustomerOrder,
+  CustomerOrdersResponse,
+  CustomerOrderItemPayload,
   CustomerPaymentMethodPayload,
   CustomerPreferences,
   CustomerProfile,
   CustomerUserProfile,
   RestaurantDiscovery,
+  RestaurantMenu,
 } from '../types/customer'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
@@ -43,6 +47,23 @@ export const customerApi = {
   getRestaurantDiscovery(categorySlug = '') {
     const query = categorySlug ? `?category=${encodeURIComponent(categorySlug)}` : ''
     return request<RestaurantDiscovery>(`/customer/restaurants${query}`)
+  },
+
+  getRestaurantMenu(restaurantId: number) {
+    return request<RestaurantMenu>(`/customer/restaurants/${restaurantId}`)
+  },
+
+  createOrder(payload: {
+    restaurantId: number
+    addressId: number | null
+    note: string
+    items: CustomerOrderItemPayload[]
+  }) {
+    return jsonRequest<{ order: CreatedCustomerOrder }>('/customer/orders', 'POST', payload)
+  },
+
+  getOrders() {
+    return request<CustomerOrdersResponse>('/customer/orders')
   },
 
   updateProfile(payload: Pick<CustomerUserProfile, 'name' | 'phone'>) {

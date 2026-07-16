@@ -22,7 +22,107 @@
     margin: 0;
   }
 
+  #root {
+    min-height: 100vh;
+  }
+
   button {
     font: inherit;
+  }
+}
+
+@layer components {
+  .admin-console {
+    --voro-primary-400: #f36b49;
+    --voro-primary-500: #e94d29;
+    --bg-main: #111211;
+    --bg-card: #181a18;
+    --text-main: #f4f2ed;
+    --text-muted: #969892;
+    --border-color: #3a302d;
+    --muted: #292322;
+    --secondary: #292322;
+    --accent: #3c241e;
+    --input: #1d1f1d;
+    --destructive: #fb7185;
+    --btn-primary-bg: #e94d29;
+    --btn-primary-hover: #f36b49;
+    --btn-text: #ffffff;
+    background:
+      radial-gradient(circle at 78% -10%, rgb(233 77 41 / 0.11), transparent 28rem),
+      #111211;
+  }
+
+  .admin-sidebar {
+    background: linear-gradient(180deg, #191b19 0%, #141514 100%);
+  }
+
+  .admin-header {
+    background: rgb(24 26 24 / 0.92);
+    backdrop-filter: blur(16px);
+  }
+
+  .admin-main {
+    animation: admin-fade-in 280ms ease-out;
+  }
+
+  .admin-panel,
+  .dashboard-stat-card {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: linear-gradient(145deg, rgb(255 255 255 / 0.025), transparent 36%), var(--bg-card);
+    box-shadow: 0 18px 38px rgb(0 0 0 / 0.12);
+  }
+
+  .dashboard-stat-card {
+    padding: 1rem;
+    transition: border-color 160ms ease, transform 160ms ease;
+  }
+
+  .dashboard-stat-card:hover {
+    border-color: #714236;
+    transform: translateY(-2px);
+  }
+
+  .dashboard-eyebrow {
+    color: var(--voro-primary-400);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+  }
+
+  .dashboard-chart-grid {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(25% - 1px),
+      rgb(255 255 255 / 0.06) 25%
+    );
+  }
+
+  .admin-console .admin-panel > .overflow-x-auto {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .admin-console .admin-panel > .overflow-x-auto thead {
+    background: rgb(255 255 255 / 0.035);
+  }
+
+  .admin-console .admin-panel > .overflow-x-auto tr:hover {
+    background: rgb(255 255 255 / 0.025);
+  }
+}
+
+@keyframes admin-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

@@ -78,6 +78,87 @@ export type RestaurantDiscovery = {
   restaurants: DiscoverableRestaurant[]
 }
 
+export type RestaurantMenuCategory = {
+  id: number
+  name: string
+  description: string
+}
+
+export type RestaurantMenuProduct = {
+  id: number
+  categoryId: number | null
+  categoryName: string
+  name: string
+  description: string
+  price: number
+  imageUrl: string
+  isAvailable: boolean
+}
+
+export type RestaurantMenu = {
+  restaurant: DiscoverableRestaurant
+  categories: RestaurantMenuCategory[]
+  products: RestaurantMenuProduct[]
+}
+
+export type CustomerOrderItemPayload = {
+  productId: number
+  quantity: number
+}
+
+export type CustomerOrderStatus =
+  | 'pending'
+  | 'accepted'
+  | 'preparing'
+  | 'ready'
+  | 'picked_up'
+  | 'delivered'
+  | 'cancelled'
+
+export type CreatedCustomerOrder = {
+  id: number
+  status: CustomerOrderStatus
+  subtotal: number
+  deliveryFee: number
+  total: number
+  createdAt: string
+  items: Array<{
+    productId: number
+    name: string
+    quantity: number
+    unitPrice: number
+    totalPrice: number
+  }>
+}
+
+export type CustomerOrder = {
+  id: number
+  restaurantId: number
+  restaurantName: string
+  restaurantImageUrl: string
+  status: CustomerOrderStatus
+  subtotal: number
+  deliveryFee: number
+  total: number
+  note: string
+  address: string
+  createdAt: string
+  updatedAt: string
+  estimatedDeliveryMinutes: number | null
+  estimatedDeliveryRange: { min: number; max: number } | null
+  items: Array<{
+    productId: number
+    name: string
+    quantity: number
+    unitPrice: number
+    totalPrice: number
+  }>
+}
+
+export type CustomerOrdersResponse = {
+  orders: CustomerOrder[]
+}
+
 export type CustomerAddressPayload = Omit<CustomerAddress, 'id' | 'userId' | 'isDefault'>
 export type CustomerPaymentMethodPayload = Omit<
   CustomerPaymentMethod,

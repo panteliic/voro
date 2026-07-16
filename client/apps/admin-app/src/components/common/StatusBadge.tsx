@@ -4,9 +4,9 @@ type StatusBadgeProps = {
 }
 
 const toneClass = {
-  success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  warning: 'border-amber-200 bg-amber-50 text-amber-700',
-  danger: 'border-red-200 bg-red-50 text-red-700',
+  success: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300',
+  warning: 'border-amber-400/20 bg-amber-400/10 text-amber-300',
+  danger: 'border-red-400/20 bg-red-400/10 text-red-300',
   neutral: 'border-line bg-muted text-content',
 }
 

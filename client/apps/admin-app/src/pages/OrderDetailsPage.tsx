@@ -6,6 +6,7 @@ import { StatusBadge } from '../components/common/StatusBadge'
 import { useI18n } from '../i18n/i18n'
 import { getOrder } from '../services/ordersApi'
 import type { Order } from '../types/order'
+import { formatRsd } from '../utils/currency'
 
 export function OrderDetailsPage() {
   const { t } = useI18n()
@@ -85,9 +86,9 @@ export function OrderDetailsPage() {
           {order.deliveryStatus ? <StatusBadge tone="warning">{order.deliveryStatus}</StatusBadge> : null}
         </div>
         <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-          <div><dt className="font-bold text-muted-foreground">{t('orders.subtotal')}</dt><dd>${order.subtotal.toFixed(2)}</dd></div>
-          <div><dt className="font-bold text-muted-foreground">{t('orders.deliveryFee')}</dt><dd>${order.deliveryFee.toFixed(2)}</dd></div>
-          <div><dt className="font-bold text-muted-foreground">{t('dashboard.total')}</dt><dd className="font-bold">${order.total.toFixed(2)}</dd></div>
+          <div><dt className="font-bold text-muted-foreground">{t('orders.subtotal')}</dt><dd>{formatRsd(order.subtotal)}</dd></div>
+          <div><dt className="font-bold text-muted-foreground">{t('orders.deliveryFee')}</dt><dd>{formatRsd(order.deliveryFee)}</dd></div>
+          <div><dt className="font-bold text-muted-foreground">{t('dashboard.total')}</dt><dd className="font-bold">{formatRsd(order.total)}</dd></div>
         </dl>
         {order.note ? <p className="mt-4 rounded-voro-md bg-muted p-3 text-sm">{order.note}</p> : null}
       </section>

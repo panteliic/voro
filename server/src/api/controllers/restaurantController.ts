@@ -32,6 +32,20 @@ export async function getDashboard(req: Request, res: Response) {
   }
 }
 
+export async function updateOrderStatus(req: Request, res: Response) {
+  try {
+    res.json(
+      await restaurantService.updateOrderStatus(
+        auth(req).userId,
+        numericParam(req.params.orderId),
+        normalizeText(req.body.status).toLowerCase(),
+      ),
+    )
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
 export async function createCategory(req: Request, res: Response) {
   try {
     const result = await restaurantService.createCategory(auth(req).userId, {

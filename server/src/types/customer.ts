@@ -38,3 +38,15 @@ export type CustomerPreferencesPayload = {
   personalizedRecommendations: boolean
   reduceMotion: boolean
 }
+
+export type CustomerOrderItemPayload = {
+  productId: number
+  quantity: number
+}
+
+export type CreateCustomerOrderPayload = {
+  restaurantId: number
+  addressId: number | null
+  note: string
+  items: CustomerOrderItemPayload[]
+}

@@ -1,6 +1,7 @@
 import { pool } from '../database/pool'
 import type {
   CustomerAddressPayload,
+  CreateCustomerOrderPayload,
   CustomerPaymentMethodPayload,
   CustomerPreferencesPayload,
   CustomerProfilePayload,
@@ -57,6 +58,53 @@ type PreferencesRow = {
   personalized_recommendations: boolean
   reduce_motion: boolean
   updated_at: Date
+}
+
+type MenuProductRow = {
+  id: string
+  category_id: string | null
+  category_name: string | null
+  name: string
+  description: string | null
+  price: string
+  image_url: string | null
+  is_available: boolean
+}
+
+type CheckoutProductRow = {
+  id: string
+  name: string
+  price: string
+}
+
+type CreatedOrderRow = {
+  id: string
+  subtotal: string
+  delivery_fee: string
+  total: string
+  created_at: Date
+}
+
+type CustomerOrderRow = {
+  id: string
+  restaurant_id: string
+  restaurant_name: string
+  restaurant_image_url: string | null
+  status: string
+  subtotal: string
+  delivery_fee: string
+  total: string
+  note: string | null
+  address: string | null
+  created_at: Date
+  updated_at: Date
+  items: Array<{
+    productId: number
+    name: string
+    quantity: number
+    unitPrice: number
+    totalPrice: number
+  }> | null
 }
 
 function toUserProfile(row: UserProfileRow) {
@@ -117,6 +165,45 @@ function toPreferences(row: PreferencesRow) {
     personalizedRecommendations: row.personalized_recommendations,
     reduceMotion: row.reduce_motion,
     updatedAt: row.updated_at,
+  }
+}
+
+function toMenuProduct(row: MenuProductRow) {
+  return {
+    id: Number(row.id),
+    categoryId: row.category_id ? Number(row.category_id) : null,
+    categoryName: row.category_name || '',
+    name: row.name,
+    description: row.description || '',
+    price: Number(row.price),
+    imageUrl: row.image_url || '',
+    isAvailable: row.is_available,
+  }
+}
+
+function toCustomerOrder(row: CustomerOrderRow) {
+  return {
+    id: Number(row.id),
+    restaurantId: Number(row.restaurant_id),
+    restaurantName: row.restaurant_name,
+    restaurantImageUrl: row.restaurant_image_url || '',
+    status: row.status,
+    subtotal: Number(row.subtotal),
+    deliveryFee: Number(row.delivery_fee),
+    total: Number(row.total),
+    note: row.note || '',
+    address: row.address || '',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    items: Array.isArray(row.items)
+      ? row.items.map((item) => ({
+          productId: Number(item.productId),
+          name: item.name,
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+          totalPrice: Number(item.totalPrice),
+        }))
+      : [],
   }
 }
 
@@ -483,4 +570,180 @@ export async function deletePaymentMethod(userId: number, paymentMethodId: numbe
   )
 
   return result.rows[0] ? toPaymentMethod(result.rows[0]) : null
+}
+
+export async function listAvailableProducts(restaurantId: number) {
+  const result = await pool.query<MenuProductRow>(
+    `
+      SELECT
+        product.id,
+        product.category_id,
+        product_category.name AS category_name,
+        product.name,
+        product.description,
+        product.price,
+        product.image_url,
+        product.is_available
+      FROM product
+      LEFT JOIN product_category ON product_category.id = product.category_id
+      WHERE product.restaurant_id = $1
+        AND product.is_available = TRUE
+      ORDER BY product_category.name ASC NULLS LAST, product.created_at ASC, product.id ASC
+    `,
+    [restaurantId],
+  )
+
+  return result.rows.map(toMenuProduct)
+}
+
+export async function listCustomerOrders(userId: number, limit = 50) {
+  const result = await pool.query<CustomerOrderRow>(
+    `
+      SELECT
+        o.id,
+        o.restaurant_id,
+        restaurant.name AS restaurant_name,
+        restaurant.image_url AS restaurant_image_url,
+        status.name AS status,
+        o.subtotal,
+        o.delivery_fee,
+        o.total,
+        o.note,
+        NULLIF(CONCAT_WS(', ', address.label, address.street, address.city), '') AS address,
+        o.created_at,
+        o.updated_at,
+        COALESCE(
+          JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'productId', order_item.product_id,
+              'name', order_item.product_name,
+              'quantity', order_item.quantity,
+              'unitPrice', order_item.unit_price,
+              'totalPrice', order_item.total_price
+            )
+            ORDER BY order_item.id ASC
+          ) FILTER (WHERE order_item.id IS NOT NULL),
+          '[]'::JSON
+        ) AS items
+      FROM "order" o
+      INNER JOIN restaurant ON restaurant.id = o.restaurant_id
+      INNER JOIN order_status status ON status.id = o.status_id
+      LEFT JOIN address ON address.id = o.address_id
+      LEFT JOIN order_item ON order_item.order_id = o.id
+      WHERE o.user_id = $1
+      GROUP BY
+        o.id,
+        restaurant.id,
+        restaurant.name,
+        restaurant.image_url,
+        status.name,
+        address.label,
+        address.street,
+        address.city
+      ORDER BY o.created_at DESC
+      LIMIT $2
+    `,
+    [userId, Math.max(1, Math.min(limit, 100))],
+  )
+
+  return result.rows.map(toCustomerOrder)
+}
+
+export async function createCustomerOrder(
+  userId: number,
+  payload: CreateCustomerOrderPayload,
+  deliveryFee: number,
+) {
+  const client = await pool.connect()
+
+  try {
+    await client.query('BEGIN')
+
+    const productIds = payload.items.map((item) => item.productId)
+    const productResult = await client.query<CheckoutProductRow>(
+      `
+        SELECT id, name, price
+        FROM product
+        WHERE restaurant_id = $1
+          AND is_available = TRUE
+          AND id = ANY($2::BIGINT[])
+        FOR UPDATE
+      `,
+      [payload.restaurantId, productIds],
+    )
+
+    if (productResult.rows.length !== productIds.length) {
+      await client.query('ROLLBACK')
+      return null
+    }
+
+    const productsById = new Map(productResult.rows.map((product) => [Number(product.id), product]))
+    const items = payload.items.map((item) => {
+      const product = productsById.get(item.productId)
+
+      if (!product) {
+        throw new Error('Selected product is unavailable.')
+      }
+
+      const unitPrice = Number(product.price)
+      return {
+        ...item,
+        name: product.name,
+        unitPrice,
+        totalPrice: unitPrice * item.quantity,
+      }
+    })
+    const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0)
+    const total = subtotal + deliveryFee
+    const orderResult = await client.query<CreatedOrderRow>(
+      `
+        INSERT INTO "order" (user_id, restaurant_id, address_id, subtotal, delivery_fee, total, note)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id, subtotal, delivery_fee, total, created_at
+      `,
+      [
+        userId,
+        payload.restaurantId,
+        payload.addressId,
+        subtotal,
+        deliveryFee,
+        total,
+        payload.note || null,
+      ],
+    )
+    const order = orderResult.rows[0]
+
+    for (const item of items) {
+      await client.query(
+        `
+          INSERT INTO order_item (order_id, product_id, product_name, quantity, unit_price, total_price)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `,
+        [order.id, item.productId, item.name, item.quantity, item.unitPrice, item.totalPrice],
+      )
+    }
+
+    await client.query('COMMIT')
+
+    return {
+      id: Number(order.id),
+      status: 'pending',
+      subtotal: Number(order.subtotal),
+      deliveryFee: Number(order.delivery_fee),
+      total: Number(order.total),
+      createdAt: order.created_at,
+      items: items.map(({ name, productId, quantity, totalPrice, unitPrice }) => ({
+        productId,
+        name,
+        quantity,
+        unitPrice,
+        totalPrice,
+      })),
+    }
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
 }

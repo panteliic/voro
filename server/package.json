@@ -18,6 +18,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "migrate": "ts-node src/database/migrate.ts",
+    "seed:demo": "ts-node src/database/seedDemo.ts",
     "build": "tsc",
     "start": "node dist/index.js"
   },

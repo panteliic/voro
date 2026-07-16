@@ -35,8 +35,10 @@ async function migrate() {
   await ensureMigrationsTable()
 
   const migrationsDir = path.resolve(__dirname, 'migrations')
+  const includeDemoSeeds = process.env.SEED_DEMO_DATA === 'true'
   const files = (await fs.readdir(migrationsDir))
     .filter((file) => file.endsWith('.sql'))
+    .filter((file) => includeDemoSeeds || !file.includes('_seed_'))
     .sort((a, b) => a.localeCompare(b))
 
   for (const file of files) {

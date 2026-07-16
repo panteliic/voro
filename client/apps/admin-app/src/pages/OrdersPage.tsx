@@ -13,6 +13,7 @@ import { StatusBadge } from '../components/common/StatusBadge'
 import { useI18n } from '../i18n/i18n'
 import { listOrders } from '../services/ordersApi'
 import type { Order } from '../types/order'
+import { formatRsd } from '../utils/currency'
 
 const statusOptions = ['all', 'pending', 'accepted', 'preparing', 'ready', 'picked_up', 'delivered', 'cancelled']
 
@@ -97,7 +98,7 @@ export function OrdersPage() {
             { key: 'restaurant', header: t('dashboard.restaurant'), render: (order) => order.restaurantName },
             { key: 'driver', header: t('orders.driver'), render: (order) => order.courierName || t('orders.unassigned') },
             { key: 'status', header: t('common.status'), render: (order) => <StatusBadge>{order.status}</StatusBadge> },
-            { key: 'total', header: t('dashboard.total'), render: (order) => `$${order.total.toFixed(2)}` },
+            { key: 'total', header: t('dashboard.total'), render: (order) => formatRsd(order.total) },
           ]}
           emptyTitle={t('orders.noOrders')}
           getRowKey={(order) => order.id}

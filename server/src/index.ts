@@ -14,8 +14,33 @@ import { driverRoutes } from './api/routes/driverRoutes'
 const app = express()
 const server = http.createServer(app)
 
+function isLocalViteOrigin(origin: string) {
+  try {
+    const url = new URL(origin)
+    const isVitePort = /^517[3-9]$/.test(url.port)
+    const isLoopback = url.hostname === 'localhost' || url.hostname === '127.0.0.1'
+    const isPrivateNetwork =
+      /^10\./.test(url.hostname) ||
+      /^192\.168\./.test(url.hostname) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(url.hostname)
+
+    return url.protocol === 'http:' && isVitePort && (isLoopback || isPrivateNetwork)
+  } catch {
+    return false
+  }
+}
+
+function allowOrigin(origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) {
+  if (!origin || env.clientUrls.includes(origin) || (!env.isProduction && isLocalViteOrigin(origin))) {
+    callback(null, true)
+    return
+  }
+
+  callback(new Error(`CORS origin is not allowed: ${origin}`))
+}
+
 app.use(helmet())
-app.use(cors({ origin: env.clientUrls }))
+app.use(cors({ origin: allowOrigin }))
 app.use(express.json())
 app.use(morgan('dev'))
 

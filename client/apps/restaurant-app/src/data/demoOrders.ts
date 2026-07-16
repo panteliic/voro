@@ -1,6 +1,18 @@
-import type { RestaurantOrder } from '../types/restaurant'
+type DemoRestaurantOrder = {
+  id: string
+  customer: string
+  status: 'New' | 'Preparing' | 'Ready' | 'Delivered' | 'Cancelled'
+  eta: string
+  total: string
+  items: string[]
+  createdAt: string
+  completedAt?: string
+  pickupCode: string
+  driver?: string
+  address: string
+}
 
-export const demoOrders: RestaurantOrder[] = [
+export const demoOrders: DemoRestaurantOrder[] = [
   {
     id: 'A-104',
     customer: 'Milica P.',

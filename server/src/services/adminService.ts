@@ -45,18 +45,20 @@ export async function getDashboardStats() {
 }
 
 export async function getOverview() {
-  const [stats, restaurants, users, orders] = await Promise.all([
+  const [stats, restaurants, users, orders, orderVolume] = await Promise.all([
     adminRepository.getStats(),
     restaurantRepository.listRestaurants(),
     adminRepository.listUsers(),
     adminRepository.listOrders(),
+    adminRepository.getOrderVolumeByDay(),
   ])
 
   return {
     stats,
     recentRestaurants: restaurants.slice(0, 5),
     recentUsers: users.slice(0, 5),
-    recentOrders: orders.slice(0, 5),
+    recentOrders: orders.slice(0, 8),
+    orderVolume,
   }
 }
 
@@ -108,6 +110,17 @@ export async function getRestaurant(restaurantId: number) {
   }
 
   return restaurant
+}
+
+export async function getRestaurantAnalytics(restaurantId: number) {
+  const restaurant = await getRestaurant(restaurantId)
+  const [summary, dailyRevenue, recentOrders] = await Promise.all([
+    adminRepository.getRestaurantRevenueSummary(restaurantId),
+    adminRepository.getRestaurantRevenueByDay(restaurantId),
+    adminRepository.listRecentRestaurantOrders(restaurantId),
+  ])
+
+  return { restaurant, summary, dailyRevenue, recentOrders }
 }
 
 export async function createRestaurant(payload: CreateRestaurantPayload) {
@@ -203,6 +216,17 @@ export async function getCourier(courierId: number) {
   }
 
   return courier
+}
+
+export async function getCourierAnalytics(courierId: number) {
+  const courier = await getCourier(courierId)
+  const [summary, dailyEarnings, recentDeliveries] = await Promise.all([
+    adminRepository.getDriverEarningsSummary(courierId),
+    adminRepository.getDriverEarningsByDay(courierId),
+    adminRepository.listRecentDriverDeliveries(courierId),
+  ])
+
+  return { courier, summary, dailyEarnings, recentDeliveries }
 }
 
 export async function createCourier(payload: CreateCourierPayload) {

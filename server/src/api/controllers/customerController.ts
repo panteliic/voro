@@ -34,6 +34,30 @@ export async function listRestaurants(req: Request, res: Response) {
   }
 }
 
+export async function getRestaurantMenu(req: Request, res: Response) {
+  try {
+    res.json(await customerService.getRestaurantMenu(numericParam(req.params.restaurantId)))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function createOrder(req: Request, res: Response) {
+  try {
+    res.status(201).json(await customerService.createOrder(auth(req).userId, req.body))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function getOrders(req: Request, res: Response) {
+  try {
+    res.json(await customerService.getOrders(auth(req).userId))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
 export async function updateProfile(req: Request, res: Response) {
   try {
     res.json(await customerService.updateProfile(auth(req).userId, req.body))

@@ -9,11 +9,13 @@ import {
   createCategory,
   getRestaurantDashboard,
   saveProduct,
+  updateOrderStatus,
 } from './services/restaurantApi'
 import type { AuthUser, LoginPayload, SetupPasswordPayload } from './types/auth'
 import type {
   CategoryForm,
   DashboardResponse,
+  OrderStatus,
   ProductForm,
 } from './types/restaurant'
 import { clearSession, storedToken, storedUser, storeSession } from './utils/storage'
@@ -27,6 +29,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [isSavingCategory, setIsSavingCategory] = useState(false)
   const [isSavingProduct, setIsSavingProduct] = useState(false)
+  const [isUpdatingOrderId, setIsUpdatingOrderId] = useState<number | null>(null)
   const [isSettingPassword, setIsSettingPassword] = useState(false)
 
   function endSession(message?: string) {
@@ -135,6 +138,33 @@ function App() {
     }
   }
 
+  async function handleUpdateOrderStatus(orderId: number, nextStatus: OrderStatus) {
+    setIsUpdatingOrderId(orderId)
+    setStatus('')
+
+    try {
+      const result = await updateOrderStatus(token, orderId, nextStatus)
+
+      setDashboard((current) =>
+        current
+          ? {
+              ...current,
+              orders: current.orders.map((order) =>
+                order.id === result.order.id
+                  ? { ...order, status: result.order.status, updatedAt: new Date().toISOString() }
+                  : order,
+              ),
+            }
+          : current,
+      )
+      setStatus(t('status.orderUpdated'))
+    } catch (error) {
+      handleRequestError(error, t('error.updateOrder'))
+    } finally {
+      setIsUpdatingOrderId(null)
+    }
+  }
+
   function handleLogout() {
     endSession()
   }
@@ -159,10 +189,12 @@ function App() {
         isLoading={isLoading}
         isSavingCategory={isSavingCategory}
         isSavingProduct={isSavingProduct}
+        isUpdatingOrderId={isUpdatingOrderId}
         onCreateCategory={handleCreateCategory}
         onLogout={handleLogout}
         onRefresh={() => void loadDashboard()}
         onSaveProduct={handleSaveProduct}
+        onUpdateOrderStatus={handleUpdateOrderStatus}
         status={status}
         user={user}
       />

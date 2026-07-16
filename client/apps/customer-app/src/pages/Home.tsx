@@ -12,7 +12,6 @@ import {
   DropdownMenuTrigger,
 } from '@voro/ui'
 import { LogOut, Settings, UserRound } from 'lucide-react'
-import { DashboardHeader } from '../components/dashboard/DashboardHeader'
 import { DashboardSidebar } from '../components/dashboard/DashboardSidebar'
 import {
   getDashboardView,
@@ -20,21 +19,15 @@ import {
   getInitials,
 } from '../components/dashboard/utils/dashboardUtils'
 import { dashboardNavItems } from '../components/dashboard/data/dashboardData'
-import { PlaceholderPanel } from '../components/dashboard/PlaceholderPanel'
+import { OrdersPanel } from '../components/dashboard/OrdersPanel'
 import { RestaurantDiscoveryPanel } from '../components/dashboard/RestaurantDiscoveryPanel'
+import { RestaurantMenuPanel } from '../components/dashboard/RestaurantMenuPanel'
 import { SettingsPanel } from '../components/dashboard/settings/SettingsPanel'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import { logout, logoutUser } from '../features/auth/authSlice'
 import { useI18n } from '../i18n/i18n'
 import { customerApi } from '../services/customerApi'
 import type { CustomerProfile } from '../types/customer'
-
-const dashboardTitleKeys = {
-  overview: 'nav.overview',
-  search: 'nav.search',
-  orders: 'nav.orders',
-  settings: 'nav.settings',
-} as const
 
 function Home() {
   const dispatch = useAppDispatch()
@@ -50,6 +43,11 @@ function Home() {
   const name = user?.name || 'korisnice'
   const displayName = profile?.user.name || user?.name || name
   const displayEmail = profile?.user.email || user?.email || ''
+  const firstName = displayName.split(' ')[0] || displayName
+  const defaultAddress = profile?.addresses.find((address) => address.isDefault) || profile?.addresses[0]
+  const deliveryAddress = defaultAddress
+    ? [defaultAddress.label, defaultAddress.street, defaultAddress.city].filter(Boolean).join(' · ')
+    : ''
   const isLoggingOut = logoutStatus === 'loading'
 
   useEffect(() => {
@@ -169,14 +167,6 @@ function Home() {
         />
 
         <section className="min-h-0 min-w-0 overflow-y-auto px-4 pb-24 pt-5 sm:px-6 lg:px-8 lg:py-5">
-          {activeView === 'settings' ? (
-            <div className="hidden lg:block">
-              <DashboardHeader title={t(dashboardTitleKeys[activeView])} />
-            </div>
-          ) : (
-            <DashboardHeader title={t(dashboardTitleKeys[activeView])} />
-          )}
-
           {profileError ? (
             <div className="mb-5 rounded-voro-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
               {profileError}
@@ -184,17 +174,15 @@ function Home() {
           ) : null}
 
           {activeView === 'overview' ? (
-            <RestaurantDiscoveryPanel />
+            <RestaurantDiscoveryPanel deliveryAddress={deliveryAddress} userName={firstName} />
           ) : null}
           {activeView === 'search' ? (
             <RestaurantDiscoveryPanel showSearch />
           ) : null}
           {activeView === 'orders' ? (
-            <PlaceholderPanel
-              title={t('nav.orders')}
-              description={t('placeholder.orders')}
-            />
+            <OrdersPanel />
           ) : null}
+          {activeView === 'restaurant' ? <RestaurantMenuPanel profile={profile} /> : null}
           {activeView === 'settings' ? (
             <SettingsPanel
               activeSection={activeSettingsSection}

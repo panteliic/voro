@@ -54,6 +54,21 @@ type ProductRow = {
   updated_at: Date
 }
 
+type RestaurantOrderRow = {
+  id: string
+  customer_name: string
+  status: string
+  subtotal: string
+  delivery_fee: string
+  total: string
+  note: string | null
+  address: string | null
+  driver_name: string | null
+  created_at: Date
+  updated_at: Date
+  items: Array<{ name: string; quantity: number }> | null
+}
+
 function toRestaurant(row: RestaurantRow) {
   const categories = Array.isArray(row.categories) ? row.categories : []
 
@@ -108,6 +123,23 @@ function toProduct(row: ProductRow) {
     isAvailable: row.is_available,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  }
+}
+
+function toRestaurantOrder(row: RestaurantOrderRow) {
+  return {
+    id: Number(row.id),
+    customerName: row.customer_name,
+    status: row.status,
+    subtotal: Number(row.subtotal),
+    deliveryFee: Number(row.delivery_fee),
+    total: Number(row.total),
+    note: row.note || '',
+    address: row.address || '',
+    driverName: row.driver_name || '',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    items: Array.isArray(row.items) ? row.items : [],
   }
 }
 
@@ -457,6 +489,83 @@ export async function listProducts(restaurantId: number) {
   )
 
   return result.rows.map(toProduct)
+}
+
+export async function listRestaurantOrders(restaurantId: number, limit = 50) {
+  const result = await pool.query<RestaurantOrderRow>(
+    `
+      SELECT
+        o.id,
+        customer.name AS customer_name,
+        status.name AS status,
+        o.subtotal,
+        o.delivery_fee,
+        o.total,
+        o.note,
+        NULLIF(CONCAT_WS(', ', address.label, address.street, address.city), '') AS address,
+        driver.name AS driver_name,
+        o.created_at,
+        o.updated_at,
+        COALESCE(
+          JSON_AGG(
+            JSON_BUILD_OBJECT('name', order_item.product_name, 'quantity', order_item.quantity)
+            ORDER BY order_item.id ASC
+          ) FILTER (WHERE order_item.id IS NOT NULL),
+          '[]'::JSON
+        ) AS items
+      FROM "order" o
+      INNER JOIN "user" customer ON customer.id = o.user_id
+      INNER JOIN order_status status ON status.id = o.status_id
+      LEFT JOIN address ON address.id = o.address_id
+      LEFT JOIN delivery ON delivery.order_id = o.id
+      LEFT JOIN courier ON courier.id = delivery.courier_id
+      LEFT JOIN "user" driver ON driver.id = courier.user_id
+      LEFT JOIN order_item ON order_item.order_id = o.id
+      WHERE o.restaurant_id = $1
+      GROUP BY o.id, customer.name, status.name, address.label, address.street, address.city, driver.name
+      ORDER BY o.created_at DESC
+      LIMIT $2
+    `,
+    [restaurantId, Math.max(1, Math.min(limit, 100))],
+  )
+
+  return result.rows.map(toRestaurantOrder)
+}
+
+export async function getRestaurantOrderStatus(restaurantId: number, orderId: number) {
+  const result = await pool.query<{ status: string }>(
+    `
+      SELECT status.name AS status
+      FROM "order" o
+      INNER JOIN order_status status ON status.id = o.status_id
+      WHERE o.restaurant_id = $1 AND o.id = $2
+    `,
+    [restaurantId, orderId],
+  )
+
+  return result.rows[0]?.status || null
+}
+
+export async function updateRestaurantOrderStatus(
+  restaurantId: number,
+  orderId: number,
+  status: string,
+) {
+  const result = await pool.query<{ id: string; status: string }>(
+    `
+      UPDATE "order" o
+      SET status_id = next_status.id, updated_at = NOW()
+      FROM order_status next_status
+      WHERE o.restaurant_id = $1
+        AND o.id = $2
+        AND next_status.name = $3
+      RETURNING o.id, next_status.name AS status
+    `,
+    [restaurantId, orderId, status],
+  )
+
+  const order = result.rows[0]
+  return order ? { id: Number(order.id), status: order.status } : null
 }
 
 export async function createProduct(restaurantId: number, payload: UpsertProductPayload) {

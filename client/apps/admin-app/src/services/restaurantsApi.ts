@@ -4,6 +4,7 @@ import type {
   RestaurantCategory,
   UpdateRestaurantPayload,
 } from '../types/restaurant'
+import type { RestaurantAnalytics } from '../types/analytics'
 import { apiRequest } from './apiClient'
 
 export function listRestaurants() {
@@ -16,6 +17,10 @@ export function listRestaurantCategories() {
 
 export function getRestaurant(restaurantId: number) {
   return apiRequest<{ restaurant: Restaurant }>(`/admin/restaurants/${restaurantId}`)
+}
+
+export function getRestaurantAnalytics(restaurantId: number) {
+  return apiRequest<RestaurantAnalytics>(`/admin/restaurants/${restaurantId}/analytics`)
 }
 
 export function createRestaurant(payload: CreateRestaurantPayload) {

@@ -151,7 +151,7 @@ export function DriversPage() {
             header: t('drivers.driver'),
             render: (driver) => (
               <div>
-                <p className="font-bold">{driver.name}</p>
+                <Link className="font-bold text-content hover:text-action" to={`/drivers/${driver.id}`}>{driver.name}</Link>
                 <p className="text-xs text-muted-foreground">{driver.email}</p>
               </div>
             ),

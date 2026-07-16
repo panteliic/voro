@@ -5,6 +5,25 @@ import type {
 } from '../types/restaurant'
 import { HttpError } from '../utils/httpError'
 
+type RestaurantOrderStatus =
+  | 'pending'
+  | 'accepted'
+  | 'preparing'
+  | 'ready'
+  | 'picked_up'
+  | 'delivered'
+  | 'cancelled'
+
+const allowedNextStatuses: Record<RestaurantOrderStatus, RestaurantOrderStatus[]> = {
+  pending: ['accepted', 'cancelled'],
+  accepted: ['preparing', 'cancelled'],
+  preparing: ['ready', 'cancelled'],
+  ready: ['picked_up'],
+  picked_up: ['delivered'],
+  delivered: [],
+  cancelled: [],
+}
+
 async function getOwnedRestaurant(userId: number) {
   const restaurant = await restaurantRepository.findRestaurantByOwner(userId)
 
@@ -17,12 +36,44 @@ async function getOwnedRestaurant(userId: number) {
 
 export async function getDashboard(userId: number) {
   const restaurant = await getOwnedRestaurant(userId)
-  const [categories, products] = await Promise.all([
+  const [categories, products, orders] = await Promise.all([
     restaurantRepository.listProductCategories(restaurant.id),
     restaurantRepository.listProducts(restaurant.id),
+    restaurantRepository.listRestaurantOrders(restaurant.id),
   ])
 
-  return { restaurant, categories, products }
+  return { restaurant, categories, products, orders }
+}
+
+export async function updateOrderStatus(userId: number, orderId: number, nextStatus: string) {
+  if (!Number.isInteger(orderId) || orderId <= 0) {
+    throw new HttpError(400, 'Order not found.')
+  }
+
+  const restaurant = await getOwnedRestaurant(userId)
+  const currentStatus = await restaurantRepository.getRestaurantOrderStatus(restaurant.id, orderId)
+
+  if (!currentStatus) {
+    throw new HttpError(404, 'Order not found.')
+  }
+
+  const allowed = allowedNextStatuses[currentStatus as RestaurantOrderStatus]
+
+  if (!allowed || !allowed.includes(nextStatus as RestaurantOrderStatus)) {
+    throw new HttpError(400, 'This order cannot move to that status.')
+  }
+
+  const order = await restaurantRepository.updateRestaurantOrderStatus(
+    restaurant.id,
+    orderId,
+    nextStatus,
+  )
+
+  if (!order) {
+    throw new HttpError(404, 'Order not found.')
+  }
+
+  return { order }
 }
 
 export async function createCategory(
