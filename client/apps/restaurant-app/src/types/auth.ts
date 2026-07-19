@@ -3,6 +3,9 @@ export type AuthUser = {
   name: string
   email: string
   role: string
+  restaurantId: number
+  restaurantName: string
+  accessRole: 'manager' | 'staff'
 }
 
 export type LoginPayload = {

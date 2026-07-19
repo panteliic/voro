@@ -91,6 +91,8 @@ type CustomerOrderRow = {
   restaurant_name: string
   restaurant_image_url: string | null
   status: string
+  driver_name: string | null
+  delivery_status: string | null
   subtotal: string
   delivery_fee: string
   total: string
@@ -105,6 +107,15 @@ type CustomerOrderRow = {
     unitPrice: number
     totalPrice: number
   }> | null
+}
+
+type CustomerOrderRouteRow = {
+  restaurant_name: string
+  restaurant_latitude: string | null
+  restaurant_longitude: string | null
+  delivery_address: string | null
+  delivery_latitude: string | null
+  delivery_longitude: string | null
 }
 
 function toUserProfile(row: UserProfileRow) {
@@ -188,6 +199,8 @@ function toCustomerOrder(row: CustomerOrderRow) {
     restaurantName: row.restaurant_name,
     restaurantImageUrl: row.restaurant_image_url || '',
     status: row.status,
+    driverName: row.driver_name || '',
+    deliveryStatus: row.delivery_status || '',
     subtotal: Number(row.subtotal),
     deliveryFee: Number(row.delivery_fee),
     total: Number(row.total),
@@ -605,6 +618,8 @@ export async function listCustomerOrders(userId: number, limit = 50) {
         restaurant.name AS restaurant_name,
         restaurant.image_url AS restaurant_image_url,
         status.name AS status,
+        driver.name AS driver_name,
+        delivery_status.name AS delivery_status,
         o.subtotal,
         o.delivery_fee,
         o.total,
@@ -629,6 +644,10 @@ export async function listCustomerOrders(userId: number, limit = 50) {
       INNER JOIN restaurant ON restaurant.id = o.restaurant_id
       INNER JOIN order_status status ON status.id = o.status_id
       LEFT JOIN address ON address.id = o.address_id
+      LEFT JOIN delivery ON delivery.order_id = o.id
+      LEFT JOIN delivery_status ON delivery_status.id = delivery.status_id
+      LEFT JOIN courier ON courier.id = delivery.courier_id
+      LEFT JOIN "user" driver ON driver.id = courier.user_id
       LEFT JOIN order_item ON order_item.order_id = o.id
       WHERE o.user_id = $1
       GROUP BY
@@ -637,6 +656,8 @@ export async function listCustomerOrders(userId: number, limit = 50) {
         restaurant.name,
         restaurant.image_url,
         status.name,
+        driver.name,
+        delivery_status.name,
         address.label,
         address.street,
         address.city
@@ -647,6 +668,40 @@ export async function listCustomerOrders(userId: number, limit = 50) {
   )
 
   return result.rows.map(toCustomerOrder)
+}
+
+export async function getCustomerOrderRouteLocations(userId: number, orderId: number) {
+  const result = await pool.query<CustomerOrderRouteRow>(
+    `
+      SELECT
+        restaurant.name AS restaurant_name,
+        restaurant.latitude AS restaurant_latitude,
+        restaurant.longitude AS restaurant_longitude,
+        NULLIF(CONCAT_WS(', ', address.label, address.street, address.city), '') AS delivery_address,
+        address.latitude AS delivery_latitude,
+        address.longitude AS delivery_longitude
+      FROM "order" o
+      INNER JOIN restaurant ON restaurant.id = o.restaurant_id
+      LEFT JOIN address ON address.id = o.address_id
+      WHERE o.user_id = $1 AND o.id = $2
+    `,
+    [userId, orderId],
+  )
+
+  const row = result.rows[0]
+
+  if (!row) {
+    return null
+  }
+
+  return {
+    restaurantName: row.restaurant_name,
+    restaurantLatitude: row.restaurant_latitude === null ? null : Number(row.restaurant_latitude),
+    restaurantLongitude: row.restaurant_longitude === null ? null : Number(row.restaurant_longitude),
+    deliveryAddress: row.delivery_address || '',
+    deliveryLatitude: row.delivery_latitude === null ? null : Number(row.delivery_latitude),
+    deliveryLongitude: row.delivery_longitude === null ? null : Number(row.delivery_longitude),
+  }
 }
 
 export async function createCustomerOrder(

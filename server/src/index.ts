@@ -1,5 +1,7 @@
 import express from 'express'
 import http from 'http'
+import path from 'path'
+import { fork, type ChildProcess } from 'child_process'
 import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
@@ -9,10 +11,34 @@ import { customerRoutes } from './api/routes/customerRoutes'
 import { systemRoutes } from './api/routes/systemRoutes'
 import { adminRoutes } from './api/routes/adminRoutes'
 import { restaurantRoutes } from './api/routes/restaurantRoutes'
+import { restaurantAuthRoutes } from './api/routes/restaurantAuthRoutes'
 import { driverRoutes } from './api/routes/driverRoutes'
 
 const app = express()
 const server = http.createServer(app)
+let dispatchWorker: ChildProcess | null = null
+
+function startDispatchWorker() {
+  const isTypeScriptRuntime = __filename.endsWith('.ts')
+  const extension = isTypeScriptRuntime ? 'ts' : 'js'
+  const workerPath = path.resolve(__dirname, 'workers', `dispatchWorker.${extension}`)
+
+  dispatchWorker = fork(workerPath, [], {
+    execArgv: isTypeScriptRuntime ? ['-r', 'ts-node/register'] : undefined,
+    stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+  })
+
+  dispatchWorker.on('exit', (code, signal) => {
+    if (code !== 0 && signal !== 'SIGTERM') {
+      console.error(`Dispatch worker stopped unexpectedly (code ${code ?? 'none'}, signal ${signal ?? 'none'}).`)
+    }
+  })
+}
+
+function stopDispatchWorker() {
+  dispatchWorker?.kill('SIGTERM')
+  dispatchWorker = null
+}
 
 function isLocalViteOrigin(origin: string) {
   try {
@@ -48,12 +74,17 @@ app.use('/', systemRoutes)
 app.use('/auth', authRoutes)
 app.use('/admin', adminRoutes)
 app.use('/customer', customerRoutes)
+app.use('/restaurant/auth', restaurantAuthRoutes)
 app.use('/restaurant', restaurantRoutes)
 app.use('/driver', driverRoutes)
 
 server.listen(env.port, () => {
   console.log(`Server radi na http://localhost:${env.port}`)
+  startDispatchWorker()
 })
+
+server.on('close', stopDispatchWorker)
+process.once('exit', stopDispatchWorker)
 
 server.on('error', (error: NodeJS.ErrnoException) => {
   if (error.code === 'EADDRINUSE') {

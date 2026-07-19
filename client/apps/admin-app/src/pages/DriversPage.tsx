@@ -161,10 +161,27 @@ export function DriversPage() {
           {
             key: 'status',
             header: t('common.status'),
+            render: (driver) => {
+              const label = !driver.isOnline
+                ? t('drivers.offline')
+                : driver.isAvailable
+                  ? t('drivers.ready')
+                  : t('drivers.onDelivery')
+
+              return (
+                <StatusBadge tone={!driver.isOnline ? 'neutral' : driver.isAvailable ? 'success' : 'warning'}>
+                  {label}
+                </StatusBadge>
+              )
+            },
+          },
+          {
+            key: 'location',
+            header: t('drivers.location'),
             render: (driver) => (
-              <StatusBadge tone={driver.isAvailable ? 'success' : 'warning'}>
-                {driver.isAvailable ? t('common.available') : t('common.inactive')}
-              </StatusBadge>
+              driver.currentLatitude !== null && driver.currentLongitude !== null
+                ? `${driver.currentLatitude.toFixed(4)}, ${driver.currentLongitude.toFixed(4)}`
+                : t('drivers.noLocation')
             ),
           },
           {
@@ -173,7 +190,7 @@ export function DriversPage() {
             render: (driver) => (
               <Switch
                 checked={driver.isAvailable}
-                disabled={pendingId === driver.id}
+                disabled={pendingId === driver.id || !driver.isOnline}
                 onCheckedChange={(checked) => void handleStatus(driver, checked)}
               />
             ),

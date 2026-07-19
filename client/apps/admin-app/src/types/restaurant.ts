@@ -1,6 +1,5 @@
 export type Restaurant = {
   id: number
-  ownerUserId: number
   categoryId: number | null
   categoryName: string
   categories: RestaurantCategory[]
@@ -23,8 +22,8 @@ export type RestaurantCategory = {
 }
 
 export type CreateRestaurantPayload = {
-  ownerName: string
-  ownerEmail: string
+  contactName: string
+  contactEmail: string
   restaurantName: string
   categoryName: string
   categoryIds: number[]

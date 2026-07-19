@@ -176,6 +176,9 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'orders.estimatedRange': '{min}–{max} min',
     'orders.noAddress': 'No delivery address',
     'orders.placedAt': 'Placed {time}',
+    'orders.findingDriver': 'Finding the nearest available courier…',
+    'orders.driverAssigned': 'Courier found: {name}',
+    'orders.driverAssignedHint': 'They will collect your order as soon as it is ready.',
     'orders.status.pending': 'Waiting for confirmation',
     'orders.status.accepted': 'Restaurant accepted',
     'orders.status.preparing': 'Being prepared',
@@ -183,6 +186,13 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'orders.status.picked_up': 'On the way',
     'orders.status.delivered': 'Delivered',
     'orders.status.cancelled': 'Cancelled',
+
+    'map.deliveryRoute': 'Delivery route',
+    'map.loadingRoute': 'Finding the best route...',
+    'map.routeError': 'Could not load the delivery route.',
+    'map.travelTime': 'Drive {min}–{max} min',
+    'map.restaurantPin': 'Restaurant',
+    'map.deliveryPin': 'Your delivery address',
 
     'restaurants.title': 'Find restaurants',
     'restaurants.desc': 'Browse restaurants by food type, like pizza, burgers, sushi, desserts, and healthy meals.',
@@ -534,6 +544,9 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'orders.estimatedRange': '{min}–{max} min',
     'orders.noAddress': 'Nema adrese za dostavu',
     'orders.placedAt': 'Poručeno {time}',
+    'orders.findingDriver': 'Tražimo najbližeg slobodnog dostavljača…',
+    'orders.driverAssigned': 'Dostavljač je pronađen: {name}',
+    'orders.driverAssignedHint': 'Preuzeće porudžbinu čim bude spremna.',
     'orders.status.pending': 'Čeka potvrdu restorana',
     'orders.status.accepted': 'Restoran je prihvatio',
     'orders.status.preparing': 'U pripremi',
@@ -541,6 +554,13 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'orders.status.picked_up': 'Na putu',
     'orders.status.delivered': 'Dostavljeno',
     'orders.status.cancelled': 'Otkazano',
+
+    'map.deliveryRoute': 'Ruta dostave',
+    'map.loadingRoute': 'Tražimo najbolju rutu...',
+    'map.routeError': 'Ruta dostave nije mogla da se učita.',
+    'map.travelTime': 'Vožnja {min}–{max} min',
+    'map.restaurantPin': 'Restoran',
+    'map.deliveryPin': 'Tvoja adresa za dostavu',
 
     'restaurants.title': 'Pronađi restorane',
     'restaurants.desc':

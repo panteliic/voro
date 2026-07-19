@@ -4,7 +4,7 @@ import { useI18n } from './i18n/i18n'
 import { AuthPage } from './pages/AuthPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { loginRestaurant, setupRestaurantPassword } from './services/authApi'
-import { SessionExpiredError } from './services/apiClient'
+import { revokeSession, SessionExpiredError } from './services/apiClient'
 import {
   createCategory,
   getRestaurantDashboard,
@@ -49,26 +49,41 @@ function App() {
     setStatus(error instanceof Error ? error.message : fallbackMessage)
   }
 
-  async function loadDashboard(nextToken = token) {
+  async function loadDashboard(nextToken = token, silently = false) {
     if (!nextToken) {
       return
     }
 
-    setIsLoading(true)
-    setStatus('')
+    if (!silently) {
+      setIsLoading(true)
+      setStatus('')
+    }
 
     try {
       setDashboard(await getRestaurantDashboard(nextToken))
     } catch (error) {
-      handleRequestError(error, t('error.loadRestaurant'))
+      if (error instanceof SessionExpiredError) {
+        handleRequestError(error, t('error.loadRestaurant'))
+      } else if (!silently) {
+        handleRequestError(error, t('error.loadRestaurant'))
+      }
     } finally {
-      setIsLoading(false)
+      if (!silently) {
+        setIsLoading(false)
+      }
     }
   }
 
   useEffect(() => {
+    if (!token) {
+      return
+    }
+
     void loadDashboard(token)
-  }, [])
+    const refreshInterval = window.setInterval(() => void loadDashboard(token, true), 3_000)
+
+    return () => window.clearInterval(refreshInterval)
+  }, [token])
 
   async function handleLogin(payload: LoginPayload) {
     setIsLoading(true)
@@ -77,10 +92,9 @@ function App() {
     try {
       const data = await loginRestaurant(payload)
 
-      storeSession(data.accessToken, data.user)
+      storeSession(data.accessToken, data.refreshToken, data.user)
       setToken(data.accessToken)
       setUser(data.user)
-      await loadDashboard(data.accessToken)
     } catch (error) {
       setStatus(error instanceof Error ? error.message : t('error.signIn'))
     } finally {
@@ -165,7 +179,8 @@ function App() {
     }
   }
 
-  function handleLogout() {
+  async function handleLogout() {
+    await revokeSession()
     endSession()
   }
 
@@ -191,7 +206,7 @@ function App() {
         isSavingProduct={isSavingProduct}
         isUpdatingOrderId={isUpdatingOrderId}
         onCreateCategory={handleCreateCategory}
-        onLogout={handleLogout}
+        onLogout={() => void handleLogout()}
         onRefresh={() => void loadDashboard()}
         onSaveProduct={handleSaveProduct}
         onUpdateOrderStatus={handleUpdateOrderStatus}

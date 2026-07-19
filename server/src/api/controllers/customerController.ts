@@ -58,6 +58,14 @@ export async function getOrders(req: Request, res: Response) {
   }
 }
 
+export async function getOrderRoute(req: Request, res: Response) {
+  try {
+    res.json(await customerService.getOrderRoute(auth(req).userId, numericParam(req.params.orderId)))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
 export async function updateProfile(req: Request, res: Response) {
   try {
     res.json(await customerService.updateProfile(auth(req).userId, req.body))

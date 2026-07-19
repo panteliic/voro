@@ -137,6 +137,8 @@ export type CustomerOrder = {
   restaurantName: string
   restaurantImageUrl: string
   status: CustomerOrderStatus
+  driverName: string
+  deliveryStatus: string
   subtotal: number
   deliveryFee: number
   total: number
@@ -157,6 +159,26 @@ export type CustomerOrder = {
 
 export type CustomerOrdersResponse = {
   orders: CustomerOrder[]
+}
+
+export type CustomerOrderRoute = {
+  orderId: number
+  restaurant: {
+    name: string
+    latitude: number
+    longitude: number
+  }
+  delivery: {
+    address: string
+    latitude: number
+    longitude: number
+  }
+  route: {
+    coordinates: Array<[number, number]>
+    distanceMeters: number
+    etaMinutes: number
+    etaRange: { min: number; max: number }
+  }
 }
 
 export type CustomerAddressPayload = Omit<CustomerAddress, 'id' | 'userId' | 'isDefault'>

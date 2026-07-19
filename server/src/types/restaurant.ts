@@ -1,6 +1,6 @@
 export type CreateRestaurantPayload = {
-  ownerName: string
-  ownerEmail: string
+  contactName: string
+  contactEmail: string
   restaurantName: string
   description: string
   phone: string

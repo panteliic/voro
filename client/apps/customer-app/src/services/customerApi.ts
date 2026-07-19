@@ -2,6 +2,7 @@ import type {
   CustomerAddressPayload,
   CreatedCustomerOrder,
   CustomerOrdersResponse,
+  CustomerOrderRoute,
   CustomerOrderItemPayload,
   CustomerPaymentMethodPayload,
   CustomerPreferences,
@@ -12,17 +13,86 @@ import type {
 } from '../types/customer'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+const ACCESS_TOKEN_KEY = 'voro_access_token'
+const REFRESH_TOKEN_KEY = 'voro_refresh_token'
+export const CUSTOMER_SESSION_REFRESHED_EVENT = 'voro:customer-session-refreshed'
+export const CUSTOMER_SESSION_EXPIRED_EVENT = 'voro:customer-session-expired'
+
+export type CustomerSessionTokens = {
+  accessToken: string
+  refreshToken: string
+}
+
+let refreshPromise: Promise<string> | null = null
+
+function clearStoredSession() {
+  localStorage.removeItem(ACCESS_TOKEN_KEY)
+  localStorage.removeItem(REFRESH_TOKEN_KEY)
+  window.dispatchEvent(new Event(CUSTOMER_SESSION_EXPIRED_EVENT))
+}
+
+function publishSessionRefresh(tokens: CustomerSessionTokens) {
+  window.dispatchEvent(
+    new CustomEvent<CustomerSessionTokens>(CUSTOMER_SESSION_REFRESHED_EVENT, { detail: tokens }),
+  )
+}
+
+async function refreshAccessToken() {
+  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY) || ''
+
+  if (!refreshToken) {
+    clearStoredSession()
+    throw new Error('Session expired. Please sign in again.')
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    })
+      .then(async (response) => {
+        const data = (await response.json().catch(() => ({}))) as Partial<CustomerSessionTokens> & { message?: string }
+
+        if (!response.ok || !data.accessToken || !data.refreshToken) {
+          clearStoredSession()
+          throw new Error(data.message || 'Session expired. Please sign in again.')
+        }
+
+        localStorage.setItem(ACCESS_TOKEN_KEY, data.accessToken)
+        localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken)
+        publishSessionRefresh({ accessToken: data.accessToken, refreshToken: data.refreshToken })
+        return data.accessToken
+      })
+      .finally(() => {
+        refreshPromise = null
+      })
+  }
+
+  return refreshPromise
+}
 
 async function request<TResponse>(path: string, options: RequestInit = {}) {
-  const token = localStorage.getItem('voro_access_token') || ''
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...options.headers,
-    },
-  })
+  const send = (token: string) =>
+    fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...options.headers,
+      },
+    })
+
+  let response = await send(localStorage.getItem(ACCESS_TOKEN_KEY) || '')
+
+  if (response.status === 401) {
+    response = await send(await refreshAccessToken())
+  }
+
+  if (response.status === 401) {
+    clearStoredSession()
+  }
+
   const data = (await response.json()) as TResponse & { message?: string }
 
   if (!response.ok) {
@@ -64,6 +134,10 @@ export const customerApi = {
 
   getOrders() {
     return request<CustomerOrdersResponse>('/customer/orders')
+  },
+
+  getOrderRoute(orderId: number) {
+    return request<CustomerOrderRoute>(`/customer/orders/${orderId}/route`)
   },
 
   updateProfile(payload: Pick<CustomerUserProfile, 'name' | 'phone'>) {

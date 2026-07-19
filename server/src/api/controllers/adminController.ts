@@ -154,8 +154,8 @@ export async function getRestaurantAnalytics(req: Request, res: Response) {
 export async function createRestaurant(req: Request, res: Response) {
   try {
     const result = await adminService.createRestaurant({
-      ownerName: normalizeText(req.body.ownerName),
-      ownerEmail: normalizeEmail(req.body.ownerEmail),
+      contactName: normalizeText(req.body.contactName),
+      contactEmail: normalizeEmail(req.body.contactEmail),
       restaurantName: normalizeText(req.body.restaurantName),
       description: normalizeText(req.body.description),
       phone: normalizeText(req.body.phone),
@@ -203,9 +203,9 @@ export async function updateRestaurantStatus(req: Request, res: Response) {
   }
 }
 
-export async function resetRestaurantOwnerPassword(req: Request, res: Response) {
+export async function resetRestaurantAccess(req: Request, res: Response) {
   try {
-    const result = await adminService.resetRestaurantOwnerPassword(
+    const result = await adminService.resetRestaurantAccess(
       numericParam(req.params.restaurantId),
     )
 

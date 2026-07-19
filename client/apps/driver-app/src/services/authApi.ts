@@ -4,6 +4,7 @@ import { publicRequest } from './apiClient'
 export async function loginDriver(payload: LoginPayload) {
   const data = await publicRequest<{
     accessToken: string
+    refreshToken: string
     user: AuthUser
   }>('/auth/login', payload)
 

@@ -8,7 +8,7 @@ import { StatusBadge } from '../components/common/StatusBadge'
 import { useI18n } from '../i18n/i18n'
 import {
   listRestaurants,
-  resetRestaurantOwnerPassword,
+  resetRestaurantAccess,
   updateRestaurantStatus,
 } from '../services/restaurantsApi'
 import type { SetupResult } from '../types/admin'
@@ -102,10 +102,10 @@ export function RestaurantsPage() {
     setError('')
 
     try {
-      const result = await resetRestaurantOwnerPassword(restaurant.id)
+      const result = await resetRestaurantAccess(restaurant.id)
       setResetSetup({
         restaurantName: result.restaurant.name,
-        ownerEmail: result.owner.email,
+        operatorEmail: result.operator.email,
         setupCode: result.setupCode,
       })
     } catch (requestError) {
@@ -147,7 +147,7 @@ export function RestaurantsPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             {t('common.sendSetup', {
               name: resetSetup.restaurantName || '',
-              email: resetSetup.ownerEmail || '',
+              email: resetSetup.operatorEmail || '',
               code: resetSetup.setupCode || '',
             })}
           </p>

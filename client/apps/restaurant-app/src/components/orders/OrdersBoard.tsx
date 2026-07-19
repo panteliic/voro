@@ -91,7 +91,11 @@ export function OrdersBoard({ isUpdatingOrderId, onUpdateOrderStatus, orders }: 
                   </span>
                   <span className="flex items-center gap-2">
                     <Bike className="size-4" />
-                    {order.driverName || t('orders.waitingDriver')}
+                    {order.driverName
+                      ? t('orders.driverAssigned', { name: order.driverName })
+                      : order.status === 'preparing'
+                        ? t('orders.findingDriver')
+                        : t('orders.waitingDriver')}
                   </span>
                 </div>
               </div>

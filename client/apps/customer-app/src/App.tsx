@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Toaster, TooltipProvider } from '@voro/ui'
 import { useAppDispatch, useAppSelector } from './app/hooks'
-import { refreshSession } from './features/auth/authSlice'
+import { logout, refreshSession, syncAuthTokens } from './features/auth/authSlice'
 import AuthCallback from './pages/AuthCallback'
 import ForgotPassword from './pages/ForgotPassword'
 import Home from './pages/Home'
@@ -11,6 +11,11 @@ import SignUp from './pages/SignUp'
 import VerifyEmail from './pages/VerifyEmail'
 import { ThemeProvider } from './theme/theme'
 import { useI18n } from './i18n/i18n'
+import {
+  CUSTOMER_SESSION_EXPIRED_EVENT,
+  CUSTOMER_SESSION_REFRESHED_EVENT,
+  type CustomerSessionTokens,
+} from './services/customerApi'
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const dispatch = useAppDispatch()
@@ -40,6 +45,27 @@ function RequireAuth({ children }: { children: ReactNode }) {
 }
 
 function App() {
+  const dispatch = useAppDispatch()
+
+  useEffect(() => {
+    const handleSessionRefresh = (event: Event) => {
+      const tokens = (event as CustomEvent<CustomerSessionTokens>).detail
+
+      if (tokens?.accessToken && tokens.refreshToken) {
+        dispatch(syncAuthTokens(tokens))
+      }
+    }
+    const handleSessionExpired = () => dispatch(logout())
+
+    window.addEventListener(CUSTOMER_SESSION_REFRESHED_EVENT, handleSessionRefresh)
+    window.addEventListener(CUSTOMER_SESSION_EXPIRED_EVENT, handleSessionExpired)
+
+    return () => {
+      window.removeEventListener(CUSTOMER_SESSION_REFRESHED_EVENT, handleSessionRefresh)
+      window.removeEventListener(CUSTOMER_SESSION_EXPIRED_EVENT, handleSessionExpired)
+    }
+  }, [dispatch])
+
   const protectedHome = (
     <RequireAuth>
       <Home />

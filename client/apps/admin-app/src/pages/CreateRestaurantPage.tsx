@@ -8,8 +8,8 @@ import type { SetupResult } from '../types/admin'
 import type { CreateRestaurantPayload, RestaurantCategory } from '../types/restaurant'
 
 const emptyRestaurant: CreateRestaurantPayload = {
-  ownerName: '',
-  ownerEmail: '',
+  contactName: '',
+  contactEmail: '',
   restaurantName: '',
   categoryName: '',
   categoryIds: [],
@@ -71,7 +71,7 @@ export function CreateRestaurantPage() {
       setForm(emptyRestaurant)
       setSetup({
         restaurantName: result.restaurant.name,
-        ownerEmail: result.owner.email,
+        operatorEmail: result.operator.email,
         setupCode: result.setupCode,
       })
     } catch (requestError) {
@@ -102,7 +102,7 @@ export function CreateRestaurantPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             {t('common.sendSetup', {
               name: setup.restaurantName || '',
-              email: setup.ownerEmail || '',
+              email: setup.operatorEmail || '',
               code: setup.setupCode || '',
             })}
           </p>
@@ -144,8 +144,8 @@ export function CreateRestaurantPage() {
           </div>
           <div className="h-px bg-line" />
           <div className="grid gap-3 md:grid-cols-2">
-            <Input placeholder={t('createRestaurant.ownerName')} value={form.ownerName} onChange={(event) => setForm((current) => ({ ...current, ownerName: event.target.value }))} />
-            <Input placeholder={t('createRestaurant.ownerEmail')} value={form.ownerEmail} onChange={(event) => setForm((current) => ({ ...current, ownerEmail: event.target.value }))} />
+            <Input placeholder={t('createRestaurant.contactName')} value={form.contactName} onChange={(event) => setForm((current) => ({ ...current, contactName: event.target.value }))} />
+            <Input placeholder={t('createRestaurant.contactEmail')} value={form.contactEmail} onChange={(event) => setForm((current) => ({ ...current, contactEmail: event.target.value }))} />
           </div>
           <Button className="sm:w-fit" disabled={isSubmitting} type="submit">
             {isSubmitting ? t('createRestaurant.creating') : t('createRestaurant.submit')}

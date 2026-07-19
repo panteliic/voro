@@ -21,11 +21,19 @@ export type AdminOverview = {
     date: string
     orders: number
   }>
+  revenueVolume: Array<{
+    date: string
+    revenue: number
+  }>
+  orderStatusDistribution: Array<{
+    status: string
+    orders: number
+  }>
 }
 
 export type SetupResult = {
   restaurantName?: string
-  ownerEmail?: string
+  operatorEmail?: string
   driverName?: string
   driverEmail?: string
   setupCode: string

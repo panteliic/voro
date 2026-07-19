@@ -26,7 +26,7 @@ adminRoutes.patch('/restaurants/:restaurantId', adminController.updateRestaurant
 adminRoutes.patch('/restaurants/:restaurantId/status', adminController.updateRestaurantStatus)
 adminRoutes.post(
   '/restaurants/:restaurantId/password-reset',
-  adminController.resetRestaurantOwnerPassword,
+  adminController.resetRestaurantAccess,
 )
 
 adminRoutes.get('/drivers', adminController.listCouriers)

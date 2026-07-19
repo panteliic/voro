@@ -26,7 +26,7 @@ export function getRestaurantAnalytics(restaurantId: number) {
 export function createRestaurant(payload: CreateRestaurantPayload) {
   return apiRequest<{
     restaurant: Restaurant
-    owner: { id: number; name: string; email: string }
+    operator: { id: number; name: string; email: string }
     setupCode: string
   }>('/admin/restaurants', {
     method: 'POST',
@@ -48,10 +48,10 @@ export function updateRestaurantStatus(restaurantId: number, isActive: boolean) 
   })
 }
 
-export function resetRestaurantOwnerPassword(restaurantId: number) {
+export function resetRestaurantAccess(restaurantId: number) {
   return apiRequest<{
     restaurant: Restaurant
-    owner: { id: number; name: string; email: string }
+    operator: { id: number; name: string; email: string }
     setupCode: string
   }>(`/admin/restaurants/${restaurantId}/password-reset`, {
     method: 'POST',

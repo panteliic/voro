@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken'
 import { env } from '../../config/env'
 import { HttpError } from '../../utils/httpError'
 import { sendError } from '../../utils/sendError'
+import type { RestaurantAccessClaims } from '../../services/restaurantAuthService'
 
 type AccessTokenClaims = {
   userId: number
@@ -16,6 +17,15 @@ export type AuthenticatedRequest = Request & {
     userId: number
     email: string
     role: string
+  }
+}
+
+export type RestaurantAuthenticatedRequest = Request & {
+  restaurantAuth: {
+    restaurantUserId: number
+    restaurantId: number
+    email: string
+    accessRole: 'manager' | 'staff'
   }
 }
 
@@ -68,5 +78,48 @@ export function requireRole(...roles: string[]) {
     } catch (error) {
       sendError(error, res)
     }
+  }
+}
+
+export function authenticateRestaurant(req: Request, res: Response, next: NextFunction) {
+  try {
+    const header = req.headers.authorization
+    const token = header?.startsWith('Bearer ') ? header.slice('Bearer '.length) : ''
+
+    if (!token) {
+      throw new HttpError(401, 'Restaurant authentication is required.')
+    }
+
+    const decoded = jwt.verify(token, env.jwtSecret) as RestaurantAccessClaims
+
+    if (
+      decoded.type !== 'access' ||
+      decoded.audience !== 'restaurant' ||
+      !decoded.restaurantUserId ||
+      !decoded.restaurantId ||
+      !decoded.email
+    ) {
+      throw new HttpError(401, 'Invalid restaurant access token.')
+    }
+
+    ;(req as RestaurantAuthenticatedRequest).restaurantAuth = {
+      restaurantUserId: decoded.restaurantUserId,
+      restaurantId: decoded.restaurantId,
+      email: decoded.email,
+      accessRole: decoded.accessRole,
+    }
+    next()
+  } catch (error) {
+    if (error instanceof jwt.TokenExpiredError) {
+      sendError(new HttpError(401, 'Restaurant session expired. Please sign in again.'), res)
+      return
+    }
+
+    if (error instanceof jwt.JsonWebTokenError) {
+      sendError(new HttpError(401, 'Invalid restaurant access token.'), res)
+      return
+    }
+
+    sendError(error, res)
   }
 }

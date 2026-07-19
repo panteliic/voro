@@ -1,5 +1,5 @@
 import type { AuthUser } from '../types/auth'
-import { TOKEN_KEY, USER_KEY } from '../services/apiClient'
+import { REFRESH_TOKEN_KEY, TOKEN_KEY, USER_KEY } from '../services/apiClient'
 
 export function storedToken() {
   return localStorage.getItem(TOKEN_KEY) || ''
@@ -14,12 +14,14 @@ export function storedUser() {
   }
 }
 
-export function storeSession(token: string, user: AuthUser) {
+export function storeSession(token: string, refreshToken: string, user: AuthUser) {
   localStorage.setItem(TOKEN_KEY, token)
+  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
   localStorage.setItem(USER_KEY, JSON.stringify(user))
 }
 
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(REFRESH_TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
 }

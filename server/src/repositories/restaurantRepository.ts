@@ -9,7 +9,6 @@ import type {
 
 type RestaurantRow = {
   id: string
-  owner_user_id: string
   category_id: string | null
   category_name: string | null
   categories: RestaurantCategory[] | null
@@ -18,6 +17,8 @@ type RestaurantRow = {
   phone: string | null
   email: string | null
   image_url: string | null
+  latitude: string | null
+  longitude: string | null
   is_active: boolean
   created_at: Date
   updated_at: Date
@@ -74,7 +75,6 @@ function toRestaurant(row: RestaurantRow) {
 
   return {
     id: Number(row.id),
-    ownerUserId: Number(row.owner_user_id),
     categoryId: categories[0]?.id ?? (row.category_id ? Number(row.category_id) : null),
     categoryName: categories.map((category) => category.name).join(', ') || row.category_name || '',
     categories,
@@ -83,6 +83,8 @@ function toRestaurant(row: RestaurantRow) {
     phone: row.phone || '',
     email: row.email || '',
     imageUrl: row.image_url || '',
+    latitude: row.latitude === null ? null : Number(row.latitude),
+    longitude: row.longitude === null ? null : Number(row.longitude),
     isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -220,8 +222,8 @@ const restaurantSelect = `
   LEFT JOIN restaurant_category mapped_category ON mapped_category.id = rcm.category_id
 `
 
-export async function createRestaurantWithOwner(payload: CreateRestaurantPayload & {
-  ownerPasswordHash: string
+export async function createRestaurantWithAccount(payload: CreateRestaurantPayload & {
+  contactPasswordHash: string
 }) {
   const client = await pool.connect()
 
@@ -229,19 +231,9 @@ export async function createRestaurantWithOwner(payload: CreateRestaurantPayload
     await client.query('BEGIN')
     const categoryIds = await resolveRestaurantCategoryIds(client, payload)
     const primaryCategoryId = categoryIds[0] || null
-    const userResult = await client.query<{ id: string }>(
-      `
-        INSERT INTO "user" (name, email, password, role_id, email_verified, verified_at)
-        VALUES ($1, $2, $3, 2, TRUE, NOW())
-        RETURNING id
-      `,
-      [payload.ownerName, payload.ownerEmail, payload.ownerPasswordHash],
-    )
-    const ownerUserId = Number(userResult.rows[0].id)
     const restaurantResult = await client.query<RestaurantRow>(
       `
         INSERT INTO restaurant (
-          owner_user_id,
           category_id,
           name,
           description,
@@ -250,25 +242,34 @@ export async function createRestaurantWithOwner(payload: CreateRestaurantPayload
           image_url,
           is_active
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)
+        VALUES ($1, $2, $3, $4, $5, $6, TRUE)
         RETURNING *,
           (SELECT name FROM restaurant_category WHERE id = restaurant.category_id) AS category_name
       `,
       [
-        ownerUserId,
         primaryCategoryId,
         payload.restaurantName,
         payload.description || null,
         payload.phone || null,
-        payload.email || payload.ownerEmail,
+        payload.email || payload.contactEmail,
         payload.imageUrl || null,
       ],
     )
 
     await replaceRestaurantCategories(client, Number(restaurantResult.rows[0].id), categoryIds)
 
+    const restaurantId = Number(restaurantResult.rows[0].id)
+    const operatorResult = await client.query<{ id: string }>(
+      `
+        INSERT INTO restaurant_user (restaurant_id, name, email, password, access_role)
+        VALUES ($1, $2, $3, $4, 'manager')
+        RETURNING id
+      `,
+      [restaurantId, payload.contactName, payload.contactEmail, payload.contactPasswordHash],
+    )
+
     const hydratedRestaurant = await findRestaurantById(
-      Number(restaurantResult.rows[0].id),
+      restaurantId,
       client,
     )
 
@@ -276,10 +277,10 @@ export async function createRestaurantWithOwner(payload: CreateRestaurantPayload
 
     return {
       restaurant: hydratedRestaurant || toRestaurant(restaurantResult.rows[0]),
-      owner: {
-        id: ownerUserId,
-        name: payload.ownerName,
-        email: payload.ownerEmail,
+      operator: {
+        id: Number(operatorResult.rows[0].id),
+        name: payload.contactName,
+        email: payload.contactEmail,
       },
     }
   } catch (error) {
@@ -311,20 +312,6 @@ export async function findRestaurantById(restaurantId: number, client: PoolClien
       LIMIT 1
     `,
     [restaurantId],
-  )
-
-  return result.rows[0] ? toRestaurant(result.rows[0]) : null
-}
-
-export async function findRestaurantByOwner(userId: number) {
-  const result = await pool.query<RestaurantRow>(
-    `
-      ${restaurantSelect}
-      WHERE r.owner_user_id = $1
-      GROUP BY r.id, rc.name
-      LIMIT 1
-    `,
-    [userId],
   )
 
   return result.rows[0] ? toRestaurant(result.rows[0]) : null
@@ -388,8 +375,8 @@ export async function updateRestaurant(
     await client.query('BEGIN')
 
     const categoryIds = await resolveRestaurantCategoryIds(client, {
-      ownerName: '',
-      ownerEmail: '',
+      contactName: '',
+      contactEmail: '',
       restaurantName: payload.name,
       description: payload.description,
       phone: payload.phone,

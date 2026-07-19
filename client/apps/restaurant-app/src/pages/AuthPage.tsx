@@ -123,7 +123,7 @@ export function AuthPage({
             </div>
             <form className="mt-5 grid gap-3" onSubmit={handleSetupPassword}>
               <Input
-                placeholder={t('auth.ownerEmail')}
+                placeholder={t('auth.restaurantEmail')}
                 value={setupForm.email}
                 onChange={(event) =>
                   setSetupForm((current) => ({ ...current, email: event.target.value }))

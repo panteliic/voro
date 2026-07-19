@@ -6,3 +6,4 @@ export const driverRoutes = Router()
 
 driverRoutes.use(authenticate, requireRole('courier'))
 driverRoutes.get('/me', driverController.getDashboard)
+driverRoutes.patch('/presence', driverController.updatePresence)

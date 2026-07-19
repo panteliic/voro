@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { AuthPage } from './pages/AuthPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { loginDriver, setupDriverPassword } from './services/authApi'
-import { getDriverDashboard } from './services/driverApi'
+import { getDriverDashboard, updateDriverPresence } from './services/driverApi'
+import { revokeSession, SessionExpiredError } from './services/apiClient'
 import type { AuthUser, LoginPayload, SetupPasswordPayload } from './types/auth'
 import type { DashboardResponse } from './types/driver'
 import { clearSession, storedToken, storedUser, storeSession } from './utils/storage'
@@ -26,6 +27,15 @@ function App() {
     try {
       setDashboard(await getDriverDashboard(nextToken))
     } catch (error) {
+      if (error instanceof SessionExpiredError) {
+        clearSession()
+        setToken('')
+        setUser(null)
+        setDashboard(null)
+        setStatus(error.message)
+        return
+      }
+
       setStatus(error instanceof Error ? error.message : 'Could not load driver profile.')
     } finally {
       setIsLoading(false)
@@ -33,7 +43,13 @@ function App() {
   }
 
   useEffect(() => {
-    void loadDashboard(token)
+    if (!token) {
+      return
+    }
+
+    void updateDriverPresence(token, { isOnline: true })
+      .catch(() => undefined)
+      .finally(() => void loadDashboard(token))
   }, [])
 
   async function handleLogin(payload: LoginPayload) {
@@ -43,9 +59,10 @@ function App() {
     try {
       const data = await loginDriver(payload)
 
-      storeSession(data.accessToken, data.user)
+      storeSession(data.accessToken, data.refreshToken, data.user)
       setToken(data.accessToken)
       setUser(data.user)
+      await updateDriverPresence(data.accessToken, { isOnline: true })
       await loadDashboard(data.accessToken)
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Could not sign in.')
@@ -68,11 +85,18 @@ function App() {
     }
   }
 
-  function handleLogout() {
-    clearSession()
-    setToken('')
-    setUser(null)
-    setDashboard(null)
+  async function handleLogout() {
+    try {
+      if (token) {
+        await updateDriverPresence(token, { isOnline: false })
+      }
+      await revokeSession()
+    } finally {
+      clearSession()
+      setToken('')
+      setUser(null)
+      setDashboard(null)
+    }
   }
 
   if (!token || !user) {
@@ -92,7 +116,7 @@ function App() {
     <DashboardPage
       dashboard={dashboard}
       isLoading={isLoading}
-      onLogout={handleLogout}
+      onLogout={() => void handleLogout()}
       onRefresh={() => void loadDashboard()}
       status={status}
       user={user}

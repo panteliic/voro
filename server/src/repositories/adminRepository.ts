@@ -33,6 +33,10 @@ type CourierRow = {
   phone: string | null
   vehicle_type: string | null
   is_available: boolean
+  is_online: boolean
+  current_latitude: string | null
+  current_longitude: string | null
+  last_location_at: Date | null
   created_at: Date
   updated_at: Date
 }
@@ -71,6 +75,16 @@ type OrderVolumeRow = {
   orders: string
 }
 
+type RevenueVolumeRow = {
+  date: string
+  revenue: string
+}
+
+type OrderStatusDistributionRow = {
+  status: string
+  orders: string
+}
+
 type AnalyticsSummaryRow = {
   total_amount: string
   completed_count: string
@@ -102,7 +116,6 @@ type DriverDeliveryHistoryRow = {
 
 type RestaurantRow = {
   id: string
-  owner_user_id: string
   category_id: string | null
   category_name: string | null
   name: string
@@ -141,6 +154,10 @@ function toCourier(row: CourierRow): AdminCourier {
     phone: row.phone || '',
     vehicleType: row.vehicle_type || '',
     isAvailable: row.is_available,
+    isOnline: row.is_online,
+    currentLatitude: row.current_latitude === null ? null : Number(row.current_latitude),
+    currentLongitude: row.current_longitude === null ? null : Number(row.current_longitude),
+    lastLocationAt: row.last_location_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -170,7 +187,6 @@ function toOrder(row: OrderRow): AdminOrder {
 function toRestaurant(row: RestaurantRow) {
   return {
     id: Number(row.id),
-    ownerUserId: Number(row.owner_user_id),
     categoryId: row.category_id ? Number(row.category_id) : null,
     categoryName: row.category_name || '',
     name: row.name,
@@ -241,6 +257,66 @@ export async function getOrderVolumeByDay(days = 7) {
 
   return result.rows.map((row) => ({
     date: row.date,
+    orders: Number(row.orders),
+  }))
+}
+
+export async function getRevenueVolumeByDay(days = 7) {
+  const safeDays = Math.max(1, Math.min(days, 31))
+  const result = await pool.query<RevenueVolumeRow>(
+    `
+      WITH calendar_days AS (
+        SELECT generate_series(
+          CURRENT_DATE - ($1 - 1) * INTERVAL '1 day',
+          CURRENT_DATE,
+          INTERVAL '1 day'
+        )::DATE AS day
+      )
+      SELECT
+        TO_CHAR(calendar_days.day, 'YYYY-MM-DD') AS date,
+        COALESCE(
+          SUM(
+            CASE WHEN order_status.name = 'cancelled' THEN 0 ELSE order_row.total END
+          ),
+          0
+        )::TEXT AS revenue
+      FROM calendar_days
+      LEFT JOIN "order" order_row
+        ON order_row.created_at >= calendar_days.day
+        AND order_row.created_at < calendar_days.day + INTERVAL '1 day'
+      LEFT JOIN order_status ON order_status.id = order_row.status_id
+      GROUP BY calendar_days.day
+      ORDER BY calendar_days.day
+    `,
+    [safeDays],
+  )
+
+  return result.rows.map((row) => ({
+    date: row.date,
+    revenue: Number(row.revenue),
+  }))
+}
+
+export async function getOrderStatusDistribution(days = 7) {
+  const safeDays = Math.max(1, Math.min(days, 31))
+  const result = await pool.query<OrderStatusDistributionRow>(
+    `
+      SELECT
+        order_status.name AS status,
+        COUNT(order_row.id)::TEXT AS orders
+      FROM order_status
+      LEFT JOIN "order" order_row
+        ON order_row.status_id = order_status.id
+        AND order_row.created_at >= CURRENT_DATE - ($1 - 1) * INTERVAL '1 day'
+        AND order_row.created_at < CURRENT_DATE + INTERVAL '1 day'
+      GROUP BY order_status.id, order_status.name
+      ORDER BY order_status.id
+    `,
+    [safeDays],
+  )
+
+  return result.rows.map((row) => ({
+    status: row.status,
     orders: Number(row.orders),
   }))
 }
@@ -484,13 +560,12 @@ export async function listUsers() {
         u.email_verified,
         u.created_at,
         u.updated_at,
-        restaurant.name AS restaurant_name,
+        ''::TEXT AS restaurant_name,
         courier.phone AS courier_phone,
         courier.vehicle_type,
         courier.is_available
       FROM "user" u
       INNER JOIN role r ON r.id = u.role_id
-      LEFT JOIN restaurant ON restaurant.owner_user_id = u.id
       LEFT JOIN courier ON courier.user_id = u.id
       ORDER BY u.created_at DESC
     `,
@@ -511,13 +586,12 @@ export async function findUserById(userId: number) {
         u.email_verified,
         u.created_at,
         u.updated_at,
-        restaurant.name AS restaurant_name,
+        ''::TEXT AS restaurant_name,
         courier.phone AS courier_phone,
         courier.vehicle_type,
         courier.is_available
       FROM "user" u
       INNER JOIN role r ON r.id = u.role_id
-      LEFT JOIN restaurant ON restaurant.owner_user_id = u.id
       LEFT JOIN courier ON courier.user_id = u.id
       WHERE u.id = $1
       LIMIT 1

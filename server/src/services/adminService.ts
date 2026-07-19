@@ -2,7 +2,9 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import * as adminRepository from '../repositories/adminRepository'
 import * as authRepository from '../repositories/authRepository'
+import * as restaurantAuthRepository from '../repositories/restaurantAuthRepository'
 import * as restaurantRepository from '../repositories/restaurantRepository'
+import * as restaurantAuthService from './restaurantAuthService'
 import type {
   AdminRestaurantUpdatePayload,
   CreateCourierPayload,
@@ -45,12 +47,14 @@ export async function getDashboardStats() {
 }
 
 export async function getOverview() {
-  const [stats, restaurants, users, orders, orderVolume] = await Promise.all([
+  const [stats, restaurants, users, orders, orderVolume, revenueVolume, orderStatusDistribution] = await Promise.all([
     adminRepository.getStats(),
     restaurantRepository.listRestaurants(),
     adminRepository.listUsers(),
     adminRepository.listOrders(),
     adminRepository.getOrderVolumeByDay(),
+    adminRepository.getRevenueVolumeByDay(),
+    adminRepository.getOrderStatusDistribution(),
   ])
 
   return {
@@ -59,6 +63,8 @@ export async function getOverview() {
     recentUsers: users.slice(0, 5),
     recentOrders: orders.slice(0, 8),
     orderVolume,
+    revenueVolume,
+    orderStatusDistribution,
   }
 }
 
@@ -124,28 +130,29 @@ export async function getRestaurantAnalytics(restaurantId: number) {
 }
 
 export async function createRestaurant(payload: CreateRestaurantPayload) {
-  validateNameEmail(payload.ownerName, payload.ownerEmail)
+  validateNameEmail(payload.contactName, payload.contactEmail)
 
   if (!payload.restaurantName) {
     throw new HttpError(400, 'Restaurant name is required.')
   }
 
-  const existingUser = await authRepository.findUserByEmail(payload.ownerEmail)
+  const existingUser = await restaurantAuthRepository.findRestaurantUserByEmail(payload.contactEmail)
 
   if (existingUser) {
     throw new HttpError(409, 'An account with this email already exists.')
   }
 
-  const ownerPasswordHash = await bcrypt.hash(crypto.randomUUID(), 10)
-  const result = await restaurantRepository.createRestaurantWithOwner({
+  const contactPasswordHash = await bcrypt.hash(crypto.randomUUID(), 10)
+  const result = await restaurantRepository.createRestaurantWithAccount({
     ...payload,
-    ownerPasswordHash,
+    contactPasswordHash,
   })
-  const setupCode = await issuePasswordSetupCode(result.owner.id)
+  const setup = await restaurantAuthService.issuePasswordSetupCode(result.restaurant.id)
 
   return {
-    ...result,
-    setupCode,
+    restaurant: result.restaurant,
+    operator: setup.user,
+    setupCode: setup.setupCode,
   }
 }
 
@@ -182,24 +189,14 @@ export async function updateRestaurantStatus(restaurantId: number, isActive: boo
   return restaurant
 }
 
-export async function resetRestaurantOwnerPassword(restaurantId: number) {
+export async function resetRestaurantAccess(restaurantId: number) {
   const restaurant = await getRestaurant(restaurantId)
-  const owner = await authRepository.findUserById(restaurant.ownerUserId)
-
-  if (!owner) {
-    throw new HttpError(404, 'Restaurant owner account not found.')
-  }
-
-  const setupCode = await issuePasswordSetupCode(owner.id)
+  const setup = await restaurantAuthService.issuePasswordSetupCode(restaurant.id)
 
   return {
     restaurant,
-    owner: {
-      id: owner.id,
-      name: owner.name,
-      email: owner.email,
-    },
-    setupCode,
+    operator: setup.user,
+    setupCode: setup.setupCode,
   }
 }
 

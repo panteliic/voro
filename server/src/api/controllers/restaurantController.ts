@@ -1,11 +1,11 @@
 import type { Request, Response } from 'express'
-import type { AuthenticatedRequest } from '../middleware/authenticate'
+import type { RestaurantAuthenticatedRequest } from '../middleware/authenticate'
 import * as restaurantService from '../../services/restaurantService'
 import { normalizeText } from '../../utils/authInput'
 import { sendError } from '../../utils/sendError'
 
 function auth(req: Request) {
-  return (req as AuthenticatedRequest).auth
+  return (req as RestaurantAuthenticatedRequest).restaurantAuth
 }
 
 function numericField(value: unknown) {
@@ -26,7 +26,7 @@ function numericParam(value: unknown) {
 
 export async function getDashboard(req: Request, res: Response) {
   try {
-    res.json(await restaurantService.getDashboard(auth(req).userId))
+    res.json(await restaurantService.getDashboard(auth(req).restaurantId))
   } catch (error) {
     sendError(error, res)
   }
@@ -36,7 +36,7 @@ export async function updateOrderStatus(req: Request, res: Response) {
   try {
     res.json(
       await restaurantService.updateOrderStatus(
-        auth(req).userId,
+        auth(req).restaurantId,
         numericParam(req.params.orderId),
         normalizeText(req.body.status).toLowerCase(),
       ),
@@ -48,7 +48,7 @@ export async function updateOrderStatus(req: Request, res: Response) {
 
 export async function createCategory(req: Request, res: Response) {
   try {
-    const result = await restaurantService.createCategory(auth(req).userId, {
+    const result = await restaurantService.createCategory(auth(req).restaurantId, {
       name: normalizeText(req.body.name),
       description: normalizeText(req.body.description),
     })
@@ -61,7 +61,7 @@ export async function createCategory(req: Request, res: Response) {
 
 export async function createProduct(req: Request, res: Response) {
   try {
-    const result = await restaurantService.createProduct(auth(req).userId, {
+    const result = await restaurantService.createProduct(auth(req).restaurantId, {
       categoryId: nullableNumericField(req.body.categoryId),
       name: normalizeText(req.body.name),
       description: normalizeText(req.body.description),
@@ -79,7 +79,7 @@ export async function createProduct(req: Request, res: Response) {
 export async function updateProduct(req: Request, res: Response) {
   try {
     const result = await restaurantService.updateProduct(
-      auth(req).userId,
+        auth(req).restaurantId,
       numericParam(req.params.productId),
       {
         categoryId: nullableNumericField(req.body.categoryId),

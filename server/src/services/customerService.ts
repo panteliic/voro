@@ -1,5 +1,6 @@
 import * as customerRepository from "../repositories/customerRepository";
 import * as restaurantRepository from "../repositories/restaurantRepository";
+import * as routingService from "./routingService";
 import type {
   CreateCustomerOrderPayload,
   CustomerAddressPayload,
@@ -365,6 +366,47 @@ export async function getOrders(userId: number) {
         },
       }
     }),
+  }
+}
+
+export async function getOrderRoute(userId: number, orderId: number) {
+  if (!Number.isInteger(orderId) || orderId <= 0) {
+    throw new HttpError(400, 'Order not found.')
+  }
+
+  const locations = await customerRepository.getCustomerOrderRouteLocations(userId, orderId)
+
+  if (!locations) {
+    throw new HttpError(404, 'Order not found.')
+  }
+
+  if (
+    locations.restaurantLatitude === null ||
+    locations.restaurantLongitude === null ||
+    locations.deliveryLatitude === null ||
+    locations.deliveryLongitude === null
+  ) {
+    throw new HttpError(400, 'Set restaurant and delivery coordinates before viewing the route.')
+  }
+
+  const route = await routingService.findDrivingRoute(
+    { latitude: locations.restaurantLatitude, longitude: locations.restaurantLongitude },
+    { latitude: locations.deliveryLatitude, longitude: locations.deliveryLongitude },
+  )
+
+  return {
+    orderId,
+    restaurant: {
+      name: locations.restaurantName,
+      latitude: locations.restaurantLatitude,
+      longitude: locations.restaurantLongitude,
+    },
+    delivery: {
+      address: locations.deliveryAddress,
+      latitude: locations.deliveryLatitude,
+      longitude: locations.deliveryLongitude,
+    },
+    route,
   }
 }
 

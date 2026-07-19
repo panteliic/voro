@@ -6,6 +6,10 @@ export type Driver = {
   phone: string
   vehicleType: string
   isAvailable: boolean
+  isOnline: boolean
+  currentLatitude: number | null
+  currentLongitude: number | null
+  lastLocationAt: string | null
 }
 
 export type Delivery = {
@@ -21,4 +25,10 @@ export type Delivery = {
 export type DashboardResponse = {
   driver: Driver
   deliveries: Delivery[]
+}
+
+export type UpdatePresencePayload = {
+  isOnline: boolean
+  latitude?: number
+  longitude?: number
 }

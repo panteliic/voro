@@ -184,6 +184,12 @@ const authSlice = createSlice({
       localStorage.setItem('voro_access_token', action.payload.accessToken)
       localStorage.setItem('voro_refresh_token', action.payload.refreshToken)
     },
+    syncAuthTokens(state, action: { payload: Pick<LoginResponse, 'accessToken' | 'refreshToken'> }) {
+      state.accessToken = action.payload.accessToken
+      state.refreshToken = action.payload.refreshToken
+      localStorage.setItem('voro_access_token', action.payload.accessToken)
+      localStorage.setItem('voro_refresh_token', action.payload.refreshToken)
+    },
     updateAuthUser(state, action: { payload: Partial<AuthUser> }) {
       if (state.user) {
         state.user = { ...state.user, ...action.payload }
@@ -344,6 +350,6 @@ const authSlice = createSlice({
   },
 })
 
-export const { clearAuthFeedback, logout, setAuthSession, setPendingEmail, updateAuthUser } =
+export const { clearAuthFeedback, logout, setAuthSession, setPendingEmail, syncAuthTokens, updateAuthUser } =
   authSlice.actions
 export const authReducer = authSlice.reducer

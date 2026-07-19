@@ -9,7 +9,13 @@ import {
 } from 'react'
 import type { AuthUser, LoginPayload, RegisterPayload } from '../types/auth'
 import { getAdminMe, loginAdmin, registerFirstAdmin } from '../services/authApi'
-import { REFRESH_TOKEN_KEY, TOKEN_KEY, USER_KEY } from '../services/apiClient'
+import {
+  ADMIN_SESSION_EXPIRED_EVENT,
+  REFRESH_TOKEN_KEY,
+  revokeSession,
+  TOKEN_KEY,
+  USER_KEY,
+} from '../services/apiClient'
 
 type AuthContextValue = {
   user: AuthUser | null
@@ -17,7 +23,7 @@ type AuthContextValue = {
   isCheckingSession: boolean
   login: (payload: LoginPayload) => Promise<void>
   registerFirstAdmin: (payload: RegisterPayload) => Promise<void>
-  logout: () => void
+  logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -35,12 +41,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(readStoredUser)
   const [isCheckingSession, setIsCheckingSession] = useState(Boolean(localStorage.getItem(TOKEN_KEY)))
 
-  const logout = useCallback(() => {
+  const clearSession = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(REFRESH_TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
     setUser(null)
   }, [])
+
+  const logout = useCallback(async () => {
+    await revokeSession()
+    clearSession()
+  }, [clearSession])
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      clearSession()
+      setIsCheckingSession(false)
+    }
+
+    window.addEventListener(ADMIN_SESSION_EXPIRED_EVENT, handleSessionExpired)
+    return () => window.removeEventListener(ADMIN_SESSION_EXPIRED_EVENT, handleSessionExpired)
+  }, [clearSession])
 
   useEffect(() => {
     let isMounted = true
@@ -66,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch {
         if (isMounted) {
-          logout()
+          clearSession()
         }
       } finally {
         if (isMounted) {
@@ -80,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       isMounted = false
     }
-  }, [logout])
+  }, [clearSession])
 
   const login = useCallback(async (payload: LoginPayload) => {
     const result = await loginAdmin(payload)

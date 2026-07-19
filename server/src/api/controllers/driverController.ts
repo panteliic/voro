@@ -14,3 +14,11 @@ export async function getDashboard(req: Request, res: Response) {
     sendError(error, res)
   }
 }
+
+export async function updatePresence(req: Request, res: Response) {
+  try {
+    res.json(await driverService.updatePresence(auth(req).userId, req.body))
+  } catch (error) {
+    sendError(error, res)
+  }
+}

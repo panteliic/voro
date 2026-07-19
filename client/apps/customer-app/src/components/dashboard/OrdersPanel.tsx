@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ClipboardList, Clock3, MapPin, PackageCheck, ReceiptText, Search } from 'lucide-react'
+import { Bike, ClipboardList, Clock3, MapPin, PackageCheck, ReceiptText, Search } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useI18n } from '../../i18n/i18n'
 import { customerApi } from '../../services/customerApi'
 import type { CustomerOrder, CustomerOrderStatus } from '../../types/customer'
+import { OrderRouteMap } from './OrderRouteMap'
 
 const activeStatuses = new Set<CustomerOrderStatus>([
   'pending',
@@ -77,6 +78,25 @@ function OrderCard({ order }: { order: CustomerOrder }) {
         </div>
       ) : null}
 
+      {order.driverName ? (
+        <div className="mt-3 flex items-center gap-3 rounded-voro-lg border border-emerald-500/25 bg-emerald-500/10 px-3.5 py-3 text-sm text-content">
+          <span className="grid size-9 shrink-0 place-items-center rounded-voro-md bg-card text-emerald-600 dark:text-emerald-400">
+            <Bike className="size-4" />
+          </span>
+          <div>
+            <p className="font-bold">{t('orders.driverAssigned', { name: order.driverName })}</p>
+            <p className="text-muted-foreground">{t('orders.driverAssignedHint')}</p>
+          </div>
+        </div>
+      ) : order.status === 'preparing' ? (
+        <div className="mt-3 flex items-center gap-3 rounded-voro-lg bg-accent px-3.5 py-3 text-sm text-content">
+          <span className="grid size-9 shrink-0 place-items-center rounded-voro-md bg-card text-action">
+            <Bike className="size-4" />
+          </span>
+          <p className="font-bold">{t('orders.findingDriver')}</p>
+        </div>
+      ) : null}
+
       <div className="mt-4 grid gap-2 border-t border-line pt-4 text-sm text-muted-foreground sm:grid-cols-2">
         <span className="flex items-center gap-2">
           <MapPin className="size-4 shrink-0" />
@@ -87,6 +107,8 @@ function OrderCard({ order }: { order: CustomerOrder }) {
           {t('orders.placedAt', { time: dateTime.format(new Date(order.createdAt)) })}
         </span>
       </div>
+
+      {activeStatuses.has(order.status) ? <OrderRouteMap orderId={order.id} /> : null}
     </article>
   )
 }
@@ -123,7 +145,7 @@ export function OrdersPanel() {
 
     const refreshInterval = window.setInterval(() => {
       customerApi.getOrders().then(({ orders: nextOrders }) => updateOrders(nextOrders)).catch(() => {})
-    }, 15_000)
+    }, 3_000)
 
     return () => {
       isMounted = false

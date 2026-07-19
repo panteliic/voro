@@ -1,4 +1,5 @@
 import * as restaurantRepository from '../repositories/restaurantRepository'
+import * as dispatchService from './dispatchService'
 import type {
   UpsertProductCategoryPayload,
   UpsertProductPayload,
@@ -24,18 +25,18 @@ const allowedNextStatuses: Record<RestaurantOrderStatus, RestaurantOrderStatus[]
   cancelled: [],
 }
 
-async function getOwnedRestaurant(userId: number) {
-  const restaurant = await restaurantRepository.findRestaurantByOwner(userId)
+async function getRestaurantScope(restaurantId: number) {
+  const restaurant = await restaurantRepository.findRestaurantById(restaurantId)
 
-  if (!restaurant) {
-    throw new HttpError(404, 'Restaurant account is not linked to a restaurant.')
+  if (!restaurant || !restaurant.isActive) {
+    throw new HttpError(404, 'Restaurant console is not linked to an active restaurant.')
   }
 
   return restaurant
 }
 
-export async function getDashboard(userId: number) {
-  const restaurant = await getOwnedRestaurant(userId)
+export async function getDashboard(restaurantId: number) {
+  const restaurant = await getRestaurantScope(restaurantId)
   const [categories, products, orders] = await Promise.all([
     restaurantRepository.listProductCategories(restaurant.id),
     restaurantRepository.listProducts(restaurant.id),
@@ -45,12 +46,12 @@ export async function getDashboard(userId: number) {
   return { restaurant, categories, products, orders }
 }
 
-export async function updateOrderStatus(userId: number, orderId: number, nextStatus: string) {
+export async function updateOrderStatus(restaurantId: number, orderId: number, nextStatus: string) {
   if (!Number.isInteger(orderId) || orderId <= 0) {
     throw new HttpError(400, 'Order not found.')
   }
 
-  const restaurant = await getOwnedRestaurant(userId)
+  const restaurant = await getRestaurantScope(restaurantId)
   const currentStatus = await restaurantRepository.getRestaurantOrderStatus(restaurant.id, orderId)
 
   if (!currentStatus) {
@@ -73,25 +74,30 @@ export async function updateOrderStatus(userId: number, orderId: number, nextSta
     throw new HttpError(404, 'Order not found.')
   }
 
+  if (nextStatus === 'preparing') {
+    // This is intentionally not awaited: food preparation must never wait for matching.
+    dispatchService.enqueueDispatch(orderId)
+  }
+
   return { order }
 }
 
 export async function createCategory(
-  userId: number,
+  restaurantId: number,
   payload: UpsertProductCategoryPayload,
 ) {
   if (!payload.name) {
     throw new HttpError(400, 'Category name is required.')
   }
 
-  const restaurant = await getOwnedRestaurant(userId)
+  const restaurant = await getRestaurantScope(restaurantId)
   const category = await restaurantRepository.createProductCategory(restaurant.id, payload)
   const categories = await restaurantRepository.listProductCategories(restaurant.id)
 
   return { category, categories }
 }
 
-export async function createProduct(userId: number, payload: UpsertProductPayload) {
+export async function createProduct(restaurantId: number, payload: UpsertProductPayload) {
   if (!payload.name) {
     throw new HttpError(400, 'Product name is required.')
   }
@@ -100,7 +106,7 @@ export async function createProduct(userId: number, payload: UpsertProductPayloa
     throw new HttpError(400, 'Product price must be zero or greater.')
   }
 
-  const restaurant = await getOwnedRestaurant(userId)
+  const restaurant = await getRestaurantScope(restaurantId)
   const product = await restaurantRepository.createProduct(restaurant.id, payload)
   const products = await restaurantRepository.listProducts(restaurant.id)
 
@@ -108,7 +114,7 @@ export async function createProduct(userId: number, payload: UpsertProductPayloa
 }
 
 export async function updateProduct(
-  userId: number,
+  restaurantId: number,
   productId: number,
   payload: UpsertProductPayload,
 ) {
@@ -120,7 +126,7 @@ export async function updateProduct(
     throw new HttpError(400, 'Product price must be zero or greater.')
   }
 
-  const restaurant = await getOwnedRestaurant(userId)
+  const restaurant = await getRestaurantScope(restaurantId)
   const product = await restaurantRepository.updateProduct(restaurant.id, productId, payload)
 
   if (!product) {
