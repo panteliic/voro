@@ -1,4 +1,5 @@
 import { HttpError } from '../utils/httpError'
+import * as redisService from './redisService'
 
 type GeocodingResult = {
   address?: {
@@ -53,71 +54,77 @@ export async function searchAddressSuggestions(query: string): Promise<AddressSu
   const searchQuery = query.trim()
   if (searchQuery.length < 3) return []
 
-  const url = new URL('https://nominatim.openstreetmap.org/search')
-  url.searchParams.set('q', searchQuery)
-  url.searchParams.set('format', 'jsonv2')
-  url.searchParams.set('addressdetails', '1')
-  url.searchParams.set('countrycodes', 'rs')
-  url.searchParams.set('limit', '6')
+  return redisService.getOrSetCachedJson(
+    `geocode:suggestions:${encodeURIComponent(searchQuery.toLocaleLowerCase())}`,
+    24 * 60 * 60,
+    async () => {
+      const url = new URL('https://nominatim.openstreetmap.org/search')
+      url.searchParams.set('q', searchQuery)
+      url.searchParams.set('format', 'jsonv2')
+      url.searchParams.set('addressdetails', '1')
+      url.searchParams.set('countrycodes', 'rs')
+      url.searchParams.set('limit', '6')
 
-  let response: Response
+      let response: Response
 
-  try {
-    response = await fetch(url, {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'Voro Delivery/1.0 (address suggestion lookup)',
-      },
-      signal: AbortSignal.timeout(8_000),
-    })
-  } catch {
-    throw new HttpError(502, 'Could not reach the address service.')
-  }
-
-  if (!response.ok) {
-    throw new HttpError(502, 'Could not load address suggestions.')
-  }
-
-  const requestedHouseNumber = houseNumberFromQuery(searchQuery)
-  const data = (await response.json()) as GeocodingResult[]
-
-  return data
-    .map((result): AddressSuggestion | null => {
-      const latitude = Number(result.lat)
-      const longitude = Number(result.lon)
-      const address = result.address
-      const streetName = address?.road || ''
-      const houseNumber = address?.house_number || ''
-
-      if (
-        !address ||
-        !streetName ||
-        !Number.isFinite(latitude) ||
-        !Number.isFinite(longitude) ||
-        !isInsideSerbia(latitude, longitude) ||
-        address.country_code?.toUpperCase() !== 'RS' ||
-        (requestedHouseNumber && normalizedHouseNumber(houseNumber) !== normalizedHouseNumber(requestedHouseNumber))
-      ) {
-        return null
+      try {
+        response = await fetch(url, {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'Voro Delivery/1.0 (address suggestion lookup)',
+          },
+          signal: AbortSignal.timeout(8_000),
+        })
+      } catch {
+        throw new HttpError(502, 'Could not reach the address service.')
       }
 
-      const street = [streetName, houseNumber].filter(Boolean).join(' ')
-      const city = address.city || address.town || address.village || address.municipality || address.city_district || address.state || ''
-      const postalCode = address.postcode || ''
-      const country = address.country || 'Serbia'
-
-      return {
-        id: `nominatim-${result.place_id || `${latitude}-${longitude}`}`,
-        label: [street, city, postalCode, country].filter(Boolean).join(', '),
-        street,
-        city,
-        postalCode,
-        country,
-        latitude,
-        longitude,
+      if (!response.ok) {
+        throw new HttpError(502, 'Could not load address suggestions.')
       }
-    })
-    .filter((suggestion): suggestion is AddressSuggestion => Boolean(suggestion))
+
+      const requestedHouseNumber = houseNumberFromQuery(searchQuery)
+      const data = (await response.json()) as GeocodingResult[]
+
+      return data
+        .map((result): AddressSuggestion | null => {
+          const latitude = Number(result.lat)
+          const longitude = Number(result.lon)
+          const address = result.address
+          const streetName = address?.road || ''
+          const houseNumber = address?.house_number || ''
+
+          if (
+            !address ||
+            !streetName ||
+            !Number.isFinite(latitude) ||
+            !Number.isFinite(longitude) ||
+            !isInsideSerbia(latitude, longitude) ||
+            address.country_code?.toUpperCase() !== 'RS' ||
+            (requestedHouseNumber && normalizedHouseNumber(houseNumber) !== normalizedHouseNumber(requestedHouseNumber))
+          ) {
+            return null
+          }
+
+          const street = [streetName, houseNumber].filter(Boolean).join(' ')
+          const city = address.city || address.town || address.village || address.municipality || address.city_district || address.state || ''
+          const postalCode = address.postcode || ''
+          const country = address.country || 'Serbia'
+
+          return {
+            id: `nominatim-${result.place_id || `${latitude}-${longitude}`}`,
+            label: [street, city, postalCode, country].filter(Boolean).join(', '),
+            street,
+            city,
+            postalCode,
+            country,
+            latitude,
+            longitude,
+          }
+        })
+        .filter((suggestion): suggestion is AddressSuggestion => Boolean(suggestion))
+    },
+  )
 }
 
 export async function geocodeAddress(address: string): Promise<GeocodedLocation> {

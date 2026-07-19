@@ -117,6 +117,7 @@ type CustomerOrderRouteRow = {
   delivery_latitude: string | null
   delivery_longitude: string | null
   courier_name: string | null
+  courier_id: string | null
   courier_latitude: string | null
   courier_longitude: string | null
   delivery_status: string | null
@@ -685,6 +686,7 @@ export async function getCustomerOrderRouteLocations(userId: number, orderId: nu
         address.latitude AS delivery_latitude,
         address.longitude AS delivery_longitude,
         driver.name AS courier_name,
+        courier.id AS courier_id,
         courier.current_latitude AS courier_latitude,
         courier.current_longitude AS courier_longitude,
         delivery_status.name AS delivery_status
@@ -714,6 +716,7 @@ export async function getCustomerOrderRouteLocations(userId: number, orderId: nu
     deliveryLatitude: row.delivery_latitude === null ? null : Number(row.delivery_latitude),
     deliveryLongitude: row.delivery_longitude === null ? null : Number(row.delivery_longitude),
     courierName: row.courier_name || '',
+    courierId: row.courier_id === null ? null : Number(row.courier_id),
     courierLatitude: row.courier_latitude === null ? null : Number(row.courier_latitude),
     courierLongitude: row.courier_longitude === null ? null : Number(row.courier_longitude),
     deliveryStatus: row.delivery_status || '',

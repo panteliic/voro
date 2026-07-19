@@ -1,4 +1,5 @@
 import * as driverRepository from '../repositories/driverRepository'
+import * as redisService from './redisService'
 import * as routingService from './routingService'
 import type { DriverAnalytics, DriverAnalyticsDay, DriverAnalyticsPeriod } from '../types/driver'
 import { HttpError } from '../utils/httpError'
@@ -146,6 +147,8 @@ export async function updatePresence(userId: number, payload: unknown) {
     await driverRepository.recordActiveDeliveryLocation(driver.id, nextLatitude, nextLongitude)
   }
 
+  await redisService.syncDriverPresence(driver)
+
   return { driver }
 }
 
@@ -161,7 +164,12 @@ export async function acceptOffer(userId: number, offerId: number) {
     throw new HttpError(409, 'This delivery has already been accepted or is no longer available.')
   }
 
-  const delivery = await driverRepository.getActiveDelivery(driver.id, deliveryId)
+  const [delivery, updatedDriver] = await Promise.all([
+    driverRepository.getActiveDelivery(driver.id, deliveryId),
+    getOwnedDriver(userId),
+  ])
+  await redisService.syncDriverPresence(updatedDriver)
+
   return { delivery }
 }
 
@@ -195,6 +203,8 @@ export async function updateDeliveryStatus(userId: number, deliveryId: number, s
   if (!updated) {
     throw new HttpError(400, 'This delivery cannot move to that status.')
   }
+
+  await redisService.syncDriverPresence(await getOwnedDriver(userId))
 
   return { delivery: updated }
 }

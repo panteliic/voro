@@ -33,6 +33,7 @@ export const env = {
   paymentCardEncryptionKey: process.env.PAYMENT_CARD_ENCRYPTION_KEY || "",
   accessTokenTtl: process.env.ACCESS_TOKEN_TTL || "15m",
   refreshTokenTtlMs: Number(process.env.REFRESH_TOKEN_TTL_DAYS || 30) * 24 * 60 * 60 * 1000,
+  redisUrl: process.env.REDIS_URL || `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`,
   otpTtlMs: 10 * 60 * 1000,
   database: {
     host: process.env.DB_HOST || "localhost",

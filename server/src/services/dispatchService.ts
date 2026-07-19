@@ -1,11 +1,13 @@
 import * as dispatchRepository from '../repositories/dispatchRepository'
 import * as driverRepository from '../repositories/driverRepository'
+import * as redisService from './redisService'
 import { pool } from '../database/pool'
 
 const offerWindowMs = 25_000
 const retryDelayMs = 30_000
 const workerPollIntervalMs = 1_500
 const matchingRadiusMeters = 7_500
+const databaseSweepIntervalMs = 20_000
 
 function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
   const earthRadius = 6_371_000
@@ -46,7 +48,20 @@ async function processDispatch(orderId: number) {
     }
 
     await dispatchRepository.markDispatchMatching(orderId)
-    const couriers = await dispatchRepository.listAvailableOnlineCouriers()
+    const liveCouriers = await redisService.listNearbyLiveDrivers(
+      order.restaurantLatitude,
+      order.restaurantLongitude,
+      matchingRadiusMeters,
+    )
+    const couriers = liveCouriers.length > 0
+      ? liveCouriers.map((courier) => ({
+          id: courier.id,
+          name: courier.name,
+          vehicleType: courier.vehicleType,
+          latitude: courier.currentLatitude,
+          longitude: courier.currentLongitude,
+        }))
+      : await dispatchRepository.listAvailableOnlineCouriers()
     const nearby = nearbyCandidates(order, couriers)
 
     if (nearby.length === 0) {
@@ -80,10 +95,12 @@ async function processDispatch(orderId: number) {
 export function enqueueDispatch(orderId: number) {
   void dispatchRepository
     .queueDispatch(orderId)
+    .then(() => redisService.enqueueDispatch(orderId))
     .catch((error) => console.error(`Could not queue dispatch for order #${orderId}.`, error))
 }
 
 let isDispatchCycleRunning = false
+let lastDatabaseSweepAt = 0
 
 export async function runDispatchCycle() {
   if (isDispatchCycleRunning) {
@@ -93,8 +110,18 @@ export async function runDispatchCycle() {
   isDispatchCycleRunning = true
 
   try {
-    await driverRepository.expireStaleDriverPresence()
-    const orderIds = await dispatchRepository.listPendingDispatchOrderIds()
+    const expiredDriverIds = await driverRepository.expireStaleDriverPresence()
+    await Promise.all(expiredDriverIds.map((driverId) => redisService.removeDriverPresence(driverId)))
+
+    const queuedOrderIds = await redisService.dequeueDispatchBatch()
+    const now = Date.now()
+    const pendingOrderIds = now - lastDatabaseSweepAt >= databaseSweepIntervalMs
+      ? await dispatchRepository.listPendingDispatchOrderIds()
+      : []
+    if (pendingOrderIds.length > 0 || now - lastDatabaseSweepAt >= databaseSweepIntervalMs) {
+      lastDatabaseSweepAt = now
+    }
+    const orderIds = [...new Set([...queuedOrderIds, ...pendingOrderIds])]
 
     for (const orderId of orderIds) {
       await processDispatch(orderId)

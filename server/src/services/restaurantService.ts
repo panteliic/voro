@@ -1,5 +1,6 @@
 import * as restaurantRepository from '../repositories/restaurantRepository'
 import * as dispatchService from './dispatchService'
+import * as redisService from './redisService'
 import type {
   UpsertProductCategoryPayload,
   UpsertProductPayload,
@@ -93,6 +94,7 @@ export async function createCategory(
   const restaurant = await getRestaurantScope(restaurantId)
   const category = await restaurantRepository.createProductCategory(restaurant.id, payload)
   const categories = await restaurantRepository.listProductCategories(restaurant.id)
+  await redisService.invalidateRestaurantCatalog(restaurant.id)
 
   return { category, categories }
 }
@@ -109,6 +111,7 @@ export async function createProduct(restaurantId: number, payload: UpsertProduct
   const restaurant = await getRestaurantScope(restaurantId)
   const product = await restaurantRepository.createProduct(restaurant.id, payload)
   const products = await restaurantRepository.listProducts(restaurant.id)
+  await redisService.invalidateRestaurantCatalog(restaurant.id)
 
   return { product, products }
 }
@@ -134,6 +137,7 @@ export async function updateProduct(
   }
 
   const products = await restaurantRepository.listProducts(restaurant.id)
+  await redisService.invalidateRestaurantCatalog(restaurant.id)
 
   return { product, products }
 }

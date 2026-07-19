@@ -2,7 +2,9 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import * as adminRepository from '../repositories/adminRepository'
 import * as authRepository from '../repositories/authRepository'
+import * as driverRepository from '../repositories/driverRepository'
 import * as geocodingService from './geocodingService'
+import * as redisService from './redisService'
 import * as restaurantAuthRepository from '../repositories/restaurantAuthRepository'
 import * as restaurantRepository from '../repositories/restaurantRepository'
 import * as restaurantAuthService from './restaurantAuthService'
@@ -97,6 +99,11 @@ export async function updateUserStatus(userId: number, isActive: boolean, adminU
     throw new HttpError(404, 'User not found.')
   }
 
+  if (user.role === 'courier' && !isActive) {
+    const courier = await driverRepository.findDriverByUserId(user.id)
+    if (courier) await redisService.removeDriverPresence(courier.id)
+  }
+
   return user
 }
 
@@ -156,6 +163,7 @@ export async function createRestaurant(payload: CreateRestaurantPayload) {
     contactPasswordHash,
   })
   const setup = await restaurantAuthService.issuePasswordSetupCode(result.restaurant.id)
+  await redisService.invalidateRestaurantCatalog()
 
   return {
     restaurant: result.restaurant,
@@ -188,6 +196,8 @@ export async function updateRestaurant(
     throw new HttpError(404, 'Restaurant not found.')
   }
 
+  await redisService.invalidateRestaurantCatalog(restaurant.id)
+
   return restaurant
 }
 
@@ -201,6 +211,8 @@ export async function updateRestaurantStatus(restaurantId: number, isActive: boo
   if (!restaurant) {
     throw new HttpError(404, 'Restaurant not found.')
   }
+
+  await redisService.invalidateRestaurantCatalog(restaurant.id)
 
   return restaurant
 }
@@ -269,6 +281,8 @@ export async function updateCourierStatus(courierId: number, isAvailable: boolea
   if (!courier) {
     throw new HttpError(404, 'Courier not found.')
   }
+
+  await redisService.syncDriverPresence(courier)
 
   return courier
 }

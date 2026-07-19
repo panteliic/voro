@@ -297,7 +297,7 @@ export async function expireStaleDriverPresence() {
     }
 
     await client.query('COMMIT')
-    return result.rows.length
+    return result.rows.map((row) => Number(row.id))
   } catch (error) {
     await client.query('ROLLBACK')
     throw error

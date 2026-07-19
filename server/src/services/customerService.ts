@@ -1,6 +1,7 @@
 import * as customerRepository from "../repositories/customerRepository";
 import * as restaurantRepository from "../repositories/restaurantRepository";
 import * as geocodingService from "./geocodingService";
+import * as redisService from "./redisService";
 import * as routingService from "./routingService";
 import type {
   CreateCustomerOrderPayload,
@@ -287,27 +288,34 @@ export async function getCustomerProfile(userId: number) {
 }
 
 export async function getRestaurantDiscovery(categorySlug = "") {
-  const [categories, restaurants] = await Promise.all([
-    restaurantRepository.listRestaurantCategories(),
-    restaurantRepository.listDiscoverableRestaurants(categorySlug),
-  ]);
+  const normalizedCategory = categorySlug.trim();
+  const cacheKey = `catalog:discovery:${encodeURIComponent(normalizedCategory.toLocaleLowerCase() || "all")}`;
 
-  return { categories, restaurants };
+  return redisService.getOrSetCachedJson(cacheKey, 60, async () => {
+    const [categories, restaurants] = await Promise.all([
+      restaurantRepository.listRestaurantCategories(),
+      restaurantRepository.listDiscoverableRestaurants(normalizedCategory),
+    ]);
+
+    return { categories, restaurants };
+  });
 }
 
 export async function getRestaurantMenu(restaurantId: number) {
-  const restaurant = await restaurantRepository.findRestaurantById(restaurantId);
+  return redisService.getOrSetCachedJson(`catalog:menu:${restaurantId}`, 60, async () => {
+    const restaurant = await restaurantRepository.findRestaurantById(restaurantId);
 
-  if (!restaurant || !restaurant.isActive) {
-    throw new HttpError(404, "Restaurant not found.");
-  }
+    if (!restaurant || !restaurant.isActive) {
+      throw new HttpError(404, "Restaurant not found.");
+    }
 
-  const [categories, products] = await Promise.all([
-    restaurantRepository.listProductCategories(restaurant.id),
-    customerRepository.listAvailableProducts(restaurant.id),
-  ]);
+    const [categories, products] = await Promise.all([
+      restaurantRepository.listProductCategories(restaurant.id),
+      customerRepository.listAvailableProducts(restaurant.id),
+    ]);
 
-  return { restaurant, categories, products };
+    return { restaurant, categories, products };
+  });
 }
 
 export async function createOrder(userId: number, payload: Record<string, unknown>) {
@@ -385,6 +393,12 @@ export async function getOrderRoute(userId: number, orderId: number) {
     throw new HttpError(404, 'Order not found.')
   }
 
+  const liveCourier = locations.courierId
+    ? await redisService.getLiveDriver(locations.courierId)
+    : null
+  const courierLatitude = liveCourier?.currentLatitude ?? locations.courierLatitude
+  const courierLongitude = liveCourier?.currentLongitude ?? locations.courierLongitude
+
   if (
     locations.restaurantLatitude === null ||
     locations.restaurantLongitude === null ||
@@ -396,11 +410,11 @@ export async function getOrderRoute(userId: number, orderId: number) {
 
   const isOnTheWay =
     locations.deliveryStatus === 'on_the_way' &&
-    locations.courierLatitude !== null &&
-    locations.courierLongitude !== null
+    courierLatitude !== null &&
+    courierLongitude !== null
   const route = isOnTheWay
     ? await routingService.findDrivingRoute(
-        { latitude: locations.courierLatitude as number, longitude: locations.courierLongitude as number },
+        { latitude: courierLatitude as number, longitude: courierLongitude as number },
         { latitude: locations.deliveryLatitude, longitude: locations.deliveryLongitude },
       )
     : null
@@ -419,9 +433,9 @@ export async function getOrderRoute(userId: number, orderId: number) {
     },
     courier: locations.courierName
       ? {
-          name: locations.courierName,
-          latitude: locations.courierLatitude,
-          longitude: locations.courierLongitude,
+          name: liveCourier?.name || locations.courierName,
+          latitude: courierLatitude,
+          longitude: courierLongitude,
         }
       : null,
     deliveryStatus: locations.deliveryStatus || null,
