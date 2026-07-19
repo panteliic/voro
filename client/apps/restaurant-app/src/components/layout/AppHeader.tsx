@@ -24,9 +24,9 @@ export function AppHeader({
 
   return (
     <header className="border-b border-line bg-card">
-      <div className="mx-auto flex max-w-none items-center justify-between gap-4 px-4 py-4">
+      <div className="mx-auto flex max-w-none items-center justify-between gap-2 px-3 py-3 sm:gap-4 sm:px-4 sm:py-4">
         <div className="flex min-w-0 items-center gap-3">
-          <img src="/logo.svg" alt="Voro" className="size-10 shrink-0 rounded-voro-lg" />
+          <img src="/logo.svg" alt="Voro" className="hidden size-10 shrink-0 rounded-voro-lg min-[360px]:block" />
           <div className="min-w-0">
             <p className="truncate text-sm font-bold">
               {dashboard?.restaurant.name || t('restaurant.console')}
@@ -34,15 +34,15 @@ export function AppHeader({
             <p className="truncate text-xs text-muted-foreground">{user.email}</p>
           </div>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 gap-1.5 sm:gap-2">
           <LanguageSwitch />
-          <Button disabled={isLoading} onClick={onRefresh} size="sm" type="button" variant="outline">
+          <Button aria-label={t('common.refresh')} className="size-9 p-0 sm:w-auto sm:px-3" disabled={isLoading} onClick={onRefresh} size="sm" type="button" variant="outline">
             <RefreshCw className="size-4" />
-            {t('common.refresh')}
+            <span className="hidden sm:inline">{t('common.refresh')}</span>
           </Button>
-          <Button onClick={onLogout} size="sm" type="button" variant="outline">
+          <Button aria-label={t('common.logout')} className="size-9 p-0 sm:w-auto sm:px-3" onClick={onLogout} size="sm" type="button" variant="outline">
             <LogOut className="size-4" />
-            {t('common.logout')}
+            <span className="hidden sm:inline">{t('common.logout')}</span>
           </Button>
         </div>
       </div>

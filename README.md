@@ -195,6 +195,62 @@ Svi demo nalozi koriste lozinku `password123`:
 - Dostavljači: npr. `marko.jovanovic@driver.voro.test`
 - Kupci: `customer.*@seed.voro.test`
 
+## Docker: lokalni ceo sistem
+
+Docker Compose podiže PostgreSQL, backend (sa dispatch workerom) i sve četiri aplikacije.
+Frontendi se serviraju kao production buildovi, a ne kroz Vite development server.
+
+Prvi put napravi lokalni Docker env fajl:
+
+```powershell
+Copy-Item .env.docker.example .env.docker
+```
+
+Zatim pokreni ceo sistem sa demo podacima:
+
+```powershell
+docker compose --env-file .env.docker up --build -d
+```
+
+Linkovi nakon pokretanja:
+
+- Customer: `http://localhost:5173`
+- Restaurant Console: `http://localhost:5174`
+- Driver app: `http://localhost:5175`
+- Admin: `http://localhost:5176`
+- API health: `http://localhost:5000/health`
+- PostgreSQL sa host računara: `localhost:5433`
+
+Prati stanje i logove:
+
+```powershell
+docker compose --env-file .env.docker ps
+docker compose --env-file .env.docker logs -f backend
+```
+
+Za gašenje bez brisanja baze:
+
+```powershell
+docker compose --env-file .env.docker down
+```
+
+Za potpuno čist lokalni početak, uključujući Docker bazu:
+
+```powershell
+docker compose --env-file .env.docker down -v
+```
+
+Ako je na računaru starija verzija projekta, prvo sačuvaj sopstvene izmene, pa uradi:
+
+```powershell
+git pull
+docker compose --env-file .env.docker up --build -d
+```
+
+`git pull` može da traži da prvo commit-uješ ili skloniš lokalne izmene; Docker baza ostaje sačuvana osim ako eksplicitno ne pokreneš `down -v`.
+
+`SEED_DEMO_DATA=true` je podrazumevano za lokalni preview i puni novu Docker bazu test podacima. Ako želiš potpuno praznu bazu, promeni ga u `false` pre prvog `up`; za promenu između prazne i demo baze uradi `down -v` pa pokreni ponovo.
+
 `seed:demo` se namerno ne pokreće uz običnu komandu `npm run migrate`, pa demo
 podaci ne mogu slučajno da se ubace u produkcionu bazu.
 

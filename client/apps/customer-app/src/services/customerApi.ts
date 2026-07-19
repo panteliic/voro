@@ -11,6 +11,7 @@ import type {
   RestaurantDiscovery,
   RestaurantMenu,
 } from '../types/customer'
+import type { LocationSuggestion } from '../types/location'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const ACCESS_TOKEN_KEY = 'voro_access_token'
@@ -110,6 +111,13 @@ function jsonRequest<TResponse>(path: string, method: string, body: unknown) {
 }
 
 export const customerApi = {
+  searchAddressSuggestions(query: string, signal?: AbortSignal) {
+    return request<{ suggestions: LocationSuggestion[] }>(
+      `/customer/address-suggestions?q=${encodeURIComponent(query)}`,
+      { signal },
+    ).then((result) => result.suggestions)
+  },
+
   getProfile() {
     return request<CustomerProfile>('/customer/profile')
   },

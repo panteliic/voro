@@ -19,6 +19,8 @@ adminRoutes.patch('/users/:userId/status', adminController.updateUserStatus)
 
 adminRoutes.get('/restaurants', adminController.listRestaurants)
 adminRoutes.get('/restaurant-categories', adminController.listRestaurantCategories)
+adminRoutes.get('/restaurant-location-suggestions', adminController.searchRestaurantAddressSuggestions)
+adminRoutes.post('/restaurant-location', adminController.resolveRestaurantLocation)
 adminRoutes.post('/restaurants', adminController.createRestaurant)
 adminRoutes.get('/restaurants/:restaurantId/analytics', adminController.getRestaurantAnalytics)
 adminRoutes.get('/restaurants/:restaurantId', adminController.getRestaurant)

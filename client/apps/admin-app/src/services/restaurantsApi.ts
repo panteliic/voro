@@ -34,6 +34,13 @@ export function createRestaurant(payload: CreateRestaurantPayload) {
   })
 }
 
+export function resolveRestaurantLocation(address: string) {
+  return apiRequest<{ location: { latitude: number; longitude: number; displayName: string } }>('/admin/restaurant-location', {
+    method: 'POST',
+    body: JSON.stringify({ address }),
+  })
+}
+
 export function updateRestaurant(restaurantId: number, payload: UpdateRestaurantPayload) {
   return apiRequest<{ restaurant: Restaurant }>(`/admin/restaurants/${restaurantId}`, {
     method: 'PATCH',

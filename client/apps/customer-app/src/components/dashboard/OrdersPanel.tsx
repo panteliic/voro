@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Bike, ClipboardList, Clock3, MapPin, PackageCheck, ReceiptText, Search } from 'lucide-react'
+import { ClipboardList, Clock3, PackageCheck, Search } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useI18n } from '../../i18n/i18n'
 import { customerApi } from '../../services/customerApi'
@@ -24,7 +24,7 @@ const statusClassName: Record<CustomerOrderStatus, string> = {
   cancelled: 'bg-destructive/10 text-destructive',
 }
 
-function OrderCard({ order }: { order: CustomerOrder }) {
+function HistoryOrderCard({ order }: { order: CustomerOrder }) {
   const { language, t } = useI18n()
   const money = useMemo(
     () => new Intl.NumberFormat(language === 'sr' ? 'sr-RS' : 'en-US', { maximumFractionDigits: 0 }),
@@ -43,7 +43,7 @@ function OrderCard({ order }: { order: CustomerOrder }) {
 
   return (
     <article className="rounded-voro-xl border border-line bg-card p-4 sm:p-5">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+      <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-voro-md bg-content px-2.5 py-1 text-xs font-bold text-card">
@@ -53,62 +53,20 @@ function OrderCard({ order }: { order: CustomerOrder }) {
               {t(`orders.status.${order.status}`)}
             </span>
           </div>
-          <h2 className="mt-3 text-lg font-bold text-content">{order.restaurantName}</h2>
+          <h2 className="mt-2 text-lg font-bold text-content">{order.restaurantName}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {order.items.map((item) => `${item.name} × ${item.quantity}`).join(', ')}
           </p>
         </div>
-        <div className="text-left sm:text-right">
+        <div className="shrink-0 text-right">
           <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{t('orders.total')}</p>
           <p className="mt-1 text-xl font-bold text-content">{money.format(order.total)} RSD</p>
         </div>
       </div>
 
-      {order.estimatedDeliveryRange ? (
-        <div className="mt-4 flex items-center gap-3 rounded-voro-lg bg-accent px-3.5 py-3 text-sm text-content">
-          <span className="grid size-9 shrink-0 place-items-center rounded-voro-md bg-card text-action">
-            <Clock3 className="size-4" />
-          </span>
-          <div>
-            <p className="font-bold">{t('orders.estimatedDelivery')}</p>
-            <p className="text-muted-foreground">
-              {t('orders.estimatedRange', order.estimatedDeliveryRange)}
-            </p>
-          </div>
-        </div>
-      ) : null}
-
-      {order.driverName ? (
-        <div className="mt-3 flex items-center gap-3 rounded-voro-lg border border-emerald-500/25 bg-emerald-500/10 px-3.5 py-3 text-sm text-content">
-          <span className="grid size-9 shrink-0 place-items-center rounded-voro-md bg-card text-emerald-600 dark:text-emerald-400">
-            <Bike className="size-4" />
-          </span>
-          <div>
-            <p className="font-bold">{t('orders.driverAssigned', { name: order.driverName })}</p>
-            <p className="text-muted-foreground">{t('orders.driverAssignedHint')}</p>
-          </div>
-        </div>
-      ) : order.status === 'preparing' ? (
-        <div className="mt-3 flex items-center gap-3 rounded-voro-lg bg-accent px-3.5 py-3 text-sm text-content">
-          <span className="grid size-9 shrink-0 place-items-center rounded-voro-md bg-card text-action">
-            <Bike className="size-4" />
-          </span>
-          <p className="font-bold">{t('orders.findingDriver')}</p>
-        </div>
-      ) : null}
-
-      <div className="mt-4 grid gap-2 border-t border-line pt-4 text-sm text-muted-foreground sm:grid-cols-2">
-        <span className="flex items-center gap-2">
-          <MapPin className="size-4 shrink-0" />
-          {order.address || t('orders.noAddress')}
-        </span>
-        <span className="flex items-center gap-2 sm:justify-end">
-          <ReceiptText className="size-4 shrink-0" />
-          {t('orders.placedAt', { time: dateTime.format(new Date(order.createdAt)) })}
-        </span>
-      </div>
-
-      {activeStatuses.has(order.status) ? <OrderRouteMap orderId={order.id} /> : null}
+      <p className="mt-4 flex items-center gap-2 border-t border-line pt-4 text-sm text-muted-foreground">
+        <Clock3 className="size-4" />{t('orders.placedAt', { time: dateTime.format(new Date(order.createdAt)) })}
+      </p>
     </article>
   )
 }
@@ -118,6 +76,7 @@ export function OrdersPanel() {
   const [orders, setOrders] = useState<CustomerOrder[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [tab, setTab] = useState<'active' | 'history'>('active')
 
   useEffect(() => {
     let isMounted = true
@@ -155,6 +114,8 @@ export function OrdersPanel() {
 
   const activeOrders = orders.filter((order) => activeStatuses.has(order.status))
   const previousOrders = orders.filter((order) => !activeStatuses.has(order.status))
+  const visibleOrders = tab === 'active' ? activeOrders : previousOrders
+  const isSingleActiveOrder = tab === 'active' && activeOrders.length === 1
 
   if (isLoading) {
     return (
@@ -174,36 +135,23 @@ export function OrdersPanel() {
 
   if (orders.length > 0) {
     return (
-      <section className="grid gap-6 pb-8">
-        <div>
-          <p className="text-sm font-bold text-action">{t('orders.kicker')}</p>
-          <h1 className="mt-1 text-2xl font-bold text-content">{t('orders.title')}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{t('orders.description')}</p>
+      <section className={isSingleActiveOrder ? 'flex h-full min-h-0 flex-col' : 'grid gap-5 pb-8'}>
+        <div className={isSingleActiveOrder ? 'mb-5 shrink-0' : ''}>
+          <h1 className="text-2xl font-bold text-content">{t('nav.orders')}</h1>
         </div>
 
-        {activeOrders.length > 0 ? (
-          <div className="grid gap-3">
-            <div className="flex items-center gap-2 text-sm font-bold text-content">
-              <PackageCheck className="size-4 text-action" />
-              {t('orders.active')}
-            </div>
-            {activeOrders.map((order) => (
-              <OrderCard key={order.id} order={order} />
-            ))}
-          </div>
-        ) : null}
+        <div className={`-mx-4 grid grid-cols-2 border-y border-line sm:-mx-6 lg:-mx-8 ${isSingleActiveOrder ? 'mb-5 shrink-0' : ''}`} role="tablist" aria-label={t('orders.title')}>
+          <button aria-selected={tab === 'active'} className={`relative flex items-center justify-center gap-2 px-3 py-3 text-sm font-bold transition-colors after:absolute after:inset-x-0 after:bottom-[-1px] after:h-0.5 ${tab === 'active' ? 'text-action after:bg-action' : 'text-muted-foreground after:bg-transparent hover:text-content'}`} onClick={() => setTab('active')} role="tab" type="button"><PackageCheck className="size-4" />{t('orders.active')} ({activeOrders.length})</button>
+          <button aria-selected={tab === 'history'} className={`relative flex items-center justify-center gap-2 px-3 py-3 text-sm font-bold transition-colors after:absolute after:inset-x-0 after:bottom-[-1px] after:h-0.5 ${tab === 'history' ? 'text-action after:bg-action' : 'text-muted-foreground after:bg-transparent hover:text-content'}`} onClick={() => setTab('history')} role="tab" type="button"><ClipboardList className="size-4" />{t('orders.history')} ({previousOrders.length})</button>
+        </div>
 
-        {previousOrders.length > 0 ? (
-          <div className="grid gap-3">
-            <div className="flex items-center gap-2 text-sm font-bold text-content">
-              <ClipboardList className="size-4 text-muted-foreground" />
-              {t('orders.history')}
-            </div>
-            {previousOrders.map((order) => (
-              <OrderCard key={order.id} order={order} />
-            ))}
-          </div>
-        ) : null}
+        {visibleOrders.length > 0 ? <div className={isSingleActiveOrder ? 'min-h-0 flex-1' : 'grid gap-3'}>
+          {tab === 'active'
+            ? activeOrders.map((order) => <OrderRouteMap estimatedDeliveryRange={order.estimatedDeliveryRange} key={order.id} orderId={order.id} />)
+            : previousOrders.map((order) => <HistoryOrderCard key={order.id} order={order} />)}
+        </div> : <div className="rounded-voro-xl border border-dashed border-line bg-card px-5 py-10 text-center text-sm font-medium text-muted-foreground">
+          {tab === 'active' ? t('orders.noActive') : t('orders.noHistory')}
+        </div>}
       </section>
     )
   }

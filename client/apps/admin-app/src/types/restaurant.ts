@@ -8,6 +8,9 @@ export type Restaurant = {
   phone: string
   email: string
   imageUrl: string
+  address: string
+  latitude: number | null
+  longitude: number | null
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -31,6 +34,7 @@ export type CreateRestaurantPayload = {
   phone: string
   email: string
   imageUrl: string
+  address: string
 }
 
 export type UpdateRestaurantPayload = {

@@ -161,11 +161,28 @@ export async function createRestaurant(req: Request, res: Response) {
       phone: normalizeText(req.body.phone),
       email: normalizeEmail(req.body.email),
       imageUrl: normalizeText(req.body.imageUrl),
+      address: normalizeText(req.body.address),
       categoryName: normalizeText(req.body.categoryName),
       categoryIds: numericArray(req.body.categoryIds),
     })
 
     res.status(201).json(result)
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function resolveRestaurantLocation(req: Request, res: Response) {
+  try {
+    res.json(await adminService.resolveRestaurantLocation(normalizeText(req.body.address)))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function searchRestaurantAddressSuggestions(req: Request, res: Response) {
+  try {
+    res.json(await adminService.searchRestaurantAddressSuggestions(queryText(req.query.q)))
   } catch (error) {
     sendError(error, res)
   }

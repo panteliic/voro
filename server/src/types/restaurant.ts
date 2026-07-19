@@ -6,6 +6,7 @@ export type CreateRestaurantPayload = {
   phone: string
   email: string
   imageUrl: string
+  address: string
   categoryName: string
   categoryIds: number[]
 }

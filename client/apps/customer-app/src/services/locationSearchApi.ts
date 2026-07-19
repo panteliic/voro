@@ -1,4 +1,5 @@
 import type { LocationSuggestion } from '../types/location'
+import { customerApi } from './customerApi'
 
 type PhotonFeature = {
   geometry?: {
@@ -21,6 +22,25 @@ type PhotonFeature = {
 
 type PhotonResponse = {
   features?: PhotonFeature[]
+}
+
+type NominatimResult = {
+  place_id?: number
+  lat?: string
+  lon?: string
+  address?: {
+    city?: string
+    city_district?: string
+    country?: string
+    country_code?: string
+    house_number?: string
+    municipality?: string
+    postcode?: string
+    road?: string
+    state?: string
+    town?: string
+    village?: string
+  }
 }
 
 const SERBIA_BBOX = {
@@ -116,70 +136,72 @@ function suggestionLabel(suggestion: LocationSuggestion) {
     .join(', ')
 }
 
+function normalizedHouseNumber(value: string) {
+  return value.replace(/\s/g, '').toLocaleLowerCase()
+}
+
+async function searchExactHouseNumber(query: string, houseNumber: string, signal?: AbortSignal) {
+  const params = new URLSearchParams({
+    q: toLatin(query),
+    format: 'jsonv2',
+    addressdetails: '1',
+    countrycodes: 'rs',
+    limit: '6',
+  })
+  const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, { signal })
+  if (!response.ok) return []
+
+  const data = (await response.json()) as NominatimResult[]
+
+  return data
+    .map((result): LocationSuggestion | null => {
+      const latitude = Number(result.lat)
+      const longitude = Number(result.lon)
+      const address = result.address
+      const resultHouseNumber = address?.house_number || ''
+      const street = address?.road || ''
+
+      if (
+        !address ||
+        !street ||
+        normalizedHouseNumber(resultHouseNumber) !== normalizedHouseNumber(houseNumber) ||
+        !isInsideSerbia(longitude, latitude) ||
+        address.country_code?.toUpperCase() !== 'RS'
+      ) {
+        return null
+      }
+
+      const suggestion = {
+        id: `nominatim-${result.place_id || `${latitude}-${longitude}`}`,
+        label: '',
+        street: toLatin([street, resultHouseNumber].join(' ')),
+        city: toLatin(address.city || address.town || address.village || address.municipality || address.city_district || address.state || ''),
+        postalCode: toLatin(address.postcode || ''),
+        country: toLatin(address.country || 'Serbia'),
+        latitude,
+        longitude,
+      }
+
+      return { ...suggestion, label: suggestionLabel(suggestion) }
+    })
+    .filter((suggestion): suggestion is LocationSuggestion => Boolean(suggestion))
+}
+
 export async function searchLocations(query: string, signal?: AbortSignal) {
   const trimmedQuery = query.trim()
-  const typedHouseNumber = extractHouseNumber(trimmedQuery)
 
   if (trimmedQuery.length < 3) {
     return []
   }
 
-  const params = new URLSearchParams({
-    q: toLatin(trimmedQuery),
-    limit: '6',
-    lang: 'en',
-    lon: '20.4612',
-    lat: '44.8125',
-    bbox: `${SERBIA_BBOX.minLon},${SERBIA_BBOX.minLat},${SERBIA_BBOX.maxLon},${SERBIA_BBOX.maxLat}`,
-  })
-  const response = await fetch(`https://photon.komoot.io/api/?${params.toString()}`, { signal })
-
-  if (!response.ok) {
-    throw new Error('Could not load location suggestions.')
-  }
-
-  const data = (await response.json()) as PhotonResponse
-
-  return (data.features || [])
-    .map((feature): LocationSuggestion | null => {
-      const coordinates = feature.geometry?.coordinates
-      const properties = feature.properties
-
-      if (!coordinates || !properties) {
-        return null
-      }
-
-      const [longitude, latitude] = coordinates
-      if (!isInsideSerbia(longitude, latitude)) {
-        return null
-      }
-
-      if (properties.countrycode && properties.countrycode.toUpperCase() !== 'RS') {
-        return null
-      }
-
-      const houseNumber = properties.housenumber || typedHouseNumber
-      const street = [properties.street || properties.name || '', houseNumber]
-        .filter(Boolean)
-        .join(' ')
-        .trim()
-      const city = properties.city || properties.district || properties.state || ''
-      const country = properties.country || ''
-      const suggestion = {
-        id: `${properties.osm_type || 'place'}-${properties.osm_id || `${latitude}-${longitude}`}`,
-        label: '',
-        street: toLatin(street),
-        city: toLatin(city),
-        postalCode: toLatin(properties.postcode || ''),
-        country: toLatin(country || 'Serbia'),
-        latitude,
-        longitude,
-      }
-
-      return {
-        ...suggestion,
-        label: suggestionLabel(suggestion),
-      }
-    })
-    .filter((suggestion): suggestion is LocationSuggestion => Boolean(suggestion?.street))
+  return customerApi.searchAddressSuggestions(trimmedQuery, signal).then((suggestions) =>
+    suggestions.map((suggestion) => ({
+      ...suggestion,
+      label: toLatin(suggestion.label),
+      street: toLatin(suggestion.street),
+      city: toLatin(suggestion.city),
+      postalCode: toLatin(suggestion.postalCode),
+      country: toLatin(suggestion.country),
+    })),
+  )
 }

@@ -1,22 +1,10 @@
 import { useEffect, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import {
-  Avatar,
-  AvatarFallback,
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@voro/ui'
-import { LogOut, Settings, UserRound } from 'lucide-react'
+import { Settings } from 'lucide-react'
 import { DashboardSidebar } from '../components/dashboard/DashboardSidebar'
 import {
   getDashboardView,
   getSettingsSection,
-  getInitials,
 } from '../components/dashboard/utils/dashboardUtils'
 import { dashboardNavItems } from '../components/dashboard/data/dashboardData'
 import { OrdersPanel } from '../components/dashboard/OrdersPanel'
@@ -42,7 +30,6 @@ function Home() {
   const [profileError, setProfileError] = useState('')
   const name = user?.name || 'korisnice'
   const displayName = profile?.user.name || user?.name || name
-  const displayEmail = profile?.user.email || user?.email || ''
   const firstName = displayName.split(' ')[0] || displayName
   const defaultAddress = profile?.addresses.find((address) => address.isDefault) || profile?.addresses[0]
   const deliveryAddress = defaultAddress
@@ -85,75 +72,10 @@ function Home() {
   return (
     <main className="h-screen overflow-hidden bg-background text-content">
       <div
-        className={`grid h-full grid-rows-[auto_1fr] transition-[grid-template-columns] duration-200 lg:grid-rows-1 ${
+        className={`grid h-full grid-rows-1 transition-[grid-template-columns] duration-200 ${
           isSidebarCollapsed ? 'lg:grid-cols-[6rem_1fr]' : 'lg:grid-cols-[17rem_1fr]'
         }`}
       >
-        <header className="flex h-16 items-center justify-between border-b border-line bg-card px-4 sm:px-6 lg:hidden">
-          <div className="flex min-w-0 items-center gap-3">
-            <img src="/logo.svg" alt="Voro" className="h-9 w-9 shrink-0 object-contain" />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-content">{t('sidebar.appName')}</p>
-              <p className="hidden truncate text-xs text-muted-foreground min-[380px]:block">
-                {t('sidebar.workspace')}
-              </p>
-            </div>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                aria-label={t('sidebar.account')}
-                className="ml-3 rounded-full p-0"
-                size="icon"
-                type="button"
-                variant="ghost"
-              >
-                <Avatar>
-                  <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>
-                <span className="block truncate text-sm font-bold text-content">
-                  {displayName}
-                </span>
-                {displayEmail ? (
-                  <span className="mt-1 block truncate text-xs font-medium text-muted-foreground">
-                    {displayEmail}
-                  </span>
-                ) : null}
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <NavLink className="cursor-pointer gap-2" to="/settings">
-                  <Settings className="size-4" />
-                  {t('nav.settings')}
-                </NavLink>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <NavLink className="cursor-pointer gap-2" to="/settings/account">
-                  <UserRound className="size-4" />
-                  {t('sidebar.account')}
-                </NavLink>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="cursor-pointer gap-2"
-                disabled={isLoggingOut}
-                onSelect={(event) => {
-                  event.preventDefault()
-                  void handleLogout()
-                }}
-                variant="destructive"
-              >
-                <LogOut className="size-4" />
-                {isLoggingOut ? t('common.loggingOut') : t('common.logout')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </header>
-
         <DashboardSidebar
           activeSettingsSection={activeSettingsSection}
           activeView={activeView}
@@ -166,7 +88,7 @@ function Home() {
           userName={user?.name}
         />
 
-        <section className="min-h-0 min-w-0 overflow-y-auto px-4 pb-24 pt-5 sm:px-6 lg:px-8 lg:py-5">
+        <section className="min-h-0 min-w-0 overflow-y-auto px-4 pb-[calc(4rem+max(env(safe-area-inset-bottom),0.5rem))] pt-5 sm:px-6 lg:px-8 lg:py-5">
           {profileError ? (
             <div className="mb-5 rounded-voro-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
               {profileError}
@@ -193,9 +115,9 @@ function Home() {
         </section>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-card px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-12px_24px_rgba(0,0,0,0.08)] lg:hidden">
-        <div className="grid grid-cols-3 gap-1">
-          {dashboardNavItems.map(({ icon: Icon, id, path }) => {
+      <nav className="fixed inset-x-0 bottom-0 z-[1000] border-t border-line bg-card px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-12px_24px_rgba(0,0,0,0.08)] lg:hidden">
+        <div className="grid grid-cols-4 gap-1">
+          {[...dashboardNavItems, { icon: Settings, id: 'settings' as const, path: '/settings' }].map(({ icon: Icon, id, path }) => {
             const isActive = activeView === id
             const label = t(`nav.${id}`)
 

@@ -24,7 +24,8 @@ export function Sidebar() {
   const { user } = useAuth()
 
   return (
-    <aside className="admin-sidebar border-b border-line bg-card lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-72 lg:shrink-0 lg:flex-col lg:border-r lg:border-b-0">
+    <>
+      <aside className="admin-sidebar hidden border-b border-line bg-card lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-72 lg:shrink-0 lg:flex-col lg:border-r lg:border-b-0">
       <div className="flex h-[4.25rem] items-center gap-3 border-b border-line px-5">
         <img src="/logo.svg" alt="Voro" className="size-8 shrink-0 rounded-voro-md" />
         <div>
@@ -66,6 +67,31 @@ export function Sidebar() {
           </div>
         </div>
       </div>
-    </aside>
+      </aside>
+
+      <nav className="fixed inset-x-0 bottom-0 z-[1000] border-t border-line bg-card px-1 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-12px_24px_rgba(0,0,0,0.08)] lg:hidden">
+        <div className="grid grid-cols-6 gap-1">
+          {navItems.map((item) => {
+            const Icon = item.icon
+
+            return (
+              <NavLink
+                className={({ isActive }) =>
+                  `flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-voro-md px-1 text-[0.6rem] font-bold leading-none transition ${
+                    isActive ? 'bg-accent text-content' : 'text-muted-foreground hover:bg-muted hover:text-content'
+                  }`
+                }
+                end={item.to === '/'}
+                key={item.to}
+                to={item.to}
+              >
+                <Icon className="size-4 shrink-0" />
+                <span className="max-w-full truncate">{t(item.labelKey)}</span>
+              </NavLink>
+            )
+          })}
+        </div>
+      </nav>
+    </>
   )
 }

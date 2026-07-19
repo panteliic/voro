@@ -17,6 +17,7 @@ type RestaurantRow = {
   phone: string | null
   email: string | null
   image_url: string | null
+  address: string | null
   latitude: string | null
   longitude: string | null
   is_active: boolean
@@ -65,6 +66,7 @@ type RestaurantOrderRow = {
   note: string | null
   address: string | null
   driver_name: string | null
+  pickup_code: string | null
   created_at: Date
   updated_at: Date
   items: Array<{ name: string; quantity: number }> | null
@@ -83,6 +85,7 @@ function toRestaurant(row: RestaurantRow) {
     phone: row.phone || '',
     email: row.email || '',
     imageUrl: row.image_url || '',
+    address: row.address || '',
     latitude: row.latitude === null ? null : Number(row.latitude),
     longitude: row.longitude === null ? null : Number(row.longitude),
     isActive: row.is_active,
@@ -139,6 +142,7 @@ function toRestaurantOrder(row: RestaurantOrderRow) {
     note: row.note || '',
     address: row.address || '',
     driverName: row.driver_name || '',
+    pickupCode: row.pickup_code || '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     items: Array.isArray(row.items) ? row.items : [],
@@ -160,7 +164,10 @@ async function getOrCreateRestaurantCategory(client: PoolClient, categoryName: s
   return Number(result.rows[0].id)
 }
 
-async function resolveRestaurantCategoryIds(client: PoolClient, payload: CreateRestaurantPayload) {
+async function resolveRestaurantCategoryIds(
+  client: PoolClient,
+  payload: Pick<CreateRestaurantPayload, 'categoryName' | 'categoryIds'>,
+) {
   const requestedCategoryIds = Array.isArray(payload.categoryIds) ? payload.categoryIds : []
 
   if (requestedCategoryIds.length > 0) {
@@ -224,6 +231,8 @@ const restaurantSelect = `
 
 export async function createRestaurantWithAccount(payload: CreateRestaurantPayload & {
   contactPasswordHash: string
+  latitude: number
+  longitude: number
 }) {
   const client = await pool.connect()
 
@@ -240,9 +249,12 @@ export async function createRestaurantWithAccount(payload: CreateRestaurantPaylo
           phone,
           email,
           image_url,
+          address,
+          latitude,
+          longitude,
           is_active
         )
-        VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE)
         RETURNING *,
           (SELECT name FROM restaurant_category WHERE id = restaurant.category_id) AS category_name
       `,
@@ -253,6 +265,9 @@ export async function createRestaurantWithAccount(payload: CreateRestaurantPaylo
         payload.phone || null,
         payload.email || payload.contactEmail,
         payload.imageUrl || null,
+        payload.address,
+        payload.latitude,
+        payload.longitude,
       ],
     )
 
@@ -375,13 +390,6 @@ export async function updateRestaurant(
     await client.query('BEGIN')
 
     const categoryIds = await resolveRestaurantCategoryIds(client, {
-      contactName: '',
-      contactEmail: '',
-      restaurantName: payload.name,
-      description: payload.description,
-      phone: payload.phone,
-      email: payload.email,
-      imageUrl: payload.imageUrl,
       categoryName: payload.categoryName,
       categoryIds: payload.categoryIds,
     })
@@ -491,6 +499,7 @@ export async function listRestaurantOrders(restaurantId: number, limit = 50) {
         o.note,
         NULLIF(CONCAT_WS(', ', address.label, address.street, address.city), '') AS address,
         driver.name AS driver_name,
+        delivery.pickup_code,
         o.created_at,
         o.updated_at,
         COALESCE(
@@ -509,7 +518,7 @@ export async function listRestaurantOrders(restaurantId: number, limit = 50) {
       LEFT JOIN "user" driver ON driver.id = courier.user_id
       LEFT JOIN order_item ON order_item.order_id = o.id
       WHERE o.restaurant_id = $1
-      GROUP BY o.id, customer.name, status.name, address.label, address.street, address.city, driver.name
+      GROUP BY o.id, customer.name, status.name, address.label, address.street, address.city, driver.name, delivery.pickup_code
       ORDER BY o.created_at DESC
       LIMIT $2
     `,

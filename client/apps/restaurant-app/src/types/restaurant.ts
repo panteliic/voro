@@ -55,6 +55,7 @@ export type RestaurantOrder = {
   updatedAt: string
   address: string
   driverName: string
+  pickupCode: string
 }
 
 export type CategoryForm = {

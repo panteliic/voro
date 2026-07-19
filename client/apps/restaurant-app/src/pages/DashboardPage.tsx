@@ -53,7 +53,7 @@ export function DashboardPage({
         user={user}
       />
 
-      <div className="mx-auto grid max-w-none gap-5 px-4 py-5 lg:grid-cols-[16rem_1fr]">
+      <div className="mx-auto grid max-w-none gap-5 px-4 pb-[calc(4rem+max(env(safe-area-inset-bottom),0.5rem))] pt-5 lg:grid-cols-[16rem_1fr] lg:py-5">
         <RestaurantSidebar />
 
         <section className="grid gap-5">

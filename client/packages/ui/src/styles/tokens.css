@@ -205,6 +205,12 @@
   textarea {
     font: inherit;
   }
+
+  button:not(:disabled),
+  a[href],
+  [role='button']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
 }
 
 @layer components {

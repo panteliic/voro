@@ -97,32 +97,33 @@ export function OrderCalendarPage() {
         </div>
       </div>
 
-      <section className="rounded-voro-lg border border-line bg-card p-3">
-        <div className="grid grid-cols-7 gap-2 px-1 pb-2 text-center text-xs font-bold text-muted-foreground md:text-sm">
+      <section className="rounded-voro-lg border border-line bg-card p-1.5 sm:p-3">
+        <div className="grid grid-cols-7 gap-1 px-0.5 pb-1.5 text-center text-[0.65rem] font-bold text-muted-foreground sm:gap-2 sm:px-1 sm:pb-2 sm:text-xs md:text-sm">
           {weekDays[language].map((day) => (
             <span key={day}>{day}</span>
           ))}
         </div>
 
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2">
           {monthDays.map((day, index) =>
             day ? (
               <Link
                 aria-label={t('calendar.openDay', { date: formatDayTitle(day, locale) })}
-                className="grid min-h-24 rounded-voro-lg border border-line bg-background p-3 text-left transition hover:border-action hover:bg-accent sm:min-h-28 lg:min-h-32"
+                className="grid min-h-16 rounded-voro-md border border-line bg-background p-1.5 text-left transition hover:border-action hover:bg-accent sm:min-h-28 sm:rounded-voro-lg sm:p-3 lg:min-h-32"
                 key={day}
                 to={`/calendar/${day}`}
               >
-                <span className="text-lg font-bold">{Number(day.slice(-2))}</span>
+                <span className="text-sm font-bold sm:text-lg">{Number(day.slice(-2))}</span>
                 {orderCountByDay[day] ? (
-                  <span className="mt-auto justify-self-start rounded-voro-md bg-action px-2 py-1 text-xs font-bold text-white">
-                    {t('calendar.orderCount', { count: orderCountByDay[day] })}
+                  <span className="mt-auto justify-self-start rounded-voro-sm bg-action px-1 py-0.5 text-[0.55rem] font-bold text-white sm:rounded-voro-md sm:px-2 sm:py-1 sm:text-xs">
+                    <span className="sm:hidden">{orderCountByDay[day]}</span>
+                    <span className="hidden sm:inline">{t('calendar.orderCount', { count: orderCountByDay[day] })}</span>
                   </span>
                 ) : null}
               </Link>
             ) : (
               <span
-                className="min-h-24 rounded-voro-lg border border-dashed border-line bg-muted/30 sm:min-h-28 lg:min-h-32"
+                className="min-h-16 rounded-voro-md border border-dashed border-line bg-muted/30 sm:min-h-28 sm:rounded-voro-lg lg:min-h-32"
                 key={`blank-${index}`}
               />
             ),

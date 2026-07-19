@@ -26,6 +26,14 @@ export async function getProfile(req: Request, res: Response) {
   }
 }
 
+export async function searchAddressSuggestions(req: Request, res: Response) {
+  try {
+    res.json(await customerService.searchAddressSuggestions(queryText(req.query.q)))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
 export async function listRestaurants(req: Request, res: Response) {
   try {
     res.json(await customerService.getRestaurantDiscovery(queryText(req.query.category)))

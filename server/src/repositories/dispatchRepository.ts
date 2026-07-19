@@ -57,16 +57,18 @@ export async function getPreparingOrderForDispatch(orderId: number) {
   const result = await pool.query<DispatchOrderRow>(
     `
       SELECT
-        o.id,
+        "order".id,
         restaurant.latitude AS restaurant_latitude,
         restaurant.longitude AS restaurant_longitude,
         address.latitude AS delivery_latitude,
         address.longitude AS delivery_longitude
-      FROM "order" o
-      INNER JOIN order_status status ON status.id = o.status_id AND status.name = 'preparing'
-      INNER JOIN restaurant ON restaurant.id = o.restaurant_id
-      INNER JOIN address ON address.id = o.address_id
-      WHERE o.id = $1
+      FROM "order"
+      INNER JOIN order_status ON order_status.id = "order".status_id
+        AND order_status.name IN ('accepted', 'preparing', 'ready')
+      INNER JOIN restaurant ON restaurant.id = "order".restaurant_id
+      INNER JOIN address ON address.id = "order".address_id
+      LEFT JOIN delivery ON delivery.order_id = "order".id
+      WHERE "order".id = $1 AND delivery.id IS NULL
       LIMIT 1
     `,
     [orderId],
@@ -102,6 +104,7 @@ export async function listAvailableOnlineCouriers() {
         AND courier.is_available = TRUE
         AND courier.current_latitude IS NOT NULL
         AND courier.current_longitude IS NOT NULL
+        AND courier.last_location_at >= NOW() - INTERVAL '45 seconds'
       ORDER BY courier.last_location_at DESC NULLS LAST, courier.id ASC
     `,
   )
@@ -126,6 +129,44 @@ export async function markDispatchMatching(orderId: number) {
   )
 }
 
+export async function createDispatchOffers(orderId: number, courierIds: number[], expiresInMs: number) {
+  if (courierIds.length === 0) {
+    return 0
+  }
+
+  const result = await pool.query<{ courier_id: string }>(
+    `
+      INSERT INTO delivery_dispatch_offer (
+        dispatch_job_id,
+        order_id,
+        courier_id,
+        status,
+        expires_at
+      )
+      SELECT
+        job.id,
+        job.order_id,
+        offered_courier.id,
+        'pending',
+        NOW() + ($3 * INTERVAL '1 millisecond')
+      FROM delivery_dispatch_job job
+      INNER JOIN UNNEST($2::BIGINT[]) AS offered_courier(id) ON TRUE
+      WHERE job.order_id = $1
+      ON CONFLICT (order_id, courier_id) DO UPDATE
+      SET
+        dispatch_job_id = EXCLUDED.dispatch_job_id,
+        status = 'pending',
+        expires_at = EXCLUDED.expires_at,
+        updated_at = NOW()
+      WHERE delivery_dispatch_offer.status NOT IN ('declined', 'accepted')
+      RETURNING courier_id
+    `,
+    [orderId, courierIds, expiresInMs],
+  )
+
+  return result.rows.length
+}
+
 export async function markDispatchWaiting(orderId: number, reason: string, retryAfterMs: number) {
   await pool.query(
     `
@@ -138,22 +179,6 @@ export async function markDispatchWaiting(orderId: number, reason: string, retry
       WHERE order_id = $1
     `,
     [orderId, reason, retryAfterMs],
-  )
-}
-
-export async function markDispatchAssigned(orderId: number, courierId: number) {
-  await pool.query(
-    `
-      UPDATE delivery_dispatch_job
-      SET
-        status = 'assigned',
-        assigned_courier_id = $2,
-        last_error = NULL,
-        next_attempt_at = NOW(),
-        updated_at = NOW()
-      WHERE order_id = $1
-    `,
-    [orderId, courierId],
   )
 }
 
@@ -180,85 +205,4 @@ export async function listPendingDispatchOrderIds() {
   )
 
   return result.rows.map((row) => Number(row.order_id))
-}
-
-export async function assignCourierToOrder(orderId: number, courierId: number) {
-  const client = await pool.connect()
-
-  try {
-    await client.query('BEGIN')
-
-    const existingDelivery = await client.query<{ id: string; courier_id: string | null }>(
-      'SELECT id, courier_id FROM delivery WHERE order_id = $1 FOR UPDATE',
-      [orderId],
-    )
-
-    if (existingDelivery.rows[0]) {
-      await client.query('COMMIT')
-      return {
-        deliveryId: Number(existingDelivery.rows[0].id),
-        courierId: existingDelivery.rows[0].courier_id ? Number(existingDelivery.rows[0].courier_id) : null,
-        assigned: false,
-      }
-    }
-
-    const courier = await client.query<{
-      id: string
-      current_latitude: string | null
-      current_longitude: string | null
-    }>(
-      `
-        SELECT id, current_latitude, current_longitude
-        FROM courier
-        WHERE id = $1 AND is_online = TRUE AND is_available = TRUE
-        FOR UPDATE
-      `,
-      [courierId],
-    )
-
-    const selectedCourier = courier.rows[0]
-
-    if (!selectedCourier) {
-      await client.query('ROLLBACK')
-      return null
-    }
-
-    const delivery = await client.query<{ id: string }>(
-      `
-        INSERT INTO delivery (order_id, courier_id, status_id)
-        VALUES ($1, $2, (SELECT id FROM delivery_status WHERE name = 'assigned'))
-        RETURNING id
-      `,
-      [orderId, courierId],
-    )
-
-    await client.query(
-      'UPDATE courier SET is_available = FALSE, updated_at = NOW() WHERE id = $1',
-      [courierId],
-    )
-
-    if (selectedCourier.current_latitude !== null && selectedCourier.current_longitude !== null) {
-      await client.query(
-        `
-          INSERT INTO delivery_location (delivery_id, courier_id, latitude, longitude)
-          VALUES ($1, $2, $3, $4)
-        `,
-        [
-          delivery.rows[0].id,
-          courierId,
-          Number(selectedCourier.current_latitude),
-          Number(selectedCourier.current_longitude),
-        ],
-      )
-    }
-
-    await client.query('COMMIT')
-
-    return { deliveryId: Number(delivery.rows[0].id), courierId, assigned: true }
-  } catch (error) {
-    await client.query('ROLLBACK')
-    throw error
-  } finally {
-    client.release()
-  }
 }

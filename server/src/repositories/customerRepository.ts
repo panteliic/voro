@@ -116,6 +116,10 @@ type CustomerOrderRouteRow = {
   delivery_address: string | null
   delivery_latitude: string | null
   delivery_longitude: string | null
+  courier_name: string | null
+  courier_latitude: string | null
+  courier_longitude: string | null
+  delivery_status: string | null
 }
 
 function toUserProfile(row: UserProfileRow) {
@@ -679,10 +683,18 @@ export async function getCustomerOrderRouteLocations(userId: number, orderId: nu
         restaurant.longitude AS restaurant_longitude,
         NULLIF(CONCAT_WS(', ', address.label, address.street, address.city), '') AS delivery_address,
         address.latitude AS delivery_latitude,
-        address.longitude AS delivery_longitude
+        address.longitude AS delivery_longitude,
+        driver.name AS courier_name,
+        courier.current_latitude AS courier_latitude,
+        courier.current_longitude AS courier_longitude,
+        delivery_status.name AS delivery_status
       FROM "order" o
       INNER JOIN restaurant ON restaurant.id = o.restaurant_id
       LEFT JOIN address ON address.id = o.address_id
+      LEFT JOIN delivery ON delivery.order_id = o.id
+      LEFT JOIN delivery_status ON delivery_status.id = delivery.status_id
+      LEFT JOIN courier ON courier.id = delivery.courier_id
+      LEFT JOIN "user" driver ON driver.id = courier.user_id
       WHERE o.user_id = $1 AND o.id = $2
     `,
     [userId, orderId],
@@ -701,6 +713,10 @@ export async function getCustomerOrderRouteLocations(userId: number, orderId: nu
     deliveryAddress: row.delivery_address || '',
     deliveryLatitude: row.delivery_latitude === null ? null : Number(row.delivery_latitude),
     deliveryLongitude: row.delivery_longitude === null ? null : Number(row.delivery_longitude),
+    courierName: row.courier_name || '',
+    courierLatitude: row.courier_latitude === null ? null : Number(row.courier_latitude),
+    courierLongitude: row.courier_longitude === null ? null : Number(row.courier_longitude),
+    deliveryStatus: row.delivery_status || '',
   }
 }
 

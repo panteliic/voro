@@ -19,8 +19,8 @@ const allowedNextStatuses: Record<RestaurantOrderStatus, RestaurantOrderStatus[]
   pending: ['accepted', 'cancelled'],
   accepted: ['preparing', 'cancelled'],
   preparing: ['ready', 'cancelled'],
-  ready: ['picked_up'],
-  picked_up: ['delivered'],
+  ready: [],
+  picked_up: [],
   delivered: [],
   cancelled: [],
 }
@@ -74,8 +74,8 @@ export async function updateOrderStatus(restaurantId: number, orderId: number, n
     throw new HttpError(404, 'Order not found.')
   }
 
-  if (nextStatus === 'preparing') {
-    // This is intentionally not awaited: food preparation must never wait for matching.
+  if (nextStatus === 'accepted') {
+    // Matching starts as soon as the restaurant accepts; food preparation does not wait for it.
     dispatchService.enqueueDispatch(orderId)
   }
 

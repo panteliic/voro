@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { MapPin, Search, Sparkles, Store, X } from 'lucide-react'
+import { ArrowRight, MapPin, Search, Sparkles, X } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { Button, Input } from '@voro/ui'
 import { useI18n } from '../../i18n/i18n'
@@ -15,14 +15,33 @@ type RestaurantDiscoveryPanelProps = {
 const initialRestaurantCount = 9
 const initialCategoryCount = 8
 
-function restaurantTone(restaurant: DiscoverableRestaurant) {
-  const category = restaurant.categories[0]?.slug || restaurant.categoryName.toLowerCase()
+const categoryPresentation: Record<string, { emoji: string; surface: string }> = {
+  pizza: { emoji: '🍕', surface: 'from-orange-100 to-amber-50 dark:from-orange-500/25 dark:to-amber-500/10' },
+  burgers: { emoji: '🍔', surface: 'from-rose-100 to-orange-50 dark:from-rose-500/25 dark:to-orange-500/10' },
+  serbian: { emoji: '🥘', surface: 'from-red-100 to-amber-50 dark:from-red-500/25 dark:to-amber-500/10' },
+  italian: { emoji: '🍝', surface: 'from-amber-100 to-orange-50 dark:from-amber-500/25 dark:to-orange-500/10' },
+  asian: { emoji: '🥡', surface: 'from-sky-100 to-cyan-50 dark:from-sky-500/25 dark:to-cyan-500/10' },
+  sushi: { emoji: '🍣', surface: 'from-cyan-100 to-sky-50 dark:from-cyan-500/25 dark:to-sky-500/10' },
+  chinese: { emoji: '🥢', surface: 'from-red-100 to-rose-50 dark:from-red-500/25 dark:to-rose-500/10' },
+  mexican: { emoji: '🌮', surface: 'from-yellow-100 to-orange-50 dark:from-yellow-500/25 dark:to-orange-500/10' },
+  healthy: { emoji: '🥗', surface: 'from-emerald-100 to-lime-50 dark:from-emerald-500/25 dark:to-lime-500/10' },
+  vegan: { emoji: '🌱', surface: 'from-green-100 to-emerald-50 dark:from-green-500/25 dark:to-emerald-500/10' },
+  desserts: { emoji: '🍰', surface: 'from-pink-100 to-rose-50 dark:from-pink-500/25 dark:to-rose-500/10' },
+  breakfast: { emoji: '🥞', surface: 'from-yellow-100 to-amber-50 dark:from-yellow-500/25 dark:to-amber-500/10' },
+  'fast-food': { emoji: '🍟', surface: 'from-orange-100 to-yellow-50 dark:from-orange-500/25 dark:to-yellow-500/10' },
+}
 
-  if (['pizza', 'italian', 'pasta'].includes(category)) return 'bg-orange-500/15 text-orange-500'
-  if (['sushi', 'asian', 'chinese', 'indian'].includes(category)) return 'bg-sky-500/15 text-sky-500'
-  if (['healthy', 'vegan'].includes(category)) return 'bg-emerald-500/15 text-emerald-500'
+const defaultCategoryPresentation = {
+  emoji: '🍽️',
+  surface: 'from-primary/15 to-accent',
+}
 
-  return 'bg-accent text-action'
+function getCategoryPresentation(slug: string) {
+  return categoryPresentation[slug] || defaultCategoryPresentation
+}
+
+function restaurantPresentation(restaurant: DiscoverableRestaurant) {
+  return getCategoryPresentation(restaurant.categories[0]?.slug || restaurant.categoryName.toLowerCase())
 }
 
 export function RestaurantDiscoveryPanel({
@@ -112,7 +131,7 @@ export function RestaurantDiscoveryPanel({
   }
 
   return (
-    <section className="grid gap-6">
+    <section className="grid min-w-0 gap-6">
       {showSearch ? (
         <header>
           <p className="text-sm font-bold uppercase tracking-[0.14em] text-action">Voro</p>
@@ -120,29 +139,30 @@ export function RestaurantDiscoveryPanel({
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{t('search.desc')}</p>
         </header>
       ) : (
-        <section className="relative overflow-hidden rounded-voro-xl border border-line bg-card p-5 sm:p-6">
-          <div className="pointer-events-none absolute -right-20 -top-24 size-64 rounded-full bg-action/10 blur-3xl" />
+        <section className="relative min-w-0 overflow-hidden rounded-voro-xl bg-action p-5 text-action-text shadow-voro-lg sm:p-7">
+          <div className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-white/15" />
+          <div className="pointer-events-none absolute -bottom-28 right-1/3 size-56 rounded-full border-[1.25rem] border-white/10" />
           <div className="relative flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-            <div className="max-w-2xl">
-              <span className="inline-flex items-center gap-2 rounded-full bg-action/15 px-3 py-1.5 text-xs font-bold text-action">
+            <div className="min-w-0 max-w-2xl">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold">
                 <Sparkles className="size-3.5" />
                 {t('discovery.kicker')}
               </span>
-              <h1 className="mt-4 text-2xl font-bold leading-tight text-content sm:text-3xl">
+              <h1 className="mt-4 break-words text-3xl font-bold leading-tight sm:text-4xl">
                 {t('discovery.title', { name: userName || t('discovery.friend') })}
               </h1>
-              <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{t('discovery.desc')}</p>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-white/80">{t('discovery.desc')}</p>
             </div>
             <NavLink
-              className="flex min-w-0 items-center gap-3 rounded-voro-lg border border-line bg-background/80 px-3 py-2.5 transition hover:border-action/50 hover:bg-accent"
+              className="flex w-full min-w-0 items-center gap-3 rounded-voro-lg border border-white/25 bg-black/10 px-3 py-2.5 transition hover:bg-black/20 md:w-auto md:max-w-[22rem]"
               to="/settings/delivery"
             >
-              <span className="grid size-9 shrink-0 place-items-center rounded-voro-md bg-accent text-action">
+              <span className="grid size-9 shrink-0 place-items-center rounded-voro-md bg-white/15">
                 <MapPin className="size-4" />
               </span>
               <span className="min-w-0">
-                <span className="block text-xs font-medium text-muted-foreground">{t('discovery.deliveringTo')}</span>
-                <span className="block truncate text-sm font-bold text-content">
+                <span className="block text-xs font-medium text-white/70">{t('discovery.deliveringTo')}</span>
+                <span className="block truncate text-sm font-bold">
                   {deliveryAddress || t('discovery.addAddress')}
                 </span>
               </span>
@@ -172,9 +192,12 @@ export function RestaurantDiscoveryPanel({
         ) : null}
       </div>
 
-      <section aria-label={t('restaurants.categories')}>
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-bold text-content">{t('restaurants.categories')}</h2>
+      <section aria-label={t('restaurants.categories')} className="min-w-0">
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-action">{t('discovery.picks')}</p>
+            <h2 className="mt-1 text-xl font-bold text-content">{t('restaurants.categories')}</h2>
+          </div>
           {categories.length > initialCategoryCount ? (
             <button
               className="text-xs font-bold text-action transition hover:text-action-hover"
@@ -187,32 +210,40 @@ export function RestaurantDiscoveryPanel({
             </button>
           ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
+        <div className="-mx-4 flex min-w-0 gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:px-0 lg:grid lg:grid-cols-4 xl:grid-cols-6">
+          <button
+            aria-pressed={!selectedCategory}
+            className={`group flex w-28 shrink-0 flex-col overflow-hidden rounded-voro-lg border text-left transition sm:w-32 lg:w-auto ${
+              !selectedCategory ? 'border-action ring-2 ring-action/20' : 'border-line hover:-translate-y-0.5 hover:border-action/50'
+            }`}
             onClick={() => selectCategory('')}
-            size="sm"
             type="button"
-            variant={selectedCategory ? 'outline' : 'default'}
           >
-            {t('restaurants.all')}
-          </Button>
+            <span className="grid h-20 place-items-center bg-gradient-to-br from-action/25 to-accent text-4xl transition group-hover:scale-105">🍽️</span>
+            <span className="truncate px-3 py-2.5 text-sm font-bold text-content">{t('restaurants.all')}</span>
+          </button>
           {visibleCategories.map((category) => (
-            <Button
+            <button
+              aria-pressed={selectedCategory === category.slug}
+              className={`group flex w-28 shrink-0 flex-col overflow-hidden rounded-voro-lg border text-left transition sm:w-32 lg:w-auto ${
+                selectedCategory === category.slug ? 'border-action ring-2 ring-action/20' : 'border-line hover:-translate-y-0.5 hover:border-action/50'
+              }`}
               key={category.id}
               onClick={() => selectCategory(category.slug)}
-              size="sm"
               type="button"
-              variant={selectedCategory === category.slug ? 'default' : 'outline'}
             >
-              {category.name}
-            </Button>
+              <span className={`grid h-20 place-items-center bg-gradient-to-br text-4xl transition group-hover:scale-105 ${getCategoryPresentation(category.slug).surface}`}>
+                {getCategoryPresentation(category.slug).emoji}
+              </span>
+              <span className="truncate px-3 py-2.5 text-sm font-bold text-content">{category.name}</span>
+            </button>
           ))}
         </div>
       </section>
 
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="font-bold text-content">{selectedLabel}</h2>
+          <h2 className="text-xl font-bold text-content">{selectedLabel}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{t('restaurants.resultsHelp')}</p>
         </div>
         <span className="rounded-voro-md bg-muted px-2 py-1 text-xs font-bold text-muted-foreground">
@@ -232,49 +263,49 @@ export function RestaurantDiscoveryPanel({
         </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {visibleRestaurants.map((restaurant) => (
-            <NavLink
-              aria-label={t('restaurants.openMenu', { name: restaurant.name })}
-              className="rounded-voro-lg border border-line bg-card p-4 transition duration-150 hover:-translate-y-0.5 hover:border-action/50 hover:shadow-voro-sm"
-              key={restaurant.id}
-              to={`/restaurants/${restaurant.id}`}
-            >
-              <div className="flex items-start gap-3">
-                {restaurant.imageUrl ? (
-                  <img
-                    alt={restaurant.name}
-                    className="size-14 rounded-voro-md object-cover"
-                    src={restaurant.imageUrl}
-                  />
-                ) : (
-                  <span className={`grid size-14 shrink-0 place-items-center rounded-voro-md ${restaurantTone(restaurant)}`}>
-                    <Store className="size-5" />
+          {visibleRestaurants.map((restaurant) => {
+            const presentation = restaurantPresentation(restaurant)
+
+            return (
+              <NavLink
+                aria-label={t('restaurants.openMenu', { name: restaurant.name })}
+                className="group overflow-hidden rounded-voro-xl border border-line bg-card transition duration-150 hover:-translate-y-0.5 hover:border-action/50 hover:shadow-voro-md"
+                key={restaurant.id}
+                to={`/restaurants/${restaurant.id}`}
+              >
+                <div className={`relative grid h-36 place-items-center overflow-hidden bg-gradient-to-br ${presentation.surface}`}>
+                  {restaurant.imageUrl ? (
+                    <img alt={restaurant.name} className="size-full object-cover transition duration-300 group-hover:scale-105" src={restaurant.imageUrl} />
+                  ) : (
+                    <span className="text-6xl drop-shadow-sm transition duration-300 group-hover:scale-110">{presentation.emoji}</span>
+                  )}
+                  <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-card/90 px-2 py-1 text-[0.65rem] font-bold text-emerald-600 shadow-voro-sm dark:text-emerald-400">
+                    <span className="size-1.5 rounded-full bg-emerald-500" />
+                    {t('restaurants.available')}
                   </span>
-                )}
-                <div className="min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="truncate font-bold text-content">{restaurant.name}</h3>
-                    <span className="shrink-0 rounded-full bg-emerald-500/12 px-2 py-1 text-[0.65rem] font-bold text-emerald-500">
-                      {t('restaurants.available')}
-                    </span>
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                </div>
+                <div className="p-4">
+                  <h3 className="truncate text-base font-bold text-content">{restaurant.name}</h3>
+                  <p className="mt-1 line-clamp-2 min-h-10 text-sm leading-5 text-muted-foreground">
                     {restaurant.description || t('restaurants.noDescription')}
                   </p>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 gap-1 overflow-hidden">
+                      {(restaurant.categories.length > 0
+                        ? restaurant.categories
+                        : [{ id: 0, name: restaurant.categoryName || t('restaurants.general') }]
+                      ).slice(0, 2).map((category) => (
+                        <span className="truncate rounded-voro-md bg-muted px-2 py-1 text-xs font-bold" key={category.id}>
+                          {category.name}
+                        </span>
+                      ))}
+                    </div>
+                    <ArrowRight className="size-4 shrink-0 text-action transition-transform group-hover:translate-x-1" />
+                  </div>
                 </div>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-1">
-                {(restaurant.categories.length > 0
-                  ? restaurant.categories
-                  : [{ id: 0, name: restaurant.categoryName || t('restaurants.general') }]
-                ).map((category) => (
-                  <span className="rounded-voro-md bg-muted px-2 py-1 text-xs font-bold" key={category.id}>
-                    {category.name}
-                  </span>
-                ))}
-              </div>
-            </NavLink>
-          ))}
+              </NavLink>
+            )
+          })}
         </div>
       )}
 

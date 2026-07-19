@@ -1,5 +1,6 @@
 import * as customerRepository from "../repositories/customerRepository";
 import * as restaurantRepository from "../repositories/restaurantRepository";
+import * as geocodingService from "./geocodingService";
 import * as routingService from "./routingService";
 import type {
   CreateCustomerOrderPayload,
@@ -18,6 +19,10 @@ const handoffOptions = new Set([
 ]);
 const deliveryWindowOptions = new Set(["asap", "lunch", "evening"]);
 const deliveryFee = 250;
+
+export async function searchAddressSuggestions(query: string) {
+  return { suggestions: await geocodingService.searchAddressSuggestions(query) };
+}
 
 const deliveryEstimateByStatus = {
   pending: { min: 35, max: 45 },
@@ -389,10 +394,16 @@ export async function getOrderRoute(userId: number, orderId: number) {
     throw new HttpError(400, 'Set restaurant and delivery coordinates before viewing the route.')
   }
 
-  const route = await routingService.findDrivingRoute(
-    { latitude: locations.restaurantLatitude, longitude: locations.restaurantLongitude },
-    { latitude: locations.deliveryLatitude, longitude: locations.deliveryLongitude },
-  )
+  const isOnTheWay =
+    locations.deliveryStatus === 'on_the_way' &&
+    locations.courierLatitude !== null &&
+    locations.courierLongitude !== null
+  const route = isOnTheWay
+    ? await routingService.findDrivingRoute(
+        { latitude: locations.courierLatitude as number, longitude: locations.courierLongitude as number },
+        { latitude: locations.deliveryLatitude, longitude: locations.deliveryLongitude },
+      )
+    : null
 
   return {
     orderId,
@@ -406,6 +417,14 @@ export async function getOrderRoute(userId: number, orderId: number) {
       latitude: locations.deliveryLatitude,
       longitude: locations.deliveryLongitude,
     },
+    courier: locations.courierName
+      ? {
+          name: locations.courierName,
+          latitude: locations.courierLatitude,
+          longitude: locations.courierLongitude,
+        }
+      : null,
+    deliveryStatus: locations.deliveryStatus || null,
     route,
   }
 }

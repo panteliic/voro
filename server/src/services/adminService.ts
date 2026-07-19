@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import * as adminRepository from '../repositories/adminRepository'
 import * as authRepository from '../repositories/authRepository'
+import * as geocodingService from './geocodingService'
 import * as restaurantAuthRepository from '../repositories/restaurantAuthRepository'
 import * as restaurantRepository from '../repositories/restaurantRepository'
 import * as restaurantAuthService from './restaurantAuthService'
@@ -136,6 +137,10 @@ export async function createRestaurant(payload: CreateRestaurantPayload) {
     throw new HttpError(400, 'Restaurant name is required.')
   }
 
+  if (!payload.address) {
+    throw new HttpError(400, 'Restaurant address is required.')
+  }
+
   const existingUser = await restaurantAuthRepository.findRestaurantUserByEmail(payload.contactEmail)
 
   if (existingUser) {
@@ -143,8 +148,11 @@ export async function createRestaurant(payload: CreateRestaurantPayload) {
   }
 
   const contactPasswordHash = await bcrypt.hash(crypto.randomUUID(), 10)
+  const location = await geocodingService.geocodeAddress(payload.address)
   const result = await restaurantRepository.createRestaurantWithAccount({
     ...payload,
+    latitude: location.latitude,
+    longitude: location.longitude,
     contactPasswordHash,
   })
   const setup = await restaurantAuthService.issuePasswordSetupCode(result.restaurant.id)
@@ -154,6 +162,14 @@ export async function createRestaurant(payload: CreateRestaurantPayload) {
     operator: setup.user,
     setupCode: setup.setupCode,
   }
+}
+
+export async function resolveRestaurantLocation(address: string) {
+  return { location: await geocodingService.geocodeAddress(address) }
+}
+
+export async function searchRestaurantAddressSuggestions(query: string) {
+  return { suggestions: await geocodingService.searchAddressSuggestions(query) }
 }
 
 export async function updateRestaurant(

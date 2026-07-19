@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:22-alpine AS build
 
 WORKDIR /app
 
@@ -11,10 +11,20 @@ COPY packages/shared/package.json ./packages/shared/package.json
 COPY packages/socket/package.json ./packages/socket/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 
-RUN npm ci
+RUN npm ci --fetch-retries=5 --fetch-retry-factor=2 --fetch-retry-mintimeout=1000 --fetch-retry-maxtimeout=30000
+
+ARG APP_NAME
+ARG VITE_API_URL=http://localhost:5000
+ENV VITE_API_URL=$VITE_API_URL
 
 COPY . .
+RUN npm run build --workspace=$APP_NAME
 
-EXPOSE 5173 5174 5175 5176
+FROM nginx:1.27-alpine AS runtime
 
-CMD ["npm", "run", "dev:all"]
+ARG APP_NAME
+
+COPY docker/nginx-spa.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/apps/${APP_NAME}/dist /usr/share/nginx/html
+
+EXPOSE 80

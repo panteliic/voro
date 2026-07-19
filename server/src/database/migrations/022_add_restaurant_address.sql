@@ -1,0 +1,2 @@
+ALTER TABLE restaurant
+  ADD COLUMN IF NOT EXISTS address TEXT;

@@ -6,6 +6,7 @@ export const customerRoutes = Router()
 
 customerRoutes.use(authenticate)
 customerRoutes.get('/profile', customerController.getProfile)
+customerRoutes.get('/address-suggestions', customerController.searchAddressSuggestions)
 customerRoutes.get('/restaurants', customerController.listRestaurants)
 customerRoutes.get('/restaurants/:restaurantId', customerController.getRestaurantMenu)
 customerRoutes.post('/orders', customerController.createOrder)

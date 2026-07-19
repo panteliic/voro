@@ -31,9 +31,6 @@ const nextStatusAction: Partial<
 > = {
   pending: { status: 'accepted', label: 'orders.accept' },
   accepted: { status: 'preparing', label: 'orders.startPreparing' },
-  preparing: { status: 'ready', label: 'orders.markReady' },
-  ready: { status: 'picked_up', label: 'orders.markPickedUp' },
-  picked_up: { status: 'delivered', label: 'orders.complete' },
 }
 
 export function OrdersBoard({ isUpdatingOrderId, onUpdateOrderStatus, orders }: OrdersBoardProps) {
@@ -93,10 +90,15 @@ export function OrdersBoard({ isUpdatingOrderId, onUpdateOrderStatus, orders }: 
                     <Bike className="size-4" />
                     {order.driverName
                       ? t('orders.driverAssigned', { name: order.driverName })
-                      : order.status === 'preparing'
+                      : order.status === 'accepted' || order.status === 'preparing'
                         ? t('orders.findingDriver')
                         : t('orders.waitingDriver')}
                   </span>
+                  {order.driverName && order.pickupCode ? (
+                    <span className="flex items-center gap-2 rounded-voro-md bg-content px-3 py-2 font-bold text-card">
+                      {t('orders.pickupCode')}: <strong className="tracking-[0.12em]">#{order.id}</strong>
+                    </span>
+                  ) : null}
                 </div>
               </div>
 
@@ -131,6 +133,12 @@ export function OrdersBoard({ isUpdatingOrderId, onUpdateOrderStatus, orders }: 
                       ? t('orders.updating')
                       : t(action.label)}
                   </button>
+                ) : order.status === 'preparing' ? (
+                  <p className="text-sm font-bold text-muted-foreground">{t('orders.courierCanPickUp')}</p>
+                ) : order.status === 'ready' ? (
+                  <p className="text-sm font-bold text-muted-foreground">{t('orders.waitingDriver')}</p>
+                ) : order.status === 'picked_up' ? (
+                  <p className="text-sm font-bold text-muted-foreground">{t('orders.handedOff')}</p>
                 ) : null}
                 <p className="text-xs font-bold text-muted-foreground">{t('common.total')}</p>
                 <p className="text-2xl font-bold">{money.format(order.total)} RSD</p>

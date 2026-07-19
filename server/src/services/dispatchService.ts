@@ -1,9 +1,11 @@
 import * as dispatchRepository from '../repositories/dispatchRepository'
+import * as driverRepository from '../repositories/driverRepository'
 import { pool } from '../database/pool'
 
-const cellSize = 0.012
+const offerWindowMs = 25_000
 const retryDelayMs = 30_000
 const workerPollIntervalMs = 1_500
+const matchingRadiusMeters = 7_500
 
 function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
   const earthRadius = 6_371_000
@@ -16,81 +18,22 @@ function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number)
   return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-function trafficFactor(hour: number) {
-  if (hour >= 7 && hour <= 9) return 0.5
-  if (hour >= 12 && hour <= 14) return 0.6
-  if (hour >= 17 && hour <= 19) return 0.45
-  if (hour >= 22 || hour <= 6) return 1
-  return 0.75
-}
-
-function travelSpeedMetersPerSecond(vehicleType: string) {
-  const vehicle = vehicleType.toLowerCase()
-
-  if (vehicle.includes('bicycle')) return 4.2
-  if (vehicle.includes('scooter')) return 7.5
-  return 10
-}
-
-function cell(latitude: number, longitude: number) {
-  return {
-    latitude: Math.floor(latitude / cellSize),
-    longitude: Math.floor(longitude / cellSize),
-  }
-}
-
-function cellKey(latitude: number, longitude: number) {
-  return `${latitude}:${longitude}`
-}
-
 function nearbyCandidates(
   order: dispatchRepository.DispatchOrder,
   couriers: dispatchRepository.DispatchCandidate[],
 ) {
-  const buckets = new Map<string, dispatchRepository.DispatchCandidate[]>()
-
-  for (const courier of couriers) {
-    const courierCell = cell(courier.latitude, courier.longitude)
-    const key = cellKey(courierCell.latitude, courierCell.longitude)
-    buckets.set(key, [...(buckets.get(key) || []), courier])
-  }
-
-  const pickupCell = cell(order.restaurantLatitude, order.restaurantLongitude)
-
-  for (let radius = 0; radius <= 5; radius += 1) {
-    const candidates: dispatchRepository.DispatchCandidate[] = []
-
-    for (let latitudeOffset = -radius; latitudeOffset <= radius; latitudeOffset += 1) {
-      for (let longitudeOffset = -radius; longitudeOffset <= radius; longitudeOffset += 1) {
-        if (Math.max(Math.abs(latitudeOffset), Math.abs(longitudeOffset)) !== radius) continue
-
-        candidates.push(
-          ...(buckets.get(
-            cellKey(pickupCell.latitude + latitudeOffset, pickupCell.longitude + longitudeOffset),
-          ) || []),
-        )
-      }
-    }
-
-    if (candidates.length > 0) {
-      return candidates
-    }
-  }
-
   return couriers
-}
-
-function rankCandidate(order: dispatchRepository.DispatchOrder, courier: dispatchRepository.DispatchCandidate) {
-  const distanceToRestaurant = haversineMeters(
-    courier.latitude,
-    courier.longitude,
-    order.restaurantLatitude,
-    order.restaurantLongitude,
-  )
-  const effectiveSpeed = travelSpeedMetersPerSecond(courier.vehicleType) * trafficFactor(new Date().getHours())
-  const pickupEtaMinutes = Math.max(1, Math.ceil(distanceToRestaurant / effectiveSpeed / 60))
-
-  return { courier, pickupEtaMinutes, distanceToRestaurant }
+    .map((courier) => ({
+      courier,
+      distanceMeters: haversineMeters(
+        courier.latitude,
+        courier.longitude,
+        order.restaurantLatitude,
+        order.restaurantLongitude,
+      ),
+    }))
+    .filter(({ distanceMeters }) => distanceMeters <= matchingRadiusMeters)
+    .sort((first, second) => first.distanceMeters - second.distanceMeters)
 }
 
 async function processDispatch(orderId: number) {
@@ -104,43 +47,28 @@ async function processDispatch(orderId: number) {
 
     await dispatchRepository.markDispatchMatching(orderId)
     const couriers = await dispatchRepository.listAvailableOnlineCouriers()
+    const nearby = nearbyCandidates(order, couriers)
 
-    if (couriers.length === 0) {
+    if (nearby.length === 0) {
       await dispatchRepository.markDispatchWaiting(
         orderId,
-        'No online couriers are currently available.',
+        'No available courier is currently within the delivery radius.',
         retryDelayMs,
       )
       return
     }
 
-    const bestMatch = nearbyCandidates(order, couriers)
-      .map((courier) => rankCandidate(order, courier))
-      .sort((first, second) => first.pickupEtaMinutes - second.pickupEtaMinutes || first.distanceToRestaurant - second.distanceToRestaurant)[0]
-
-    const assignment = await dispatchRepository.assignCourierToOrder(order.id, bestMatch.courier.id)
-
-    if (!assignment) {
-      await dispatchRepository.markDispatchWaiting(
-        orderId,
-        'Candidate became unavailable before assignment.',
-        2_000,
-      )
-      return
-    }
-
-    if (assignment.courierId) {
-      await dispatchRepository.markDispatchAssigned(orderId, assignment.courierId)
-      console.info(
-        `Dispatch assigned order #${orderId} to courier #${assignment.courierId} (${bestMatch.pickupEtaMinutes} min pickup ETA).`,
-      )
-    } else {
-      await dispatchRepository.markDispatchWaiting(
-        orderId,
-        'An existing delivery is still missing a courier.',
-        2_000,
-      )
-    }
+    const offerCount = await dispatchRepository.createDispatchOffers(
+      orderId,
+      nearby.map(({ courier }) => courier.id),
+      offerWindowMs,
+    )
+    await dispatchRepository.markDispatchWaiting(
+      orderId,
+      `Offer sent to ${offerCount} nearby courier${offerCount === 1 ? '' : 's'}.`,
+      offerWindowMs,
+    )
+    console.info(`Dispatch offered order #${orderId} to ${offerCount} nearby couriers.`)
   } catch (error) {
     console.error(`Dispatch failed for order #${orderId}.`, error)
     await dispatchRepository
@@ -165,6 +93,7 @@ export async function runDispatchCycle() {
   isDispatchCycleRunning = true
 
   try {
+    await driverRepository.expireStaleDriverPresence()
     const orderIds = await dispatchRepository.listPendingDispatchOrderIds()
 
     for (const orderId of orderIds) {

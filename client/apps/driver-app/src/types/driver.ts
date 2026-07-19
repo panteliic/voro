@@ -12,19 +12,95 @@ export type Driver = {
   lastLocationAt: string | null
 }
 
+export type DeliveryStatus = 'assigned' | 'arriving_to_restaurant' | 'picked_up' | 'on_the_way'
+
 export type Delivery = {
   id: number
   orderId: number
-  status: string
+  status: DeliveryStatus
+  orderStatus: string
   restaurantName: string
+  restaurantAddress: string
+  restaurantLatitude: number
+  restaurantLongitude: number
   customerName: string
+  customerAddress: string
+  customerLatitude: number
+  customerLongitude: number
   total: number
+  pickupCode: string
   createdAt: string
+  pickedUpAt: string | null
+}
+
+export type DeliveryOffer = {
+  id: number
+  orderId: number
+  restaurantName: string
+  restaurantAddress: string
+  restaurantLatitude: number
+  restaurantLongitude: number
+  customerName: string
+  customerAddress: string
+  customerLatitude: number
+  customerLongitude: number
+  total: number
+  expiresAt: string
+  createdAt: string
+}
+
+export type DriverHistoryItem = {
+  deliveryId: number
+  orderId: number
+  restaurantName: string
+  customerAddress: string
+  total: number
+  pickedUpAt: string | null
+  deliveredAt: string
+}
+
+export type DriverAnalyticsPeriod = {
+  deliveries: number
+  earnings: number
+  workMinutes: number
+}
+
+export type DriverAnalyticsDay = DriverAnalyticsPeriod & {
+  date: string
+}
+
+export type DriverAnalytics = {
+  today: DriverAnalyticsPeriod
+  week: DriverAnalyticsPeriod
+  month: DriverAnalyticsPeriod
+  days: DriverAnalyticsDay[]
+}
+
+export type DriverRoute = {
+  deliveryId: number
+  currentLocation: { latitude: number; longitude: number }
+  destination: {
+    type: 'restaurant' | 'customer'
+    name: string
+    address: string
+    latitude: number
+    longitude: number
+  }
+  route: {
+    coordinates: Array<[number, number]>
+    distanceMeters: number
+    etaMinutes: number
+    etaRange: { min: number; max: number }
+  }
 }
 
 export type DashboardResponse = {
   driver: Driver
   deliveries: Delivery[]
+  activeDelivery: Delivery | null
+  offers: DeliveryOffer[]
+  history: DriverHistoryItem[]
+  analytics: DriverAnalytics
 }
 
 export type UpdatePresencePayload = {

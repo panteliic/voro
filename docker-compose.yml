@@ -1,82 +1,120 @@
+name: voro
+
 services:
+  database:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-voro}
+      POSTGRES_USER: ${POSTGRES_USER:-voro}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-voro_local_password}
+    ports:
+      - "5433:5432"
+    volumes:
+      - voro-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  migrations:
+    build:
+      context: ./server
+    command: node dist/database/migrate.js
+    environment: &server-environment
+      NODE_ENV: production
+      PORT: 5000
+      API_URL: http://localhost:5000
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-voro}
+      DB_USER: ${POSTGRES_USER:-voro}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-voro_local_password}
+      JWT_SECRET: ${JWT_SECRET:-change-this-local-jwt-secret}
+      PAYMENT_CARD_ENCRYPTION_KEY: ${PAYMENT_CARD_ENCRYPTION_KEY:-c1b8b42e94d6e1a70cc7ab79e0265ab3e124a36647bc67194249c166d55a2f0e}
+      CLIENT_URLS: http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: "no"
+
   backend:
     build:
       context: ./server
-    container_name: voro-backend
-    environment:
-      NODE_ENV: development
-      PORT: 5000
-      DB_HOST: host.docker.internal
-      DB_PORT: 5432
-      DB_NAME: voro
-      DB_USER: admin
-      DB_PASSWORD: admin
-      JWT_SECRET: voro_secret_key
-      PAYMENT_CARD_ENCRYPTION_KEY: ${PAYMENT_CARD_ENCRYPTION_KEY:-voro_secret_key}
-      CLIENT_URLS: http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176
-      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_SECURE: ${SMTP_SECURE:-false}
-      SMTP_USER: ${SMTP_USER:-your-email@gmail.com}
-      SMTP_PASS: ${SMTP_PASS:-your-app-password}
-      SMTP_FROM: ${SMTP_FROM:-Voro <your-email@gmail.com>}
+    environment: *server-environment
     ports:
       - "5000:5000"
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:5000/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5000/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 6
       start_period: 10s
+    restart: unless-stopped
 
   customer-app:
     build:
       context: ./client
-    container_name: voro-customer-app
-    command: npm run dev --workspace=customer-app
-    environment:
-      VITE_API_URL: http://localhost:5000
+      args:
+        APP_NAME: customer-app
+        VITE_API_URL: http://localhost:5000
     ports:
-      - "5173:5173"
+      - "5173:80"
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
+    restart: unless-stopped
 
   restaurant-app:
     build:
       context: ./client
-    container_name: voro-restaurant-app
-    command: npm run dev --workspace=restaurant-app
-    environment:
-      VITE_API_URL: http://localhost:5000
+      args:
+        APP_NAME: restaurant-app
+        VITE_API_URL: http://localhost:5000
     ports:
-      - "5174:5174"
+      - "5174:80"
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
+    restart: unless-stopped
 
   driver-app:
     build:
       context: ./client
-    container_name: voro-driver-app
-    command: npm run dev --workspace=driver-app
-    environment:
-      VITE_API_URL: http://localhost:5000
+      args:
+        APP_NAME: driver-app
+        VITE_API_URL: http://localhost:5000
     ports:
-      - "5175:5175"
+      - "5175:80"
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
+    restart: unless-stopped
 
   admin-app:
     build:
       context: ./client
-    container_name: voro-admin-app
-    command: npm run dev --workspace=admin-app
-    environment:
-      VITE_API_URL: http://localhost:5000
+      args:
+        APP_NAME: admin-app
+        VITE_API_URL: http://localhost:5000
     ports:
-      - "5176:5176"
+      - "5176:80"
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  voro-postgres-data:

@@ -22,3 +22,47 @@ export async function updatePresence(req: Request, res: Response) {
     sendError(error, res)
   }
 }
+
+function numericParam(value: unknown) {
+  const param = Array.isArray(value) ? value[0] : value
+  const parsed = Number(param)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 0
+}
+
+export async function acceptOffer(req: Request, res: Response) {
+  try {
+    res.json(await driverService.acceptOffer(auth(req).userId, numericParam(req.params.offerId)))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function declineOffer(req: Request, res: Response) {
+  try {
+    res.json(await driverService.declineOffer(auth(req).userId, numericParam(req.params.offerId)))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function updateDeliveryStatus(req: Request, res: Response) {
+  try {
+    res.json(
+      await driverService.updateDeliveryStatus(
+        auth(req).userId,
+        numericParam(req.params.deliveryId),
+        req.body?.status,
+      ),
+    )
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function getDeliveryRoute(req: Request, res: Response) {
+  try {
+    res.json(await driverService.getDeliveryRoute(auth(req).userId, numericParam(req.params.deliveryId)))
+  } catch (error) {
+    sendError(error, res)
+  }
+}

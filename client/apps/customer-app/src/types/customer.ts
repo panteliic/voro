@@ -173,12 +173,18 @@ export type CustomerOrderRoute = {
     latitude: number
     longitude: number
   }
+  courier: {
+    name: string
+    latitude: number | null
+    longitude: number | null
+  } | null
+  deliveryStatus: string | null
   route: {
     coordinates: Array<[number, number]>
     distanceMeters: number
     etaMinutes: number
     etaRange: { min: number; max: number }
-  }
+  } | null
 }
 
 export type CustomerAddressPayload = Omit<CustomerAddress, 'id' | 'userId' | 'isDefault'>
