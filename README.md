@@ -1,319 +1,297 @@
-# VORO
+# Voro
 
 <div align="center">
+  <img src="./client/apps/customer-app/public/logo.svg" width="116" alt="Voro logo" />
 
-<img src="./client/apps/customer-app/public/logo.svg" width="140" alt="VORO Logo"/>
+  **A multi-role food delivery platform for customers, restaurants, couriers, and operations.**
 
-### Food Delivery Platform
-
-Modern food delivery ecosystem consisting of three independent client applications and a centralized backend service.
-
+  [Run locally](#quick-start-with-docker) · [Apps](#applications) · [Architecture](#architecture) · [Delivery simulator](#test-live-delivery-tracking)
 </div>
 
 ---
 
-## Overview
+## What is Voro?
 
-VORO is a full-stack food delivery platform designed to connect customers, restaurants, and delivery drivers through a unified system.
+Voro is a full-stack delivery workspace built around one order lifecycle:
 
-The platform consists of:
+1. A customer discovers a restaurant, builds a cart, selects an address, and checks out.
+2. The restaurant accepts and prepares the order.
+3. The dispatch worker finds an available courier near the restaurant.
+4. The courier accepts the offer, picks up the order, and starts the delivery.
+5. The customer follows the courier on a live map until delivery is complete.
 
-- Customer Application
-- Restaurant Application
-- Driver Application
-- REST API Backend
-- PostgreSQL Database
-- Real-time communication services
-
-The system enables customers to browse restaurants, place orders, track deliveries, restaurants to manage incoming orders, and drivers to efficiently handle deliveries.
-
----
-
-## Architecture
-
-```text
-┌──────────────────────────┐
-│       Customer App       │
-└────────────┬─────────────┘
-             │
-┌────────────▼─────────────┐
-│         API Server       │
-└────────────┬─────────────┘
-             │
- ┌───────────┼────────────┐
- │           │            │
- ▼           ▼            ▼
-Restaurant  Driver  PostgreSQL
-   App       App     Database
-```
-
----
-
-## Technology Stack
-
-### Frontend
-
-- React
-- TypeScript
-- Vite
-- Redux Toolkit
-- Shadcn UI
-- React Router
-
-### Backend
-
-- Node.js
-- Express
-- TypeScript
-- Socket.IO
-- JWT Authentication
-- Nodemailer
-
-### Database
-
-- PostgreSQL
-- Redis
-
-### DevOps
-
-- Docker
-- Docker Compose
-
----
+The project contains four independent React applications backed by one Express API, PostgreSQL, and Redis.
 
 ## Applications
 
-### Customer App
+| App | Local URL | What it is for |
+| --- | --- | --- |
+| Customer app | `http://localhost:5173` | Discover restaurants, manage cart and checkout, save addresses/cards, track active orders. |
+| Restaurant console | `http://localhost:5174` | Receive orders, manage preparation status, menu, and restaurant workspace. |
+| Driver app | `http://localhost:5175` | Go online, share location, accept offers, view route and cash/change details, complete deliveries. |
+| System console | `http://localhost:5176` | Create restaurant/courier accounts, manage operational data, and view analytics. |
+| API health | `http://localhost:5000/health` | Health status for the API, PostgreSQL, and Redis. |
 
-Features:
+## Key capabilities
 
-- User registration and login
-- Restaurant browsing
-- Food ordering
-- Order history
-- Profile management
-- Address management
-- Real-time order tracking
+### Customer
 
----
+- Restaurant discovery with food-category filters.
+- Cart, dedicated checkout, and saved delivery addresses.
+- Demo card checkout or cash-on-delivery with entered tendered amount and calculated change.
+- Order history and multi-order live tracking.
+- Animated courier position on OpenStreetMap/Leaflet maps.
+- Customer profile, payment methods, preferences, and Serbian/English UI.
 
-### Restaurant App
+### Restaurant
 
-Features:
+- Private restaurant workspace and account setup.
+- Incoming order workflow and preparation status changes.
+- Menu and restaurant details management.
+- Restaurant-facing operational analytics.
 
-- Restaurant dashboard
-- Order management
-- Menu management
-- Order status updates
-- Business analytics
+### Driver
 
----
+- Online/offline availability with continuous location heartbeats.
+- Nearby dispatch offers with accept/decline flow.
+- Pickup, on-the-way, and delivered status workflow.
+- Live route view, pickup code, and cash/change instructions.
+- Earnings and delivery history overview.
 
-### Driver App
+### System console
 
-Features:
+- Restaurant and courier creation with private console/setup invitations.
+- Address suggestions with resolved coordinates.
+- Operational lists and restaurant analytics.
 
-- Delivery management
-- Order acceptance
-- Route tracking
-- Delivery status updates
-- Earnings overview
+## Architecture
 
----
+```mermaid
+flowchart LR
+  C[Customer app] --> API[Express API]
+  R[Restaurant console] --> API
+  D[Driver app] --> API
+  A[System console] --> API
 
-## Backend Features
+  API --> PG[(PostgreSQL)]
+  API --> Redis[(Redis)]
+  Worker[Dispatch worker] --> PG
+  Worker --> Redis
 
-- JWT Authentication
-- Role-based authorization
-- Email verification
-- Password reset
-- Order processing
-- Real-time notifications
-- REST API architecture
-- PostgreSQL integration
-
----
-
-## Project Structure
-
-```text
-voro/
-│
-├── client/
-│   ├── apps/
-│   │   ├── customer-app/
-│   │   ├── restaurant-app/
-│   │   └── driver-app/
-│
-├── server/
-│   ├── src/
-│   ├── database/
-│   ├── routes/
-│   ├── services/
-│   └── middleware/
-│
-└── docker-compose.yml
+  Redis --> Presence[Courier presence & geo lookup]
+  Redis --> Queue[Dispatch queue]
+  PG --> Orders[Orders, delivery state & history]
 ```
 
----
+### Backend responsibilities
 
-## Installation
+- JWT authentication, refresh tokens, role-based access, email verification, and password reset.
+- PostgreSQL as the source of truth for users, restaurants, menus, orders, payments, and deliveries.
+- Redis for catalog/address caching, dispatch queueing, and live courier presence/geo lookup.
+- A background dispatch worker that offers eligible orders to nearby available couriers.
+- OpenStreetMap tiles and OSRM routing for map and route visualisation.
 
-### Clone Repository
+## Tech stack
 
-```bash
-git clone https://github.com/your-username/voro.git
-cd voro
-```
+| Layer | Technologies |
+| --- | --- |
+| Frontend | React 19, TypeScript, Vite, React Router, Redux Toolkit, Tailwind CSS, Leaflet / React Leaflet |
+| Backend | Node.js, Express 5, TypeScript, JWT, bcrypt, Nodemailer |
+| Data | PostgreSQL 16, Redis 7 |
+| Local infrastructure | Docker, Docker Compose |
 
-### Backend
+## Quick start with Docker
 
-```bash
-cd server
-npm install
-npm run dev
-```
+This is the recommended way to run the full platform. It starts PostgreSQL, Redis, migrations, the dispatch worker/API, and all four apps.
 
-### Demo podaci za testiranje
+### Prerequisites
 
-Za lokalni razvoj možeš da ubaciš kompletan demo set podataka:
+- Docker Desktop
+- Docker Compose
 
-```bash
-cd server
-npm run seed:demo
-```
-
-Ova eksplicitna seed migracija dodaje 50 restorana iz Beograda, 150 stavki menija,
-20 kupaca, 20 dostavljača i 160 porudžbina. Podaci o nalozima, cenama i menijima
-su test podaci; imena restorana i kategorije hrane su preuzeti iz javnih dostavnih
-ponuda.
-
-Svi demo nalozi koriste lozinku `password123`:
-
-- Admin: `admin@seed.voro.test`
-- Restaurant nalozi: npr. `restaurant.pizzeria-trg@voro.test`
-- Dostavljači: npr. `marko.jovanovic@driver.voro.test`
-- Kupci: `customer.*@seed.voro.test`
-
-## Docker: lokalni ceo sistem
-
-Docker Compose podiže PostgreSQL, backend (sa dispatch workerom) i sve četiri aplikacije.
-Frontendi se serviraju kao production buildovi, a ne kroz Vite development server.
-
-Prvi put napravi lokalni Docker env fajl:
+### Start everything
 
 ```powershell
 Copy-Item .env.docker.example .env.docker
-```
-
-Zatim pokreni ceo sistem sa demo podacima:
-
-```powershell
 docker compose --env-file .env.docker up --build -d
 ```
 
-Linkovi nakon pokretanja:
+The local Docker setup uses demo data by default (`SEED_DEMO_DATA=true`).
 
-- Customer: `http://localhost:5173`
-- Restaurant Console: `http://localhost:5174`
-- Driver app: `http://localhost:5175`
-- Admin: `http://localhost:5176`
-- API health: `http://localhost:5000/health`
-- PostgreSQL sa host računara: `localhost:5433`
-
-Prati stanje i logove:
+### Inspect or stop services
 
 ```powershell
+# Service status
 docker compose --env-file .env.docker ps
+
+# API and dispatch-worker logs
 docker compose --env-file .env.docker logs -f backend
-```
 
-Za gašenje bez brisanja baze:
-
-```powershell
+# Stop containers while preserving PostgreSQL and Redis data
 docker compose --env-file .env.docker down
-```
 
-Za potpuno čist lokalni početak, uključujući Docker bazu:
-
-```powershell
+# Reset all local Docker data, including the database
 docker compose --env-file .env.docker down -v
 ```
 
-Ako je na računaru starija verzija projekta, prvo sačuvaj sopstvene izmene, pa uradi:
+> For any non-local environment, change `JWT_SECRET`, `PAYMENT_CARD_ENCRYPTION_KEY`, database credentials, and SMTP values before starting services.
+
+## Native development
+
+Use this when you want Vite hot reload and a TypeScript server process.
+
+### 1. Start PostgreSQL and Redis
+
+You need PostgreSQL and Redis running locally. The default server environment expects:
+
+```text
+PostgreSQL: localhost:5432 / database: voro / user: admin / password: admin
+Redis:      redis://localhost:6379
+```
+
+You can change these values in `server/.env`. If you use the Docker database from the host machine, set `DB_PORT=5433`.
+
+### 2. Run the API
 
 ```powershell
-git pull
-docker compose --env-file .env.docker up --build -d
-```
-
-`git pull` može da traži da prvo commit-uješ ili skloniš lokalne izmene; Docker baza ostaje sačuvana osim ako eksplicitno ne pokreneš `down -v`.
-
-`SEED_DEMO_DATA=true` je podrazumevano za lokalni preview i puni novu Docker bazu test podacima. Ako želiš potpuno praznu bazu, promeni ga u `false` pre prvog `up`; za promenu između prazne i demo baze uradi `down -v` pa pokreni ponovo.
-
-`seed:demo` se namerno ne pokreće uz običnu komandu `npm run migrate`, pa demo
-podaci ne mogu slučajno da se ubace u produkcionu bazu.
-
-### Customer Application
-
-```bash
-cd client/apps/customer-app
+cd server
+Copy-Item .env.example .env
 npm install
+npm run migrate
+npm run seed:demo
 npm run dev
 ```
 
-### Restaurant Application
+`npm run dev` starts the API and its dispatch worker. `npm run seed:demo` is explicit by design, so normal migrations never insert demo records accidentally.
 
-```bash
-cd client/apps/restaurant-app
+### 3. Run the client apps
+
+Open another terminal:
+
+```powershell
+cd client
 npm install
-npm run dev
+npm run dev:all
 ```
 
-### Driver Application
+To run just one app:
 
-```bash
-cd client/apps/driver-app
-npm install
-npm run dev
+```powershell
+npm run dev:customer
+npm run dev:restaurant
+npm run dev:driver
+npm run dev:admin
 ```
 
----
+## Demo accounts
 
-## Core Modules
+After `npm run seed:demo`, all seeded accounts use:
 
-- Authentication & Authorization
-- Restaurant Management
-- Menu Management
-- Order Management
-- Delivery Management
-- User Management
-- Notification System
-- Real-Time Communication
+```text
+password123
+```
 
----
+| Role | Example account |
+| --- | --- |
+| Admin | `admin@seed.voro.test` |
+| Restaurant | `restaurant.pizzeria-trg@voro.test` |
+| Driver | `marko.jovanovic@driver.voro.test` |
+| Customer | `customer.ana@seed.voro.test` |
 
-## Future Enhancements
+The demo seed creates Belgrade-based restaurants, menu items, customer addresses, couriers, coordinates, and test orders.
 
-- Live GPS Tracking
-- Payment Gateway Integration
-- Recommendation Engine
-- Loyalty Program
-- Advanced Analytics
-- Mobile Applications
+## Test live delivery tracking
 
----
+The driver location simulator is a local development tool. It writes courier location to PostgreSQL, Redis, and the active delivery location stream.
+
+```powershell
+cd server
+npm run simulate:driver
+```
+
+Default behavior:
+
+1. Moves **Marko Jovanović** toward **Domaće palačinke**.
+2. Waits in front of the restaurant.
+3. When the driver app marks the delivery as **On the way**, follows the OSRM driving route to the customer.
+4. Keeps the courier position live on the customer tracking map.
+
+Useful options:
+
+```powershell
+# Use a specific restaurant and a faster simulation
+npm run simulate:driver -- --restaurant-id 51 --step 20 --interval 1000
+
+# Update one location once, then exit
+npm run simulate:driver -- --once
+
+# Show all options
+npm run simulate:driver -- --help
+```
+
+While the simulator runs, it holds a short Redis lease so an open driver tab cannot overwrite its simulated location. Stopping the script releases the lease automatically.
+
+## Build commands
+
+```powershell
+# API TypeScript build
+cd server
+npm run build
+
+# Build every frontend workspace
+cd ../client
+npm run build
+```
+
+## Repository layout
+
+```text
+voro/
+├── client/
+│   ├── apps/
+│   │   ├── admin-app/          # System console
+│   │   ├── customer-app/       # Customer marketplace and checkout
+│   │   ├── driver-app/         # Courier workspace and map
+│   │   └── restaurant-app/     # Restaurant console
+│   └── packages/               # Shared UI, socket, and application packages
+├── server/
+│   └── src/
+│       ├── api/                # Routes, controllers, middleware
+│       ├── database/           # Migrations and demo seed
+│       ├── repositories/       # PostgreSQL data access
+│       ├── scripts/            # Local development tools
+│       ├── services/           # Auth, dispatch, Redis, maps, payments
+│       └── workers/            # Dispatch worker
+├── docker-compose.yml
+├── .env.docker.example
+└── CHANGELOG.md
+```
+
+## Environment variables
+
+Use `server/.env.example` and `.env.docker.example` as templates. The important values are:
+
+| Variable | Purpose |
+| --- | --- |
+| `PORT` | API port, defaults to `5000`. |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | PostgreSQL connection. |
+| `REDIS_URL` | Redis connection URL. |
+| `JWT_SECRET` | Secret used to sign access and refresh tokens. |
+| `PAYMENT_CARD_ENCRYPTION_KEY` | Encryption key for stored payment-card data. |
+| `CLIENT_URLS` | Allowed frontend origins for CORS. |
+| `SMTP_*` | Optional email delivery configuration. |
+
+## Notes
+
+- Card checkout is a local/demo payment flow until a payment processor is connected.
+- Cash orders retain the tendered amount and calculated change for the driver.
+- Map tiles and driving routes require network access to OpenStreetMap and the public OSRM service.
+- See [CHANGELOG.md](./CHANGELOG.md) for the project milestone history.
 
 ## Author
 
-**Nikola Pantelić**
-
-Software Engineering Student
-
-Faculty of Information Systems and Technologies
+Nikola Pantelić
 
 ---
 
-## License
-
-This project was developed for educational and academic purposes.
+Built as an educational full-stack delivery platform.
