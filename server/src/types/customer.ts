@@ -44,9 +44,13 @@ export type CustomerOrderItemPayload = {
   quantity: number
 }
 
+export type CustomerOrderPaymentMethod = 'card' | 'cash'
+
 export type CreateCustomerOrderPayload = {
   restaurantId: number
   addressId: number | null
   note: string
   items: CustomerOrderItemPayload[]
+  paymentMethod: CustomerOrderPaymentMethod
+  cashTendered: number | null
 }

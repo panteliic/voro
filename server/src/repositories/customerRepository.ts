@@ -1,4 +1,5 @@
 import { pool } from '../database/pool'
+import { HttpError } from '../utils/httpError'
 import type {
   CustomerAddressPayload,
   CreateCustomerOrderPayload,
@@ -769,6 +770,14 @@ export async function createCustomerOrder(
     })
     const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0)
     const total = subtotal + deliveryFee
+
+    if (payload.paymentMethod === 'cash' && (payload.cashTendered === null || payload.cashTendered < total)) {
+      throw new HttpError(400, 'Cash amount must cover the full order total.')
+    }
+
+    const changeDue = payload.paymentMethod === 'cash'
+      ? Number(((payload.cashTendered || 0) - total).toFixed(2))
+      : 0
     const orderResult = await client.query<CreatedOrderRow>(
       `
         INSERT INTO "order" (user_id, restaurant_id, address_id, subtotal, delivery_fee, total, note)
@@ -786,6 +795,21 @@ export async function createCustomerOrder(
       ],
     )
     const order = orderResult.rows[0]
+
+    await client.query(
+      `
+        INSERT INTO payment (order_id, amount, method, status, cash_tendered, change_due)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `,
+      [
+        order.id,
+        total,
+        payload.paymentMethod,
+        payload.paymentMethod === 'cash' ? 'pending_cash' : 'mock_authorized',
+        payload.cashTendered,
+        changeDue,
+      ],
+    )
 
     for (const item of items) {
       await client.query(
@@ -805,6 +829,9 @@ export async function createCustomerOrder(
       subtotal: Number(order.subtotal),
       deliveryFee: Number(order.delivery_fee),
       total: Number(order.total),
+      paymentMethod: payload.paymentMethod,
+      cashTendered: payload.cashTendered,
+      changeDue,
       createdAt: order.created_at,
       items: items.map(({ name, productId, quantity, totalPrice, unitPrice }) => ({
         productId,

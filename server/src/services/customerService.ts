@@ -230,6 +230,8 @@ function normalizeOrder(
     : positiveInteger(payload.addressId);
   const note = trim(String(payload.note || "")).slice(0, 500);
   const rawItems = Array.isArray(payload.items) ? payload.items : [];
+  const paymentMethod = payload.paymentMethod === "cash" ? "cash" : "card";
+  const cashTendered = nullableNumber(payload.cashTendered);
 
   if (!restaurantId) {
     throw new HttpError(400, "Choose a restaurant before placing an order.");
@@ -263,7 +265,18 @@ function normalizeOrder(
     throw new HttpError(400, "You can order up to 20 of each menu item.");
   }
 
-  return { restaurantId, addressId, note, items };
+  if (paymentMethod === "cash" && (cashTendered === null || cashTendered <= 0 || cashTendered > 100_000)) {
+    throw new HttpError(400, "Enter the cash amount you will give the courier.");
+  }
+
+  return {
+    restaurantId,
+    addressId,
+    note,
+    items,
+    paymentMethod,
+    cashTendered: paymentMethod === "cash" ? cashTendered : null,
+  };
 }
 
 export async function getCustomerProfile(userId: number) {
@@ -440,6 +453,34 @@ export async function getOrderRoute(userId: number, orderId: number) {
       : null,
     deliveryStatus: locations.deliveryStatus || null,
     route,
+  }
+}
+
+export async function getOrderTracking(userId: number, orderId: number) {
+  if (!Number.isInteger(orderId) || orderId <= 0) {
+    throw new HttpError(400, 'Order not found.')
+  }
+
+  const locations = await customerRepository.getCustomerOrderRouteLocations(userId, orderId)
+
+  if (!locations) {
+    throw new HttpError(404, 'Order not found.')
+  }
+
+  const liveCourier = locations.courierId
+    ? await redisService.getLiveDriver(locations.courierId)
+    : null
+
+  return {
+    orderId,
+    courier: locations.courierName
+      ? {
+          name: liveCourier?.name || locations.courierName,
+          latitude: liveCourier?.currentLatitude ?? locations.courierLatitude,
+          longitude: liveCourier?.currentLongitude ?? locations.courierLongitude,
+        }
+      : null,
+    deliveryStatus: locations.deliveryStatus || null,
   }
 }
 
