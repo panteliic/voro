@@ -158,8 +158,19 @@ function App() {
             if (active) handleError(error, 'Lokacija nije mogla da se pošalje.')
           })
         },
-        () => {
+        (locationError) => {
           if (!active) return
+
+          // A watch timeout only means the browser has not produced a new GPS
+          // reading yet. It must not immediately make an otherwise fresh
+          // courier unable to accept the offer currently shown on screen.
+          if (isDemoLocationRef.current) return
+
+          const hasLocationPermission = locationError.code !== GeolocationPositionError.PERMISSION_DENIED
+          if (hasLocationPermission && hasFreshLocation()) {
+            setStatus('GPS signal se osvežava. Ostaješ online dok je poslednja lokacija sveža.')
+            return
+          }
 
           const wasOnline = onlineRef.current
           onlineRef.current = false
@@ -171,7 +182,7 @@ function App() {
           }
           setStatus('Lokacija mora stalno biti uključena dok si online. Uključi GPS dozvolu da bi primao ponude.')
         },
-        { enableHighAccuracy: true, maximumAge: 5_000, timeout: 15_000 },
+        { enableHighAccuracy: true, maximumAge: 5_000, timeout: locationFreshForMs },
       )
     }
 
@@ -279,6 +290,13 @@ function App() {
     setStatus('')
 
     try {
+      if (!onlineRef.current || !hasFreshLocation()) {
+        throw new Error('Uključi lokaciju i sačekaj svežu GPS poziciju pre prihvatanja vožnje.')
+      }
+
+      // Refresh presence immediately before accepting. This removes the race
+      // between the 15-second heartbeat and the server-side 45-second cutoff.
+      await publishPresence(true, isDemoLocationRef.current ? domacePalacinkeDemoPosition : positionRef.current)
       await acceptDeliveryOffer(token, offerId)
       setStatus('Dostava je prihvaćena. Ruta do restorana je spremna.')
       await loadDashboard(token, true)

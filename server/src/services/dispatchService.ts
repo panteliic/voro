@@ -3,7 +3,7 @@ import * as driverRepository from '../repositories/driverRepository'
 import * as redisService from './redisService'
 import { pool } from '../database/pool'
 
-const offerWindowMs = 25_000
+const offerWindowMs = 60_000
 const retryDelayMs = 30_000
 const workerPollIntervalMs = 1_500
 const matchingRadiusMeters = 7_500
