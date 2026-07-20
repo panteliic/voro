@@ -117,6 +117,10 @@ function presenceKey(driverId: number) {
   return `voro:driver:presence:${driverId}`
 }
 
+function simulatorKey(driverId: number) {
+  return `voro:driver:simulator:${driverId}`
+}
+
 function parseLiveDriver(payload: string | null): LiveDriver | null {
   if (!payload) return null
 
@@ -165,6 +169,18 @@ export async function removeDriverPresence(driverId: number) {
 
 export async function getLiveDriver(driverId: number) {
   return parseLiveDriver(await (await getClient()).get(presenceKey(driverId)))
+}
+
+export async function refreshDriverSimulatorLease(driverId: number, ttlSeconds: number) {
+  await (await getClient()).set(simulatorKey(driverId), 'active', { EX: ttlSeconds })
+}
+
+export async function isDriverSimulatorActive(driverId: number) {
+  return Boolean(await (await getClient()).get(simulatorKey(driverId)))
+}
+
+export async function clearDriverSimulatorLease(driverId: number) {
+  await (await getClient()).del(simulatorKey(driverId))
 }
 
 export async function invalidateRestaurantCatalog(restaurantId?: number) {

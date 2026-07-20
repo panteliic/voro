@@ -110,6 +110,14 @@ export async function updatePresence(userId: number, payload: unknown) {
     throw new HttpError(400, 'Online status must be true or false.')
   }
 
+  const existingDriver = await getOwnedDriver(userId)
+  if (await redisService.isDriverSimulatorActive(existingDriver.id)) {
+    // The local simulator owns this courier's coordinates while its short
+    // Redis lease is renewed. This prevents an open driver tab from replacing
+    // the simulated location with its demo/GPS heartbeat.
+    return { driver: existingDriver }
+  }
+
   const hasLatitude = latitude !== undefined && latitude !== null
   const hasLongitude = longitude !== undefined && longitude !== null
 
