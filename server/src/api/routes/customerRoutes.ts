@@ -12,6 +12,7 @@ customerRoutes.get('/restaurants/:restaurantId', customerController.getRestauran
 customerRoutes.post('/orders', customerController.createOrder)
 customerRoutes.get('/orders', customerController.getOrders)
 customerRoutes.get('/orders/:orderId/route', customerController.getOrderRoute)
+customerRoutes.get('/orders/:orderId/tracking', customerController.getOrderTracking)
 customerRoutes.patch('/profile', customerController.updateProfile)
 customerRoutes.patch('/preferences', customerController.updatePreferences)
 customerRoutes.post('/addresses', customerController.createAddress)

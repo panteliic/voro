@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Bike, Clock3 } from 'lucide-react'
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
 import * as L from 'leaflet'
@@ -32,18 +32,75 @@ function MapViewport({ points }: { points: Array<[number, number]> }) {
   const map = useMap()
 
   useEffect(() => {
-    map.fitBounds(points, { padding: [36, 36], maxZoom: 15 })
+    const frame = window.requestAnimationFrame(() => {
+      map.invalidateSize()
+      map.fitBounds(points, { padding: [36, 36], maxZoom: 15 })
+    })
+
+    return () => window.cancelAnimationFrame(frame)
   }, [map, points])
 
   return null
 }
 
+function AnimatedCourierMarker({
+  targetPosition,
+  courierName,
+  courierLabel,
+}: {
+  targetPosition: [number, number]
+  courierName: string
+  courierLabel: string
+}) {
+  const [position, setPosition] = useState(targetPosition)
+  const currentPosition = useRef(targetPosition)
+
+  useEffect(() => {
+    const startPosition = currentPosition.current
+    const hasMoved = startPosition[0] !== targetPosition[0] || startPosition[1] !== targetPosition[1]
+
+    if (!hasMoved || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      currentPosition.current = targetPosition
+      setPosition(targetPosition)
+      return
+    }
+
+    const durationMs = 750
+    const startedAt = performance.now()
+    let frame = 0
+
+    const animate = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / durationMs)
+      const eased = 1 - (1 - progress) ** 2
+      const nextPosition: [number, number] = [
+        startPosition[0] + (targetPosition[0] - startPosition[0]) * eased,
+        startPosition[1] + (targetPosition[1] - startPosition[1]) * eased,
+      ]
+
+      currentPosition.current = nextPosition
+      setPosition(nextPosition)
+      if (progress < 1) frame = window.requestAnimationFrame(animate)
+    }
+
+    frame = window.requestAnimationFrame(animate)
+    return () => window.cancelAnimationFrame(frame)
+  }, [targetPosition])
+
+  return (
+    <Marker icon={courierIcon} position={position}>
+      <Popup><strong>{courierName}</strong><br />{courierLabel}</Popup>
+    </Marker>
+  )
+}
+
 export function OrderRouteMap({
   orderId,
   estimatedDeliveryRange,
+  fillAvailableHeight = false,
 }: {
   orderId: number
   estimatedDeliveryRange: { min: number; max: number } | null
+  fillAvailableHeight?: boolean
 }) {
   const { t } = useI18n()
   const [routeData, setRouteData] = useState<CustomerOrderRoute | null>(null)
@@ -77,6 +134,53 @@ export function OrderRouteMap({
     }
   }, [orderId, t])
 
+  useEffect(() => {
+    let isMounted = true
+    let isRequestInFlight = false
+
+    const loadTracking = () => {
+      if (isRequestInFlight) return
+      isRequestInFlight = true
+
+      void customerApi
+        .getOrderTracking(orderId)
+        .then((tracking) => {
+          if (!isMounted) return
+
+          setRouteData((current) => {
+            if (!current) return current
+
+            const sameCourier =
+              current.courier?.name === tracking.courier?.name &&
+              current.courier?.latitude === tracking.courier?.latitude &&
+              current.courier?.longitude === tracking.courier?.longitude
+
+            if (sameCourier && current.deliveryStatus === tracking.deliveryStatus) {
+              return current
+            }
+
+            return {
+              ...current,
+              courier: tracking.courier,
+              deliveryStatus: tracking.deliveryStatus,
+            }
+          })
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          isRequestInFlight = false
+        })
+    }
+
+    loadTracking()
+    const interval = window.setInterval(loadTracking, 800)
+
+    return () => {
+      isMounted = false
+      window.clearInterval(interval)
+    }
+  }, [orderId])
+
   if (error) {
     return <div className="-mx-4 grid h-full min-h-0 place-items-center border-y border-dashed border-line px-4 py-3 text-sm text-muted-foreground sm:-mx-6 lg:-mx-8">{error}</div>
   }
@@ -106,7 +210,13 @@ export function OrderRouteMap({
       : null
 
   return (
-    <section className="-mx-4 flex h-full min-h-0 flex-col overflow-hidden bg-background sm:-mx-6 lg:-mx-8">
+    <section
+      className={
+        fillAvailableHeight
+          ? '-mx-4 flex h-full min-h-0 flex-col overflow-hidden bg-background sm:-mx-6 lg:-mx-8'
+          : 'flex h-96 min-h-0 flex-col overflow-hidden rounded-voro-xl border border-line bg-background sm:h-[26rem]'
+      }
+    >
       <div className="grid shrink-0 gap-2 border-b border-line px-4 py-3 text-sm">
         <div className="flex min-w-0 items-center gap-2">
           <Clock3 className="size-4 shrink-0 text-action" />
@@ -125,7 +235,7 @@ export function OrderRouteMap({
         {courierOnWay && routePoints.length > 1 ? <Polyline color="#ef5a35" pathOptions={{ opacity: 0.88, weight: 5 }} positions={routePoints} /> : null}
         <Marker icon={restaurantIcon} position={endpoints[0]}><Popup><strong>{routeData.restaurant.name}</strong><br />{t('map.restaurantPin')}</Popup></Marker>
         <Marker icon={deliveryIcon} position={endpoints[1]}><Popup><strong>{routeData.delivery.address || t('map.deliveryPin')}</strong><br />{t('map.deliveryPin')}</Popup></Marker>
-        {courierPosition ? <Marker icon={courierIcon} position={courierPosition}><Popup><strong>{routeData.courier?.name}</strong><br />{t('map.courierPin')}</Popup></Marker> : null}
+        {courierPosition ? <AnimatedCourierMarker courierLabel={t('map.courierPin')} courierName={routeData.courier?.name || t('map.courier')} targetPosition={courierPosition} /> : null}
         <MapViewport points={mapPoints} />
       </MapContainer>
     </section>

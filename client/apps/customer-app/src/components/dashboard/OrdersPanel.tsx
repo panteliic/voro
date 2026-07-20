@@ -145,9 +145,16 @@ export function OrdersPanel() {
           <button aria-selected={tab === 'history'} className={`relative flex items-center justify-center gap-2 px-3 py-3 text-sm font-bold transition-colors after:absolute after:inset-x-0 after:bottom-[-1px] after:h-0.5 ${tab === 'history' ? 'text-action after:bg-action' : 'text-muted-foreground after:bg-transparent hover:text-content'}`} onClick={() => setTab('history')} role="tab" type="button"><ClipboardList className="size-4" />{t('orders.history')} ({previousOrders.length})</button>
         </div>
 
-        {visibleOrders.length > 0 ? <div className={isSingleActiveOrder ? 'min-h-0 flex-1' : 'grid gap-3'}>
+        {visibleOrders.length > 0 ? <div className={isSingleActiveOrder ? 'min-h-0 flex-1' : tab === 'active' ? 'grid gap-4 pb-3 xl:grid-cols-2' : 'grid gap-3'}>
           {tab === 'active'
-            ? activeOrders.map((order) => <OrderRouteMap estimatedDeliveryRange={order.estimatedDeliveryRange} key={order.id} orderId={order.id} />)
+            ? activeOrders.map((order) => (
+                <OrderRouteMap
+                  estimatedDeliveryRange={order.estimatedDeliveryRange}
+                  fillAvailableHeight={isSingleActiveOrder}
+                  key={order.id}
+                  orderId={order.id}
+                />
+              ))
             : previousOrders.map((order) => <HistoryOrderCard key={order.id} order={order} />)}
         </div> : <div className="rounded-voro-xl border border-dashed border-line bg-card px-5 py-10 text-center text-sm font-medium text-muted-foreground">
           {tab === 'active' ? t('orders.noActive') : t('orders.noHistory')}

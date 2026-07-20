@@ -74,6 +74,14 @@ export async function getOrderRoute(req: Request, res: Response) {
   }
 }
 
+export async function getOrderTracking(req: Request, res: Response) {
+  try {
+    res.set('Cache-Control', 'no-store').json(await customerService.getOrderTracking(auth(req).userId, numericParam(req.params.orderId)))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
 export async function updateProfile(req: Request, res: Response) {
   try {
     res.json(await customerService.updateProfile(auth(req).userId, req.body))
