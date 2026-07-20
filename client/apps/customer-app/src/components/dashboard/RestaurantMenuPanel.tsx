@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, MapPin, Minus, Plus, ReceiptText, ShoppingBasket, Store } from 'lucide-react'
-import { Button, Textarea } from '@voro/ui'
-import { NavLink, useParams } from 'react-router-dom'
+import { ArrowLeft, Minus, Plus, ReceiptText, ShoppingBasket, Store } from 'lucide-react'
+import { Button } from '@voro/ui'
+import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import { useI18n } from '../../i18n/i18n'
 import { customerApi } from '../../services/customerApi'
-import type { CustomerProfile, RestaurantMenu, RestaurantMenuProduct } from '../../types/customer'
-
-type RestaurantMenuPanelProps = {
-  profile: CustomerProfile | null
-}
+import type { RestaurantMenu, RestaurantMenuProduct } from '../../types/customer'
+import { saveCheckoutDraft } from '../../types/checkout'
 
 const deliveryFee = 250
 
@@ -33,18 +30,15 @@ function productGroups(menu: RestaurantMenu) {
   return categories.filter((category) => category.products.length > 0)
 }
 
-export function RestaurantMenuPanel({ profile }: RestaurantMenuPanelProps) {
+export function RestaurantMenuPanel() {
   const { restaurantId: restaurantIdParam } = useParams()
+  const navigate = useNavigate()
   const { language, t } = useI18n()
   const restaurantId = Number(restaurantIdParam)
   const [menu, setMenu] = useState<RestaurantMenu | null>(null)
   const [cart, setCart] = useState<Record<number, number>>({})
-  const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null)
-  const [note, setNote] = useState('')
   const [error, setError] = useState('')
-  const [orderStatus, setOrderStatus] = useState('')
   const [isLoading, setIsLoading] = useState(true)
-  const [isOrdering, setIsOrdering] = useState(false)
 
   useEffect(() => {
     if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
@@ -88,9 +82,6 @@ export function RestaurantMenuPanel({ profile }: RestaurantMenuPanelProps) {
   }, [cart, menu?.products])
   const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0)
   const subtotal = cartItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
-  const defaultAddress = profile?.addresses.find((address) => address.isDefault) || profile?.addresses[0]
-  const activeAddressId = selectedAddressId || defaultAddress?.id || null
-  const hasAddress = Boolean(activeAddressId)
   const money = new Intl.NumberFormat(language === 'sr' ? 'sr-RS' : 'en-US', {
     maximumFractionDigits: 0,
   })
@@ -106,33 +97,25 @@ export function RestaurantMenuPanel({ profile }: RestaurantMenuPanelProps) {
 
       return { ...current, [productId]: Math.min(nextQuantity, 20) }
     })
-    setOrderStatus('')
   }
 
-  async function placeOrder() {
-    if (!menu || cartItems.length === 0 || !activeAddressId) {
-      return
+  function continueToCheckout() {
+    if (!menu || cartItems.length === 0) return
+
+    const checkoutDraft = {
+      restaurantId: menu.restaurant.id,
+      restaurantName: menu.restaurant.name,
+      restaurantImageUrl: menu.restaurant.imageUrl,
+      items: cartItems.map(({ product, quantity }) => ({
+        productId: product.id,
+        name: product.name,
+        price: product.price,
+        quantity,
+      })),
     }
 
-    setIsOrdering(true)
-    setError('')
-    setOrderStatus('')
-
-    try {
-      const result = await customerApi.createOrder({
-        restaurantId: menu.restaurant.id,
-        addressId: activeAddressId,
-        note,
-        items: cartItems.map(({ product, quantity }) => ({ productId: product.id, quantity })),
-      })
-      setCart({})
-      setNote('')
-      setOrderStatus(t('menu.orderCreated', { id: result.order.id }))
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : t('menu.orderError'))
-    } finally {
-      setIsOrdering(false)
-    }
+    saveCheckoutDraft(checkoutDraft)
+    navigate('/checkout', { state: { checkoutDraft } })
   }
 
   if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
@@ -203,12 +186,6 @@ export function RestaurantMenuPanel({ profile }: RestaurantMenuPanelProps) {
           {error}
         </p>
       ) : null}
-      {orderStatus ? (
-        <p className="rounded-voro-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-bold text-emerald-600">
-          {orderStatus}
-        </p>
-      ) : null}
-
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="grid gap-6">
           {productGroups(menu).map((category) => (
@@ -324,38 +301,6 @@ export function RestaurantMenuPanel({ profile }: RestaurantMenuPanelProps) {
                   </div>
                 ))}
 
-                <div className="border-t border-line pt-4">
-                  <label className="grid gap-2 text-sm font-bold text-content">
-                    <span className="flex items-center gap-2"><MapPin className="size-4 text-action" />{t('menu.deliveryAddress')}</span>
-                    <select
-                      className="h-10 w-full rounded-voro-lg border border-line bg-background px-3 text-sm font-medium text-content"
-                      onChange={(event) => setSelectedAddressId(Number(event.target.value) || null)}
-                      value={activeAddressId || ''}
-                    >
-                      {profile?.addresses.map((address) => (
-                        <option key={address.id} value={address.id}>
-                          {[address.label, address.street, address.city].filter(Boolean).join(' · ')}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {!hasAddress ? (
-                    <NavLink className="mt-2 inline-flex text-sm font-bold text-action hover:underline" to="/settings/delivery">
-                      {t('menu.addAddress')}
-                    </NavLink>
-                  ) : null}
-                </div>
-
-                <label className="grid gap-2 text-sm font-bold text-content">
-                  {t('menu.orderNote')}
-                  <Textarea
-                    className="min-h-20 resize-y"
-                    onChange={(event) => setNote(event.target.value)}
-                    placeholder={t('menu.orderNotePlaceholder')}
-                    value={note}
-                  />
-                </label>
-
                 <div className="grid gap-2 border-t border-line pt-4 text-sm">
                   <div className="flex items-center justify-between text-muted-foreground">
                     <span>{t('menu.subtotal')}</span>
@@ -371,8 +316,8 @@ export function RestaurantMenuPanel({ profile }: RestaurantMenuPanelProps) {
                   </div>
                 </div>
 
-                <Button disabled={isOrdering || !hasAddress} onClick={() => void placeOrder()} type="button">
-                  {isOrdering ? t('menu.placingOrder') : t('menu.placeOrder')}
+                <Button onClick={continueToCheckout} type="button">
+                  {t('checkout.reviewOrder')}
                 </Button>
               </div>
             )}

@@ -10,6 +10,7 @@ import { dashboardNavItems } from '../components/dashboard/data/dashboardData'
 import { OrdersPanel } from '../components/dashboard/OrdersPanel'
 import { RestaurantDiscoveryPanel } from '../components/dashboard/RestaurantDiscoveryPanel'
 import { RestaurantMenuPanel } from '../components/dashboard/RestaurantMenuPanel'
+import { CheckoutPanel } from '../components/dashboard/CheckoutPanel'
 import { SettingsPanel } from '../components/dashboard/settings/SettingsPanel'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import { logout, logoutUser } from '../features/auth/authSlice'
@@ -104,7 +105,8 @@ function Home() {
           {activeView === 'orders' ? (
             <OrdersPanel />
           ) : null}
-          {activeView === 'restaurant' ? <RestaurantMenuPanel profile={profile} /> : null}
+          {activeView === 'restaurant' ? <RestaurantMenuPanel /> : null}
+          {activeView === 'checkout' ? <CheckoutPanel profile={profile} /> : null}
           {activeView === 'settings' ? (
             <SettingsPanel
               activeSection={activeSettingsSection}

@@ -3,7 +3,9 @@ import type {
   CreatedCustomerOrder,
   CustomerOrdersResponse,
   CustomerOrderRoute,
+  CustomerOrderTracking,
   CustomerOrderItemPayload,
+  CustomerOrderPaymentMethod,
   CustomerPaymentMethodPayload,
   CustomerPreferences,
   CustomerProfile,
@@ -136,6 +138,8 @@ export const customerApi = {
     addressId: number | null
     note: string
     items: CustomerOrderItemPayload[]
+    paymentMethod: CustomerOrderPaymentMethod
+    cashTendered: number | null
   }) {
     return jsonRequest<{ order: CreatedCustomerOrder }>('/customer/orders', 'POST', payload)
   },
@@ -146,6 +150,10 @@ export const customerApi = {
 
   getOrderRoute(orderId: number) {
     return request<CustomerOrderRoute>(`/customer/orders/${orderId}/route`)
+  },
+
+  getOrderTracking(orderId: number) {
+    return request<CustomerOrderTracking>(`/customer/orders/${orderId}/tracking`, { cache: 'no-store' })
   },
 
   updateProfile(payload: Pick<CustomerUserProfile, 'name' | 'phone'>) {

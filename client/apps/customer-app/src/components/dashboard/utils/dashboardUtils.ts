@@ -15,6 +15,10 @@ import { settingsNavItems } from '../data/dashboardData'
 import type { ActiveSettingsSection, DashboardView } from '../types'
 
 export function getDashboardView(pathname: string): DashboardView {
+  if (pathname.startsWith('/checkout')) {
+    return 'checkout'
+  }
+
   if (pathname.startsWith('/restaurants/')) {
     return 'restaurant'
   }

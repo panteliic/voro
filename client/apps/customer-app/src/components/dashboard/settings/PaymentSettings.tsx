@@ -1,6 +1,6 @@
 import { useState, type Dispatch, type SetStateAction } from 'react'
 import { Button, Input } from '@voro/ui'
-import { CreditCard, Eye, EyeOff, Pencil } from 'lucide-react'
+import { CreditCard, Eye, EyeOff, Pencil, ShieldCheck, Wifi } from 'lucide-react'
 import { useI18n } from '../../../i18n/i18n'
 import { customerApi } from '../../../services/customerApi'
 import type {
@@ -122,7 +122,7 @@ export function PaymentSettings({ paymentMethods, setProfile }: PaymentSettingsP
   const isEditing = editingPaymentMethodId !== null
   const displayedCardNumber =
     isCardNumberVisible || hasMaskedCharacters(cardNumber)
-      ? cardNumber || t('payments.cardNumberPlaceholder')
+      ? cardNumber || maskedCardNumber('0000')
       : maskedCardNumber(form.last4 || '0000')
 
   function updateField<Key extends keyof CustomerPaymentMethodPayload>(
@@ -301,133 +301,154 @@ export function PaymentSettings({ paymentMethods, setProfile }: PaymentSettingsP
         ))}
       </div>
 
-      <div className="grid gap-4 rounded-voro-lg border border-line bg-background p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <section className="overflow-hidden rounded-voro-xl border border-line bg-card" aria-labelledby="payment-card-form">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-4 py-4 sm:px-5">
           <div>
-            <h3 className="text-sm font-bold text-content">
+            <h3 className="text-base font-bold text-content" id="payment-card-form">
               {isEditing ? t('payments.editCard') : t('payments.newCard')}
             </h3>
-            {isEditing ? (
-              <p className="mt-1 text-xs font-medium text-muted-foreground">
-                {t('payments.savedNumberHidden')}
-              </p>
-            ) : null}
+            <p className="mt-1 text-sm text-muted-foreground">
+              {isEditing ? t('payments.savedNumberHidden') : t('payments.description')}
+            </p>
           </div>
           {isEditing ? (
-            <Button onClick={resetForm} type="button" variant="outline">
+            <Button onClick={resetForm} size="sm" type="button" variant="outline">
               {t('payments.addNewCard')}
             </Button>
           ) : null}
-          <Button disabled={isSaving} onClick={handleAddPaymentMethod} type="button">
-            {isSaving ? t('common.saving') : isEditing ? t('payments.update') : t('payments.add')}
-          </Button>
-        </div>
-        <div className="rounded-voro-lg border border-line bg-card p-4 shadow-voro-sm">
-          <div className="flex items-center justify-between gap-3">
-            <span className="rounded-voro-md bg-action/15 px-2 py-1 text-xs font-bold uppercase text-action">
-              {detectedBrand || t('payments.unknownBrand')}
-            </span>
-            <CreditCard className="size-5 text-muted-foreground" />
-          </div>
-          <p className="mt-6 font-mono text-xl font-bold tracking-wide text-content">
-            {displayedCardNumber}
-          </p>
-          <div className="mt-5 flex items-end justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold uppercase text-muted-foreground">
-                {t('payments.label')}
-              </p>
-              <p className="mt-1 text-sm font-bold text-content">
-                {form.label || t('payments.labelPlaceholder')}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs font-bold uppercase text-muted-foreground">
-                {t('payments.expiresLabel')}
-              </p>
-              <p className="mt-1 font-mono text-sm font-bold text-content">
-                {expMonthInput || 'MM'}/{expYearInput ? expYearInput.slice(-2) : 'YY'}
-              </p>
-            </div>
-          </div>
         </div>
 
-        <div className="grid gap-3">
-          <label className="grid gap-2 text-sm font-bold text-content">
-            {t('payments.label')}
-            <Input
-              value={form.label}
-              onChange={(event) => updateField('label', event.target.value)}
-              placeholder={t('payments.labelPlaceholder')}
-            />
-          </label>
-        </div>
-        <label className="grid gap-2 text-sm font-bold text-content">
-          {t('payments.cardNumber')}
-          <div className="relative">
-            <Input
-              aria-invalid={Boolean(cardNumberError)}
-              className="font-mono tracking-wide pr-10"
-              inputMode="numeric"
-              maxLength={23}
-              onChange={(event) => handleCardNumberChange(event.target.value)}
-              placeholder={t('payments.cardNumberPlaceholder')}
-              value={
-                isCardNumberVisible || hasMaskedCharacters(cardNumber)
-                  ? cardNumber
-                  : maskedCardNumber(form.last4 || '')
-              }
-            />
-            <button
-              aria-label={t(isCardNumberVisible ? 'payments.hideNumber' : 'payments.showNumber')}
-              className="absolute right-2 top-1/2 flex size-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-voro-md text-muted-foreground transition hover:bg-accent hover:text-content"
-              onClick={() => setIsCardNumberVisible((value) => !value)}
-              type="button"
-            >
-              {isCardNumberVisible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-            </button>
+        <div className="grid gap-6 p-4 sm:p-5 xl:grid-cols-[minmax(15rem,0.9fr)_minmax(19rem,1.1fr)] xl:items-center">
+          <div className="mx-auto w-full max-w-sm xl:max-w-none">
+            <div className="relative aspect-[1.586/1] overflow-hidden rounded-[1.25rem] border border-white/20 bg-[linear-gradient(135deg,var(--btn-primary-hover)_0%,var(--btn-primary-bg)_52%,#852616_100%)] p-5 text-white shadow-[0_20px_45px_rgba(233,77,41,0.28)] sm:p-6">
+              <div className="pointer-events-none absolute -right-14 -top-20 size-52 rounded-full bg-white/10" />
+              <div className="pointer-events-none absolute -bottom-24 left-8 size-52 rounded-full border border-white/10" />
+              <div className="relative flex h-full flex-col">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex size-11 items-center justify-center rounded-voro-md bg-[linear-gradient(135deg,#fbd34e,#d79009)] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
+                    <span className="h-4 w-7 rounded-sm border border-amber-900/20 bg-[linear-gradient(90deg,transparent_44%,rgba(129,83,4,0.6)_45%,rgba(129,83,4,0.6)_55%,transparent_56%),linear-gradient(0deg,transparent_44%,rgba(129,83,4,0.6)_45%,rgba(129,83,4,0.6)_55%,transparent_56%)]" />
+                  </div>
+                  <Wifi className="mt-1 size-5 rotate-90 text-white/85" aria-hidden="true" />
+                </div>
+
+                <p className="mt-auto font-mono text-[clamp(1.05rem,3vw,1.45rem)] font-bold tracking-[0.12em] text-white drop-shadow-sm">
+                  {displayedCardNumber}
+                </p>
+
+                <div className="mt-4 flex items-end justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[0.6rem] font-bold uppercase tracking-[0.16em] text-white/55">
+                      {t('payments.label')}
+                    </p>
+                    <p className="mt-1 truncate text-sm font-bold uppercase tracking-wide text-white">
+                      {form.label || t('payments.labelPlaceholder')}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-[0.6rem] font-bold uppercase tracking-[0.16em] text-white/55">
+                      {t('payments.expiresLabel')}
+                    </p>
+                    <p className="mt-1 font-mono text-sm font-bold tracking-wide text-white">
+                      {expMonthInput || 'MM'}/{expYearInput ? expYearInput.slice(-2) : 'YY'}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-base font-black italic tracking-tight text-white/95">
+                    {detectedBrand || 'VORO'}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-center gap-2 text-xs font-medium text-muted-foreground">
+              <ShieldCheck className="size-3.5 text-action" aria-hidden="true" />
+              <span>{t('payments.cardNumber')}</span>
+              <span className="text-line">·</span>
+              <span>SSL</span>
+            </div>
           </div>
-          {cardNumberError ? (
-            <span className="text-xs font-bold text-destructive">{cardNumberError}</span>
-          ) : null}
-        </label>
-        <div className="grid w-full grid-cols-2 gap-3">
-          <label className="grid gap-2 text-sm font-bold text-content">
-            {t('payments.month')}
-            <Input
-              aria-invalid={Boolean(expiryError)}
-              inputMode="numeric"
-              maxLength={2}
-              onChange={(event) => {
-                const value = normalizeMonthInput(event.target.value)
-                setExpMonthInput(value)
-                updateField('expMonth', value === '' ? null : Number(value))
-                setExpiryError('')
-              }}
-              placeholder="MM"
-              value={expMonthInput}
-            />
-          </label>
-          <label className="grid gap-2 text-sm font-bold text-content">
-            {t('payments.year')}
-            <Input
-              aria-invalid={Boolean(expiryError)}
-              inputMode="numeric"
-              maxLength={4}
-              onChange={(event) => {
-                const value = normalizeYearInput(event.target.value)
-                setExpYearInput(value)
-                updateField('expYear', value === '' ? null : Number(value))
-                setExpiryError('')
-              }}
-              placeholder="YYYY"
-              value={expYearInput}
-            />
-          </label>
+
+          <div className="grid gap-4">
+            <label className="grid gap-2 text-sm font-bold text-content">
+              {t('payments.label')}
+              <Input
+                value={form.label}
+                onChange={(event) => updateField('label', event.target.value)}
+                placeholder={t('payments.labelPlaceholder')}
+              />
+            </label>
+
+            <label className="grid gap-2 text-sm font-bold text-content">
+              {t('payments.cardNumber')}
+              <div className="relative">
+                <Input
+                  aria-invalid={Boolean(cardNumberError)}
+                  className="font-mono tracking-wide pr-10"
+                  inputMode="numeric"
+                  maxLength={23}
+                  onChange={(event) => handleCardNumberChange(event.target.value)}
+                  placeholder={t('payments.cardNumberPlaceholder')}
+                  value={
+                    isCardNumberVisible || hasMaskedCharacters(cardNumber)
+                      ? cardNumber
+                      : maskedCardNumber(form.last4 || '')
+                  }
+                />
+                <button
+                  aria-label={t(isCardNumberVisible ? 'payments.hideNumber' : 'payments.showNumber')}
+                  className="absolute right-2 top-1/2 flex size-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-voro-md text-muted-foreground transition hover:bg-accent hover:text-content"
+                  onClick={() => setIsCardNumberVisible((value) => !value)}
+                  type="button"
+                >
+                  {isCardNumberVisible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
+              {cardNumberError ? (
+                <span className="text-xs font-bold text-destructive">{cardNumberError}</span>
+              ) : null}
+            </label>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="grid gap-2 text-sm font-bold text-content">
+                {t('payments.month')}
+                <Input
+                  aria-invalid={Boolean(expiryError)}
+                  inputMode="numeric"
+                  maxLength={2}
+                  onChange={(event) => {
+                    const value = normalizeMonthInput(event.target.value)
+                    setExpMonthInput(value)
+                    updateField('expMonth', value === '' ? null : Number(value))
+                    setExpiryError('')
+                  }}
+                  placeholder="MM"
+                  value={expMonthInput}
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-bold text-content">
+                {t('payments.year')}
+                <Input
+                  aria-invalid={Boolean(expiryError)}
+                  inputMode="numeric"
+                  maxLength={4}
+                  onChange={(event) => {
+                    const value = normalizeYearInput(event.target.value)
+                    setExpYearInput(value)
+                    updateField('expYear', value === '' ? null : Number(value))
+                    setExpiryError('')
+                  }}
+                  placeholder="YYYY"
+                  value={expYearInput}
+                />
+              </label>
+            </div>
+
+            {expiryError ? <p className="text-xs font-bold text-destructive">{expiryError}</p> : null}
+            {status ? <p className="text-sm font-medium text-muted-foreground">{status}</p> : null}
+            <Button className="mt-1 w-full" disabled={isSaving} onClick={handleAddPaymentMethod} size="lg" type="button">
+              {isSaving ? t('common.saving') : isEditing ? t('payments.update') : t('payments.add')}
+            </Button>
+          </div>
         </div>
-        {expiryError ? <p className="text-xs font-bold text-destructive">{expiryError}</p> : null}
-        {status ? <p className="text-sm font-medium text-muted-foreground">{status}</p> : null}
-      </div>
+      </section>
     </SettingsSectionLayout>
   )
 }

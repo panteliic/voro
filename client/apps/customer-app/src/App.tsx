@@ -80,6 +80,7 @@ function App() {
           <Route path="/search" element={protectedHome} />
           <Route path="/orders" element={protectedHome} />
           <Route path="/restaurants/:restaurantId" element={protectedHome} />
+          <Route path="/checkout" element={protectedHome} />
           <Route path="/addresses" element={<Navigate to="/settings/delivery" replace />} />
           <Route path="/payments" element={<Navigate to="/settings/payments" replace />} />
           <Route path="/settings" element={protectedHome} />

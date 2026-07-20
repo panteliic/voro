@@ -106,6 +106,8 @@ export type CustomerOrderItemPayload = {
   quantity: number
 }
 
+export type CustomerOrderPaymentMethod = 'card' | 'cash'
+
 export type CustomerOrderStatus =
   | 'pending'
   | 'accepted'
@@ -121,6 +123,9 @@ export type CreatedCustomerOrder = {
   subtotal: number
   deliveryFee: number
   total: number
+  paymentMethod: CustomerOrderPaymentMethod
+  cashTendered: number | null
+  changeDue: number
   createdAt: string
   items: Array<{
     productId: number
@@ -186,6 +191,8 @@ export type CustomerOrderRoute = {
     etaRange: { min: number; max: number }
   } | null
 }
+
+export type CustomerOrderTracking = Pick<CustomerOrderRoute, 'orderId' | 'courier' | 'deliveryStatus'>
 
 export type CustomerAddressPayload = Omit<CustomerAddress, 'id' | 'userId' | 'isDefault'>
 export type CustomerPaymentMethodPayload = Omit<
