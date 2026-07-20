@@ -28,6 +28,9 @@ export type Delivery = {
   customerLatitude: number
   customerLongitude: number
   total: number
+  paymentMethod: 'card' | 'cash'
+  cashTendered: number | null
+  changeDue: number
   pickupCode: string
   createdAt: string
   pickedUpAt: string | null
@@ -45,6 +48,9 @@ export type DeliveryOffer = {
   customerLatitude: number
   customerLongitude: number
   total: number
+  paymentMethod: 'card' | 'cash'
+  cashTendered: number | null
+  changeDue: number
   expiresAt: string
   createdAt: string
 }

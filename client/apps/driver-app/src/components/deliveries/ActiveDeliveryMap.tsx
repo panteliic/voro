@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Clock3, KeyRound, Navigation, Store } from 'lucide-react'
+import { Banknote, Clock3, CreditCard, KeyRound, Navigation, Store } from 'lucide-react'
 import * as L from 'leaflet'
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -161,6 +161,18 @@ export function ActiveDeliveryMap({
         <span><span className="block text-xs font-bold uppercase tracking-wide opacity-80">{t('delivery.showRestaurant', { id: delivery.orderId })}</span><strong className="mt-1 block text-lg">{t('delivery.pickupCode')}</strong></span>
         <strong className="text-4xl font-black tracking-[0.08em]">#{delivery.orderId}</strong>
       </button> : null}
+      <div className={`mx-4 my-4 flex items-start gap-3 rounded-voro-lg border px-4 py-3 text-sm ${delivery.paymentMethod === 'cash' ? 'border-action/30 bg-accent' : 'border-line bg-background'}`}>
+        {delivery.paymentMethod === 'cash' ? <Banknote className="mt-0.5 size-5 shrink-0 text-action" /> : <CreditCard className="mt-0.5 size-5 shrink-0 text-muted-foreground" />}
+        <div>
+          <p className="font-bold text-content">{delivery.paymentMethod === 'cash' ? t('payment.cash') : t('payment.card')}</p>
+          {delivery.paymentMethod === 'cash' ? (
+            <p className="mt-1 text-muted-foreground">
+              {t('payment.collectCash', { amount: delivery.total.toFixed(0) })}
+              {delivery.changeDue > 0 ? ` · ${t('payment.changeDue', { amount: delivery.changeDue.toFixed(0) })}` : ''}
+            </p>
+          ) : null}
+        </div>
+      </div>
       {shouldShowRoute && error ? <p className="px-5 py-3 text-sm text-destructive">{error}</p> : null}
       {!shouldShowRoute ? <p className="border-b border-line px-5 py-3 text-sm text-muted-foreground">{t('delivery.routeAfterPickup')}</p> : null}
       <MapContainer center={points[0]} className="h-[22rem] w-full sm:h-[24rem]" scrollWheelZoom zoom={14}>

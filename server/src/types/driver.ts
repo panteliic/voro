@@ -28,6 +28,9 @@ export type DriverDelivery = {
   customerLatitude: number
   customerLongitude: number
   total: number
+  paymentMethod: 'card' | 'cash'
+  cashTendered: number | null
+  changeDue: number
   pickupCode: string
   createdAt: Date
   pickedUpAt: Date | null
@@ -45,6 +48,9 @@ export type DriverOffer = {
   customerLatitude: number
   customerLongitude: number
   total: number
+  paymentMethod: 'card' | 'cash'
+  cashTendered: number | null
+  changeDue: number
   expiresAt: Date
   createdAt: Date
 }

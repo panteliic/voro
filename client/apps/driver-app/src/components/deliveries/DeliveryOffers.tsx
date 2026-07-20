@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BellRing, Clock3, MapPin, Store } from 'lucide-react'
+import { Banknote, BellRing, Clock3, CreditCard, MapPin, Store } from 'lucide-react'
 import { translate, type DriverLanguage } from '../../i18n'
 import type { DeliveryOffer } from '../../types/driver'
 
@@ -66,6 +66,18 @@ export function DeliveryOffers({
               <div className="mt-4 grid gap-2 text-sm text-muted-foreground">
                 <p className="flex items-start gap-2"><Store className="mt-0.5 size-4 shrink-0 text-action" />{offer.restaurantAddress || offer.restaurantName}</p>
                 <p className="flex items-start gap-2"><MapPin className="mt-0.5 size-4 shrink-0 text-emerald-600" />{offer.customerAddress || offer.customerName}</p>
+              </div>
+              <div className={`mt-4 flex items-start gap-2 rounded-voro-md px-3 py-2 text-sm ${offer.paymentMethod === 'cash' ? 'bg-action/10 text-content' : 'bg-muted text-muted-foreground'}`}>
+                {offer.paymentMethod === 'cash' ? <Banknote className="mt-0.5 size-4 shrink-0 text-action" /> : <CreditCard className="mt-0.5 size-4 shrink-0" />}
+                <span>
+                  <strong className="block">{offer.paymentMethod === 'cash' ? t('payment.cash') : t('payment.card')}</strong>
+                  {offer.paymentMethod === 'cash' ? (
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      {t('payment.collectCash', { amount: offer.total.toFixed(0) })}
+                      {offer.changeDue > 0 ? ` · ${t('payment.changeDue', { amount: offer.changeDue.toFixed(0) })}` : ''}
+                    </span>
+                  ) : null}
+                </span>
               </div>
               <div className="mt-4 flex items-center justify-between gap-3">
                 <p className="font-bold">{offer.total.toFixed(0)} RSD</p>

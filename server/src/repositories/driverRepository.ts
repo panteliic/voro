@@ -36,6 +36,9 @@ type DriverDeliveryRow = {
   customer_latitude: string
   customer_longitude: string
   total: string
+  payment_method: string | null
+  cash_tendered: string | null
+  change_due: string | null
   pickup_code: string | null
   created_at: Date
   picked_up_at: Date | null
@@ -53,6 +56,9 @@ type DriverOfferRow = {
   customer_latitude: string
   customer_longitude: string
   total: string
+  payment_method: string | null
+  cash_tendered: string | null
+  change_due: string | null
   expires_at: Date
   created_at: Date
 }
@@ -111,6 +117,9 @@ function toDriverDelivery(row: DriverDeliveryRow): DriverDelivery {
     customerLatitude: Number(row.customer_latitude),
     customerLongitude: Number(row.customer_longitude),
     total: Number(row.total),
+    paymentMethod: row.payment_method === 'cash' ? 'cash' : 'card',
+    cashTendered: row.cash_tendered === null ? null : Number(row.cash_tendered),
+    changeDue: Number(row.change_due || 0),
     pickupCode: row.pickup_code || '',
     createdAt: row.created_at,
     pickedUpAt: row.picked_up_at,
@@ -130,6 +139,9 @@ function toDriverOffer(row: DriverOfferRow): DriverOffer {
     customerLatitude: Number(row.customer_latitude),
     customerLongitude: Number(row.customer_longitude),
     total: Number(row.total),
+    paymentMethod: row.payment_method === 'cash' ? 'cash' : 'card',
+    cashTendered: row.cash_tendered === null ? null : Number(row.cash_tendered),
+    changeDue: Number(row.change_due || 0),
     expiresAt: row.expires_at,
     createdAt: row.created_at,
   }
@@ -162,6 +174,9 @@ const deliverySelect = `
     address.latitude AS customer_latitude,
     address.longitude AS customer_longitude,
     "order".total,
+    payment.method AS payment_method,
+    payment.cash_tendered,
+    payment.change_due,
     delivery.pickup_code,
     delivery.created_at,
     delivery.picked_up_at
@@ -172,6 +187,7 @@ const deliverySelect = `
   INNER JOIN restaurant ON restaurant.id = "order".restaurant_id
   INNER JOIN "user" customer ON customer.id = "order".user_id
   LEFT JOIN address ON address.id = "order".address_id
+  LEFT JOIN payment ON payment.order_id = "order".id
 `
 
 export async function findDriverByUserId(userId: number) {
@@ -374,6 +390,9 @@ export async function listPendingOffers(courierId: number) {
         address.latitude AS customer_latitude,
         address.longitude AS customer_longitude,
         "order".total,
+        payment.method AS payment_method,
+        payment.cash_tendered,
+        payment.change_due,
         offer.expires_at,
         offer.created_at
       FROM delivery_dispatch_offer offer
@@ -383,6 +402,7 @@ export async function listPendingOffers(courierId: number) {
       INNER JOIN restaurant ON restaurant.id = "order".restaurant_id
       INNER JOIN "user" customer ON customer.id = "order".user_id
       LEFT JOIN address ON address.id = "order".address_id
+      LEFT JOIN payment ON payment.order_id = "order".id
       WHERE offer.courier_id = $1
         AND offer.status = 'pending'
         AND offer.expires_at > NOW()
@@ -486,7 +506,7 @@ export async function acceptDispatchOffer(courierId: number, offerId: number) {
           $1,
           $2,
           (SELECT id FROM delivery_status WHERE name = 'arriving_to_restaurant'),
-          LPAD(($1 % 1000000)::TEXT, 6, '0')
+          LPAD((($1::BIGINT) % 1000000)::TEXT, 6, '0')
         )
         RETURNING id
       `,
