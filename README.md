@@ -286,7 +286,6 @@ Use `server/.env.example` and `.env.docker.example` as templates. The important 
 - Card checkout is a local/demo payment flow until a payment processor is connected.
 - Cash orders retain the tendered amount and calculated change for the driver.
 - Map tiles and driving routes require network access to OpenStreetMap and the public OSRM service.
-- See [CHANGELOG.md](./CHANGELOG.md) for the project milestone history.
 
 ## Author
 
