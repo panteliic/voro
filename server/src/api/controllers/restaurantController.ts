@@ -96,3 +96,27 @@ export async function updateProduct(req: Request, res: Response) {
     sendError(error, res)
   }
 }
+
+export async function updateOperations(req: Request, res: Response) {
+  try {
+    res.json(await restaurantService.updateOperations(auth(req).restaurantId, req.body || {}))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function getNotifications(req: Request, res: Response) {
+  try {
+    res.set('Cache-Control', 'no-store').json(await restaurantService.getNotifications(auth(req).restaurantId))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function readNotification(req: Request, res: Response) {
+  try {
+    res.json(await restaurantService.readNotification(auth(req).restaurantId, numericParam(req.params.notificationId)))
+  } catch (error) {
+    sendError(error, res)
+  }
+}

@@ -1,6 +1,7 @@
 import * as restaurantRepository from '../repositories/restaurantRepository'
 import * as dispatchService from './dispatchService'
 import * as redisService from './redisService'
+import * as operationsRepository from '../repositories/operationsRepository'
 import type {
   UpsertProductCategoryPayload,
   UpsertProductPayload,
@@ -26,6 +27,46 @@ const allowedNextStatuses: Record<RestaurantOrderStatus, RestaurantOrderStatus[]
   cancelled: [],
 }
 
+const weekdays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+
+function validTime(value: unknown) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value || ''))
+}
+
+function normalizeOperations(payload: Record<string, unknown>) {
+  const deliveryRadiusKm = Number(payload.deliveryRadiusKm)
+  if (!Number.isFinite(deliveryRadiusKm) || deliveryRadiusKm <= 0 || deliveryRadiusKm > 50) {
+    throw new HttpError(400, 'Delivery radius must be between 0.1 and 50 km.')
+  }
+  if (!payload.openingHours || typeof payload.openingHours !== 'object' || Array.isArray(payload.openingHours)) {
+    throw new HttpError(400, 'Opening hours are required.')
+  }
+
+  const rawHours = payload.openingHours as Record<string, unknown>
+  const openingHours = Object.fromEntries(
+    weekdays.map((day) => {
+      const raw = rawHours[day]
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        throw new HttpError(400, `Opening hours for ${day} are invalid.`)
+      }
+      const value = raw as Record<string, unknown>
+      const enabled = value.enabled !== false
+      const open = String(value.open || '')
+      const close = String(value.close || '')
+      if (enabled && (!validTime(open) || !validTime(close))) {
+        throw new HttpError(400, `Opening hours for ${day} must use HH:MM.`)
+      }
+      return [day, { enabled, open: validTime(open) ? open : '00:00', close: validTime(close) ? close : '23:59' }]
+    }),
+  )
+
+  return {
+    deliveryRadiusKm: Math.round(deliveryRadiusKm * 10) / 10,
+    openingHours,
+    isAcceptingOrders: payload.isAcceptingOrders !== false,
+  }
+}
+
 async function getRestaurantScope(restaurantId: number) {
   const restaurant = await restaurantRepository.findRestaurantById(restaurantId)
 
@@ -38,13 +79,21 @@ async function getRestaurantScope(restaurantId: number) {
 
 export async function getDashboard(restaurantId: number) {
   const restaurant = await getRestaurantScope(restaurantId)
-  const [categories, products, orders] = await Promise.all([
+  const [categories, products, orders, notifications] = await Promise.all([
     restaurantRepository.listProductCategories(restaurant.id),
     restaurantRepository.listProducts(restaurant.id),
     restaurantRepository.listRestaurantOrders(restaurant.id),
+    operationsRepository.listRestaurantNotifications(restaurant.id),
   ])
 
-  return { restaurant, categories, products, orders }
+  return {
+    restaurant,
+    categories,
+    products,
+    orders,
+    notifications,
+    unreadNotifications: notifications.filter((notification) => !notification.readAt).length,
+  }
 }
 
 export async function updateOrderStatus(restaurantId: number, orderId: number, nextStatus: string) {
@@ -80,7 +129,44 @@ export async function updateOrderStatus(restaurantId: number, orderId: number, n
     dispatchService.enqueueDispatch(orderId)
   }
 
+  const owner = await operationsRepository.getOrderOwner(orderId)
+  if (owner) {
+    await operationsRepository.createUserNotification(Number(owner.user_id), {
+      type: 'order_status',
+      title: `Order #${orderId}: ${nextStatus.replace('_', ' ')}`,
+      body: nextStatus === 'cancelled'
+        ? 'The restaurant could not accept this order.'
+        : `The restaurant updated your order to ${nextStatus.replace('_', ' ')}.`,
+      data: { orderId, status: nextStatus },
+    })
+  }
+
   return { order }
+}
+
+export async function updateOperations(restaurantId: number, payload: Record<string, unknown>) {
+  const restaurant = await getRestaurantScope(restaurantId)
+  const operations = await operationsRepository.updateRestaurantOperations(restaurant.id, normalizeOperations(payload))
+  if (!operations) throw new HttpError(404, 'Restaurant not found.')
+  await redisService.invalidateRestaurantCatalog(restaurant.id)
+  return { operations }
+}
+
+export async function getNotifications(restaurantId: number) {
+  const restaurant = await getRestaurantScope(restaurantId)
+  const notifications = await operationsRepository.listRestaurantNotifications(restaurant.id)
+  return { notifications, unreadCount: notifications.filter((notification) => !notification.readAt).length }
+}
+
+export async function readNotification(restaurantId: number, notificationId: number) {
+  if (!Number.isInteger(notificationId) || notificationId <= 0) {
+    throw new HttpError(400, 'Notification not found.')
+  }
+  const restaurant = await getRestaurantScope(restaurantId)
+  if (!(await operationsRepository.markRestaurantNotificationRead(restaurant.id, notificationId))) {
+    throw new HttpError(404, 'Notification not found.')
+  }
+  return { read: true }
 }
 
 export async function createCategory(

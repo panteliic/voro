@@ -19,6 +19,17 @@ export type RestaurantCategory = {
   sortOrder: number
 }
 
+export type RestaurantOpeningHours = Record<
+  string,
+  { enabled: boolean; open: string; close: string }
+>
+
+export type RestaurantOperationsPayload = {
+  deliveryRadiusKm: number
+  openingHours: RestaurantOpeningHours
+  isAcceptingOrders: boolean
+}
+
 export type UpsertProductCategoryPayload = {
   name: string
   description: string
