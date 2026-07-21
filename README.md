@@ -263,8 +263,7 @@ voro/
 │       ├── services/           # Auth, dispatch, Redis, maps, payments
 │       └── workers/            # Dispatch worker
 ├── docker-compose.yml
-├── .env.docker.example
-└── CHANGELOG.md
+└── .env.docker.example
 ```
 
 ## Environment variables
