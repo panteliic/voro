@@ -676,6 +676,40 @@ export async function listCustomerOrders(userId: number, limit = 50) {
   return result.rows.map(toCustomerOrder)
 }
 
+export async function getCustomerOrderForReorder(userId: number, orderId: number) {
+  const result = await pool.query<{
+    restaurant_id: string
+    items: Array<{ productId: number | null; quantity: number }> | null
+  }>(
+    `
+      SELECT
+        o.restaurant_id,
+        COALESCE(
+          JSON_AGG(
+            JSON_BUILD_OBJECT('productId', order_item.product_id, 'quantity', order_item.quantity)
+            ORDER BY order_item.id
+          ) FILTER (WHERE order_item.id IS NOT NULL),
+          '[]'::JSON
+        ) AS items
+      FROM "order" o
+      LEFT JOIN order_item ON order_item.order_id = o.id
+      WHERE o.id = $1 AND o.user_id = $2
+      GROUP BY o.id
+      LIMIT 1
+    `,
+    [orderId, userId],
+  )
+
+  const row = result.rows[0]
+  if (!row) return null
+
+  const items = (row.items || [])
+    .filter((item) => Number.isInteger(item.productId) && Number(item.productId) > 0)
+    .map((item) => ({ productId: Number(item.productId), quantity: Number(item.quantity) }))
+
+  return { restaurantId: Number(row.restaurant_id), items }
+}
+
 export async function getCustomerOrderRouteLocations(userId: number, orderId: number) {
   const result = await pool.query<CustomerOrderRouteRow>(
     `

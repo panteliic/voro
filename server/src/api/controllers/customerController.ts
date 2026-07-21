@@ -36,7 +36,7 @@ export async function searchAddressSuggestions(req: Request, res: Response) {
 
 export async function listRestaurants(req: Request, res: Response) {
   try {
-    res.json(await customerService.getRestaurantDiscovery(queryText(req.query.category)))
+    res.json(await customerService.getRestaurantDiscovery(queryText(req.query.category), auth(req).userId))
   } catch (error) {
     sendError(error, res)
   }
@@ -77,6 +77,90 @@ export async function getOrderRoute(req: Request, res: Response) {
 export async function getOrderTracking(req: Request, res: Response) {
   try {
     res.set('Cache-Control', 'no-store').json(await customerService.getOrderTracking(auth(req).userId, numericParam(req.params.orderId)))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function listFavorites(req: Request, res: Response) {
+  try {
+    res.json(await customerService.listFavorites(auth(req).userId))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function setFavorite(req: Request, res: Response) {
+  try {
+    res.json(await customerService.setFavorite(
+      auth(req).userId,
+      numericParam(req.params.restaurantId),
+      req.method === 'DELETE' ? false : req.body?.isFavorite !== false,
+    ))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function cancelOrder(req: Request, res: Response) {
+  try {
+    res.json(await customerService.cancelOrder(auth(req).userId, numericParam(req.params.orderId), req.body?.reason))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function createOrderIssue(req: Request, res: Response) {
+  try {
+    res.status(201).json(await customerService.createOrderIssue(auth(req).userId, numericParam(req.params.orderId), req.body || {}))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function createOrderReview(req: Request, res: Response) {
+  try {
+    res.status(201).json(await customerService.createOrderReview(auth(req).userId, numericParam(req.params.orderId), req.body || {}))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function reorderOrder(req: Request, res: Response) {
+  try {
+    res.status(201).json(await customerService.reorderOrder(auth(req).userId, numericParam(req.params.orderId), req.body || {}))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function getOrderMessages(req: Request, res: Response) {
+  try {
+    res.set('Cache-Control', 'no-store').json(await customerService.getOrderMessages(auth(req).userId, numericParam(req.params.orderId)))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function sendOrderMessage(req: Request, res: Response) {
+  try {
+    res.status(201).json(await customerService.sendOrderMessage(auth(req).userId, numericParam(req.params.orderId), req.body?.body))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function getNotifications(req: Request, res: Response) {
+  try {
+    res.set('Cache-Control', 'no-store').json(await customerService.getNotifications(auth(req).userId))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function readNotification(req: Request, res: Response) {
+  try {
+    res.json(await customerService.readNotification(auth(req).userId, numericParam(req.params.notificationId)))
   } catch (error) {
     sendError(error, res)
   }

@@ -54,3 +54,13 @@ export type CreateCustomerOrderPayload = {
   paymentMethod: CustomerOrderPaymentMethod
   cashTendered: number | null
 }
+
+export type CustomerOrderIssuePayload = {
+  category: string
+  description: string
+}
+
+export type CustomerOrderReviewPayload = {
+  rating: number
+  comment: string
+}

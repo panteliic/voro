@@ -21,6 +21,11 @@ type RestaurantRow = {
   latitude: string | null
   longitude: string | null
   is_active: boolean
+  delivery_radius_km: string
+  opening_hours: Record<string, unknown>
+  is_accepting_orders: boolean
+  rating: string
+  review_count: string
   created_at: Date
   updated_at: Date
 }
@@ -89,6 +94,11 @@ function toRestaurant(row: RestaurantRow) {
     latitude: row.latitude === null ? null : Number(row.latitude),
     longitude: row.longitude === null ? null : Number(row.longitude),
     isActive: row.is_active,
+    deliveryRadiusKm: Number(row.delivery_radius_km || 8),
+    openingHours: row.opening_hours || {},
+    isAcceptingOrders: row.is_accepting_orders,
+    rating: Number(row.rating || 0),
+    reviewCount: Number(row.review_count || 0),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -210,6 +220,8 @@ async function replaceRestaurantCategories(
 
 const restaurantSelect = `
   SELECT r.*, rc.name AS category_name,
+    MAX(review_summary.rating) AS rating,
+    MAX(review_summary.review_count) AS review_count,
     COALESCE(
       JSON_AGG(
         JSON_BUILD_OBJECT(
@@ -227,6 +239,11 @@ const restaurantSelect = `
   LEFT JOIN restaurant_category rc ON rc.id = r.category_id
   LEFT JOIN restaurant_category_map rcm ON rcm.restaurant_id = r.id
   LEFT JOIN restaurant_category mapped_category ON mapped_category.id = rcm.category_id
+  LEFT JOIN LATERAL (
+    SELECT AVG(order_review.rating)::TEXT AS rating, COUNT(*)::TEXT AS review_count
+    FROM order_review
+    WHERE order_review.restaurant_id = r.id
+  ) review_summary ON TRUE
 `
 
 export async function createRestaurantWithAccount(payload: CreateRestaurantPayload & {

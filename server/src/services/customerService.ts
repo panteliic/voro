@@ -3,6 +3,7 @@ import * as restaurantRepository from "../repositories/restaurantRepository";
 import * as geocodingService from "./geocodingService";
 import * as redisService from "./redisService";
 import * as routingService from "./routingService";
+import * as operationsRepository from "../repositories/operationsRepository";
 import type {
   CreateCustomerOrderPayload,
   CustomerAddressPayload,
@@ -20,6 +21,7 @@ const handoffOptions = new Set([
 ]);
 const deliveryWindowOptions = new Set(["asap", "lunch", "evening"]);
 const deliveryFee = 250;
+const issueCategories = new Set(['late_delivery', 'missing_item', 'wrong_item', 'quality', 'courier', 'other'])
 
 export async function searchAddressSuggestions(query: string) {
   return { suggestions: await geocodingService.searchAddressSuggestions(query) };
@@ -53,6 +55,44 @@ function positiveInteger(value: unknown) {
 
 function booleanValue(value: unknown, fallback: boolean) {
   return typeof value === "boolean" ? value : fallback;
+}
+
+function haversineKilometers(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const earthRadiusKm = 6_371
+  const latitudeDelta = ((lat2 - lat1) * Math.PI) / 180
+  const longitudeDelta = ((lon2 - lon1) * Math.PI) / 180
+  const a =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(longitudeDelta / 2) ** 2
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function restaurantOpenNow(openingHours: Record<string, unknown>) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Belgrade',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date())
+  const weekday = (parts.find((part) => part.type === 'weekday')?.value || '').toLowerCase().slice(0, 3)
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value || 0)
+  const minute = Number(parts.find((part) => part.type === 'minute')?.value || 0)
+  const today = openingHours[weekday]
+
+  if (!today || typeof today !== 'object') return true
+  const schedule = today as { enabled?: unknown; open?: unknown; close?: unknown }
+  if (schedule.enabled === false) return false
+  const timeToMinutes = (value: unknown) => {
+    const [hours, minutes] = String(value || '').split(':').map(Number)
+    return Number.isInteger(hours) && Number.isInteger(minutes) ? hours * 60 + minutes : null
+  }
+  const open = timeToMinutes(schedule.open)
+  const close = timeToMinutes(schedule.close)
+  if (open === null || close === null) return true
+  const now = hour * 60 + minute
+  return open <= close ? now >= open && now <= close : now >= open || now <= close
 }
 
 function cardDigits(value: unknown) {
@@ -300,17 +340,26 @@ export async function getCustomerProfile(userId: number) {
   };
 }
 
-export async function getRestaurantDiscovery(categorySlug = "") {
+export async function getRestaurantDiscovery(categorySlug = "", userId?: number) {
   const normalizedCategory = categorySlug.trim();
-  const cacheKey = `catalog:discovery:${encodeURIComponent(normalizedCategory.toLocaleLowerCase() || "all")}`;
+  const cacheKey = `catalog:discovery:v2:${encodeURIComponent(normalizedCategory.toLocaleLowerCase() || "all")}:${userId || 'anon'}`;
 
   return redisService.getOrSetCachedJson(cacheKey, 60, async () => {
-    const [categories, restaurants] = await Promise.all([
+    const [categories, restaurants, favoriteIds] = await Promise.all([
       restaurantRepository.listRestaurantCategories(),
       restaurantRepository.listDiscoverableRestaurants(normalizedCategory),
+      userId ? operationsRepository.listFavoriteRestaurantIds(userId) : Promise.resolve([]),
     ]);
 
-    return { categories, restaurants };
+    const favorites = new Set(favoriteIds)
+    return {
+      categories,
+      restaurants: restaurants.map((restaurant) => ({
+        ...restaurant,
+        isFavorite: favorites.has(restaurant.id),
+        isOpen: restaurant.isAcceptingOrders && restaurantOpenNow(restaurant.openingHours),
+      })),
+    };
   });
 }
 
@@ -327,7 +376,14 @@ export async function getRestaurantMenu(restaurantId: number) {
       customerRepository.listAvailableProducts(restaurant.id),
     ]);
 
-    return { restaurant, categories, products };
+    return {
+      restaurant: {
+        ...restaurant,
+        isOpen: restaurant.isAcceptingOrders && restaurantOpenNow(restaurant.openingHours),
+      },
+      categories,
+      products,
+    };
   });
 }
 
@@ -339,6 +395,10 @@ export async function createOrder(userId: number, payload: Record<string, unknow
     throw new HttpError(404, "Restaurant not found.");
   }
 
+  if (!restaurant.isAcceptingOrders || !restaurantOpenNow(restaurant.openingHours)) {
+    throw new HttpError(409, 'This restaurant is not accepting orders right now.')
+  }
+
   const addresses = await customerRepository.listAddresses(userId);
   const address = normalized.addressId
     ? addresses.find((item) => item.id === normalized.addressId)
@@ -346,6 +406,26 @@ export async function createOrder(userId: number, payload: Record<string, unknow
 
   if (!address) {
     throw new HttpError(400, "Add a delivery address before placing an order.");
+  }
+
+  if (
+    restaurant.latitude !== null &&
+    restaurant.longitude !== null &&
+    address.latitude !== null &&
+    address.longitude !== null
+  ) {
+    const distanceKm = haversineKilometers(
+      restaurant.latitude,
+      restaurant.longitude,
+      address.latitude,
+      address.longitude,
+    )
+    if (distanceKm > restaurant.deliveryRadiusKm) {
+      throw new HttpError(
+        400,
+        `This address is outside ${restaurant.name}'s ${restaurant.deliveryRadiusKm} km delivery zone.`,
+      )
+    }
   }
 
   const order = await customerRepository.createCustomerOrder(
@@ -357,6 +437,13 @@ export async function createOrder(userId: number, payload: Record<string, unknow
   if (!order) {
     throw new HttpError(400, "One or more selected menu items are unavailable.");
   }
+
+  await operationsRepository.createRestaurantNotification(restaurant.id, {
+    type: 'order_created',
+    title: `New order #${order.id}`,
+    body: 'A new customer order is ready for your review.',
+    data: { orderId: order.id },
+  })
 
   return { order };
 }
@@ -482,6 +569,110 @@ export async function getOrderTracking(userId: number, orderId: number) {
       : null,
     deliveryStatus: locations.deliveryStatus || null,
   }
+}
+
+export async function listFavorites(userId: number) {
+  return { restaurantIds: await operationsRepository.listFavoriteRestaurantIds(userId) }
+}
+
+export async function setFavorite(userId: number, restaurantId: number, isFavorite: boolean) {
+  if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
+    throw new HttpError(400, 'Restaurant not found.')
+  }
+  const restaurant = await restaurantRepository.findRestaurantById(restaurantId)
+  if (!restaurant || !restaurant.isActive) throw new HttpError(404, 'Restaurant not found.')
+  return { favorite: await operationsRepository.setFavorite(userId, restaurantId, isFavorite) }
+}
+
+export async function cancelOrder(userId: number, orderId: number, reason: unknown) {
+  if (!Number.isInteger(orderId) || orderId <= 0) throw new HttpError(400, 'Order not found.')
+  const owner = await operationsRepository.getOrderOwner(orderId)
+  if (!owner || Number(owner.user_id) !== userId) throw new HttpError(404, 'Order not found.')
+  const cancelled = await operationsRepository.cancelCustomerOrder(userId, orderId, trim(String(reason || '')).slice(0, 500))
+  if (!cancelled) throw new HttpError(409, 'Only a pending order can be cancelled.')
+
+  await operationsRepository.createRestaurantNotification(Number(owner.restaurant_id), {
+    type: 'order_cancelled',
+    title: `Order #${orderId} was cancelled`,
+    body: 'The customer cancelled this pending order.',
+    data: { orderId },
+  })
+  return { cancelled: true }
+}
+
+export async function createOrderIssue(userId: number, orderId: number, payload: Record<string, unknown>) {
+  if (!Number.isInteger(orderId) || orderId <= 0) throw new HttpError(400, 'Order not found.')
+  const category = trim(String(payload.category || ''))
+  const description = trim(String(payload.description || '')).slice(0, 2_000)
+  if (!issueCategories.has(category) || description.length < 5) {
+    throw new HttpError(400, 'Choose an issue category and describe the problem.')
+  }
+  const issue = await operationsRepository.createIssue(userId, orderId, { category, description })
+  if (!issue) throw new HttpError(404, 'Order not found.')
+  return { issue }
+}
+
+export async function createOrderReview(userId: number, orderId: number, payload: Record<string, unknown>) {
+  if (!Number.isInteger(orderId) || orderId <= 0) throw new HttpError(400, 'Order not found.')
+  const rating = Number(payload.rating)
+  const comment = trim(String(payload.comment || '')).slice(0, 1_000)
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    throw new HttpError(400, 'Choose a rating from 1 to 5.')
+  }
+  const review = await operationsRepository.createReview(userId, orderId, { rating, comment })
+  if (!review) throw new HttpError(409, 'Only delivered orders can be reviewed.')
+  return { review }
+}
+
+export async function reorderOrder(userId: number, orderId: number, payload: Record<string, unknown>) {
+  const source = await customerRepository.getCustomerOrderForReorder(userId, orderId)
+  if (!source || source.items.length === 0) throw new HttpError(404, 'This order cannot be reordered.')
+  return createOrder(userId, {
+    restaurantId: source.restaurantId,
+    addressId: payload.addressId ?? null,
+    note: '',
+    items: source.items,
+    paymentMethod: payload.paymentMethod || 'card',
+    cashTendered: payload.cashTendered ?? null,
+  })
+}
+
+export async function getOrderMessages(userId: number, orderId: number) {
+  if (!Number.isInteger(orderId) || orderId <= 0) throw new HttpError(400, 'Order not found.')
+  const messages = await operationsRepository.listOrderMessages(orderId, userId, 'customer')
+  if (!messages) throw new HttpError(404, 'Order conversation not found.')
+  return { messages }
+}
+
+export async function sendOrderMessage(userId: number, orderId: number, bodyValue: unknown) {
+  if (!Number.isInteger(orderId) || orderId <= 0) throw new HttpError(400, 'Order not found.')
+  const body = trim(String(bodyValue || '')).slice(0, 1_000)
+  if (!body) throw new HttpError(400, 'Message cannot be empty.')
+  const message = await operationsRepository.createOrderMessage(orderId, userId, 'customer', body)
+  if (!message) throw new HttpError(409, 'Messaging is available after a courier is assigned.')
+  const owner = await operationsRepository.getOrderOwner(orderId)
+  if (owner?.courier_user_id) {
+    await operationsRepository.createUserNotification(Number(owner.courier_user_id), {
+      type: 'new_message',
+      title: `New message for order #${orderId}`,
+      body,
+      data: { orderId },
+    })
+  }
+  return { message }
+}
+
+export async function getNotifications(userId: number) {
+  const notifications = await operationsRepository.listUserNotifications(userId)
+  return { notifications, unreadCount: notifications.filter((notification) => !notification.readAt).length }
+}
+
+export async function readNotification(userId: number, notificationId: number) {
+  if (!Number.isInteger(notificationId) || notificationId <= 0) throw new HttpError(400, 'Notification not found.')
+  if (!(await operationsRepository.markUserNotificationRead(userId, notificationId))) {
+    throw new HttpError(404, 'Notification not found.')
+  }
+  return { read: true }
 }
 
 export async function updateProfile(
