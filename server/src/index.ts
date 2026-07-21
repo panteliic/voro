@@ -13,10 +13,13 @@ import { adminRoutes } from './api/routes/adminRoutes'
 import { restaurantRoutes } from './api/routes/restaurantRoutes'
 import { restaurantAuthRoutes } from './api/routes/restaurantAuthRoutes'
 import { driverRoutes } from './api/routes/driverRoutes'
+import { requestSecurity } from './api/middleware/requestSecurity'
 import { connectRedis, disconnectRedis } from './services/redisService'
+import { initializeRealtime } from './services/realtimeService'
 
 const app = express()
 const server = http.createServer(app)
+initializeRealtime(server)
 let dispatchWorker: ChildProcess | null = null
 
 function startDispatchWorker() {
@@ -66,9 +69,17 @@ function allowOrigin(origin: string | undefined, callback: (error: Error | null,
   callback(new Error(`CORS origin is not allowed: ${origin}`))
 }
 
-app.use(helmet())
+app.disable('x-powered-by')
+if (env.isProduction) app.set('trust proxy', 1)
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  hsts: env.isProduction ? { maxAge: 15552000, includeSubDomains: true, preload: true } : false,
+  referrerPolicy: { policy: 'no-referrer' },
+}))
 app.use(cors({ origin: allowOrigin }))
-app.use(express.json())
+app.use(express.json({ limit: '100kb', strict: true }))
+app.use(requestSecurity)
 app.use(morgan('dev'))
 
 app.use('/', systemRoutes)

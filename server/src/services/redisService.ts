@@ -3,6 +3,7 @@ import { env } from '../config/env'
 import type { DriverProfile } from '../types/driver'
 
 const cachePrefix = 'voro:cache:'
+const rateLimitPrefix = 'voro:rate-limit:'
 const dispatchQueueKey = 'voro:dispatch:queue'
 const driverGeoKey = 'voro:drivers:geo'
 const driverPresenceTtlSeconds = 50
@@ -92,6 +93,19 @@ export async function deleteCachedByPrefix(prefix: string) {
   }
 
   if (keys.length > 0) await nextClient.del(keys)
+}
+
+export async function consumeRateLimit(key: string, limit: number, windowSeconds: number) {
+  const nextClient = await getClient()
+  const rateLimitKey = `${rateLimitPrefix}${key}`
+  const count = await nextClient.incr(rateLimitKey)
+
+  if (count === 1) {
+    await nextClient.expire(rateLimitKey, windowSeconds)
+  }
+
+  const ttlSeconds = Math.max(1, await nextClient.ttl(rateLimitKey))
+  return { count, limit, ttlSeconds }
 }
 
 export async function enqueueDispatch(orderId: number) {

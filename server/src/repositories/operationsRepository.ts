@@ -302,7 +302,7 @@ export async function createIssue(
   return result.rows[0] ? toIssue(result.rows[0]) : null
 }
 
-async function canAccessConversation(orderId: number, userId: number, role: 'customer' | 'courier') {
+export async function canAccessOrderConversation(orderId: number, userId: number, role: 'customer' | 'courier') {
   const result = await pool.query(
     role === 'customer'
       ? `SELECT 1 FROM "order" WHERE id = $1 AND user_id = $2`
@@ -318,7 +318,7 @@ async function canAccessConversation(orderId: number, userId: number, role: 'cus
 }
 
 export async function listOrderMessages(orderId: number, userId: number, role: 'customer' | 'courier') {
-  if (!(await canAccessConversation(orderId, userId, role))) return null
+  if (!(await canAccessOrderConversation(orderId, userId, role))) return null
 
   await pool.query(
     `
@@ -349,7 +349,7 @@ export async function createOrderMessage(
   role: 'customer' | 'courier',
   body: string,
 ) {
-  if (!(await canAccessConversation(orderId, userId, role))) return null
+  if (!(await canAccessOrderConversation(orderId, userId, role))) return null
 
   const result = await pool.query<MessageRow>(
     `
@@ -366,13 +366,15 @@ export async function createUserNotification(
   userId: number,
   payload: { type: string; title: string; body: string; data?: Record<string, unknown> },
 ) {
-  await pool.query(
+  const result = await pool.query<NotificationRow>(
     `
       INSERT INTO app_notification (recipient_user_id, type, title, body, data)
       VALUES ($1, $2, $3, $4, $5::JSONB)
+      RETURNING id, type, title, body, data, read_at, created_at
     `,
     [userId, payload.type, payload.title, payload.body, JSON.stringify(payload.data || {})],
   )
+  return result.rows[0] ? toNotification(result.rows[0]) : null
 }
 
 export async function createRestaurantNotification(

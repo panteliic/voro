@@ -23,14 +23,25 @@ const smtpEnabled = Boolean(
   !smtpUser.includes("your-email") &&
   !smtpPass.includes("your-app-password"),
 );
+const isProduction = process.env.NODE_ENV === "production";
+const jwtSecret = process.env.JWT_SECRET || (isProduction ? "" : "voro_secret_key");
+const paymentCardEncryptionKey = process.env.PAYMENT_CARD_ENCRYPTION_KEY || "";
+
+if (isProduction && (jwtSecret.length < 32 || jwtSecret === "voro_secret_key")) {
+  throw new Error("JWT_SECRET must be a unique value of at least 32 characters in production.");
+}
+
+if (isProduction && !paymentCardEncryptionKey) {
+  throw new Error("PAYMENT_CARD_ENCRYPTION_KEY is required in production.");
+}
 
 export const env = {
   port: Number(process.env.PORT || 3000),
   clientUrls,
   apiUrl: process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`,
-  isProduction: process.env.NODE_ENV === "production",
-  jwtSecret: process.env.JWT_SECRET || "voro_secret_key",
-  paymentCardEncryptionKey: process.env.PAYMENT_CARD_ENCRYPTION_KEY || "",
+  isProduction,
+  jwtSecret,
+  paymentCardEncryptionKey,
   accessTokenTtl: process.env.ACCESS_TOKEN_TTL || "15m",
   refreshTokenTtlMs: Number(process.env.REFRESH_TOKEN_TTL_DAYS || 30) * 24 * 60 * 60 * 1000,
   redisUrl: process.env.REDIS_URL || `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`,
@@ -60,5 +71,10 @@ export const env = {
       `${process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`}/auth/auth0/callback`,
     clientRedirectUrl:
       process.env.AUTH0_CLIENT_REDIRECT_URL || `${clientUrls[0] || "http://localhost:5173"}/auth/callback`,
+  },
+  webPush: {
+    subject: process.env.VAPID_SUBJECT || "",
+    publicKey: process.env.VAPID_PUBLIC_KEY || "",
+    privateKey: process.env.VAPID_PRIVATE_KEY || "",
   },
 };

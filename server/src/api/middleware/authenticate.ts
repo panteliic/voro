@@ -38,7 +38,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
       throw new HttpError(401, 'Authentication is required.')
     }
 
-    const decoded = jwt.verify(token, env.jwtSecret) as AccessTokenClaims
+    const decoded = jwt.verify(token, env.jwtSecret, { algorithms: ['HS256'] }) as AccessTokenClaims
 
     if (decoded.type !== 'access' || !decoded.userId || !decoded.email) {
       throw new HttpError(401, 'Invalid access token.')
@@ -90,7 +90,7 @@ export function authenticateRestaurant(req: Request, res: Response, next: NextFu
       throw new HttpError(401, 'Restaurant authentication is required.')
     }
 
-    const decoded = jwt.verify(token, env.jwtSecret) as RestaurantAccessClaims
+    const decoded = jwt.verify(token, env.jwtSecret, { algorithms: ['HS256'] }) as RestaurantAccessClaims
 
     if (
       decoded.type !== 'access' ||

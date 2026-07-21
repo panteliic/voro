@@ -6,6 +6,7 @@ import * as driverRepository from '../repositories/driverRepository'
 import * as geocodingService from './geocodingService'
 import * as redisService from './redisService'
 import * as operationsRepository from '../repositories/operationsRepository'
+import { notifyUser } from './notificationService'
 import * as restaurantAuthRepository from '../repositories/restaurantAuthRepository'
 import * as restaurantRepository from '../repositories/restaurantRepository'
 import * as restaurantAuthService from './restaurantAuthService'
@@ -328,13 +329,13 @@ export async function reassignOrder(orderId: number, courierId: number) {
   }
 
   await Promise.all([
-    operationsRepository.createUserNotification(assignment.customerUserId, {
+    notifyUser(assignment.customerUserId, {
       type: 'courier_reassigned',
       title: `Courier updated for order #${orderId}`,
       body: `${assignment.courierName} is now assigned to your delivery.`,
       data: { orderId, courierId },
     }),
-    operationsRepository.createUserNotification(assignment.courierUserId, {
+    notifyUser(assignment.courierUserId, {
       type: 'manual_assignment',
       title: `New delivery assignment #${orderId}`,
       body: 'Operations assigned this delivery to you. Open the app to start the route.',
@@ -361,7 +362,7 @@ export async function updateIssue(
   const issue = await operationsRepository.resolveIssue(issueId, adminUserId, status, resolutionNote)
   if (!issue) throw new HttpError(404, 'Issue not found.')
 
-  await operationsRepository.createUserNotification(issue.reporterUserId, {
+  await notifyUser(issue.reporterUserId, {
     type: 'issue_update',
     title: `Support update for order #${issue.orderId}`,
     body: status === 'resolved'

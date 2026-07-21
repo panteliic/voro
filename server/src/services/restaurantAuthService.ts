@@ -5,6 +5,7 @@ import { env } from '../config/env'
 import * as restaurantAuthRepository from '../repositories/restaurantAuthRepository'
 import { HttpError } from '../utils/httpError'
 import { generateOtp } from '../utils/otp'
+import { passwordValidationMessage } from '../utils/securityInput'
 
 type RestaurantAccessClaims = {
   restaurantUserId: number
@@ -83,7 +84,7 @@ async function issueTokenPair(user: NonNullable<Awaited<ReturnType<typeof restau
 
 function verifyRefreshToken(refreshToken: string) {
   try {
-    const decoded = jwt.verify(refreshToken, env.jwtSecret) as RestaurantRefreshClaims
+    const decoded = jwt.verify(refreshToken, env.jwtSecret, { algorithms: ['HS256'] }) as RestaurantRefreshClaims
 
     if (
       decoded.type !== 'refresh' ||
@@ -212,8 +213,9 @@ export async function setupPassword(payload: { email: string; setupCode: string;
     throw new HttpError(400, 'Email, setup code, and password are required.')
   }
 
-  if (payload.password.length < 8) {
-    throw new HttpError(400, 'Password must be at least 8 characters.')
+  const passwordError = passwordValidationMessage(payload.password)
+  if (passwordError) {
+    throw new HttpError(400, passwordError)
   }
 
   const result = await restaurantAuthRepository.findActiveSetupCode(payload.email)

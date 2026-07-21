@@ -15,6 +15,7 @@ import type {
 } from '../types/auth'
 import { HttpError } from '../utils/httpError'
 import { generateOtp } from '../utils/otp'
+import { passwordValidationMessage, sanitizePlainText } from '../utils/securityInput'
 import { sendOtpEmail, sendPasswordResetEmail } from './mailService'
 
 function devCode(code: string) {
@@ -131,7 +132,7 @@ async function issueTokenPair(user: { id: number; email: string; roleName: strin
 
 function verifyRefreshToken(refreshToken: string) {
   try {
-    const decoded = jwt.verify(refreshToken, env.jwtSecret) as RefreshTokenClaims
+    const decoded = jwt.verify(refreshToken, env.jwtSecret, { algorithms: ['HS256'] }) as RefreshTokenClaims
 
     if (decoded.type !== 'refresh' || !decoded.userId || !decoded.email) {
       throw new HttpError(401, 'Invalid refresh token.')
@@ -145,7 +146,7 @@ function verifyRefreshToken(refreshToken: string) {
 
 function verifyPasswordResetToken(resetToken: string) {
   try {
-    const decoded = jwt.verify(resetToken, env.jwtSecret) as PasswordResetTokenClaims
+    const decoded = jwt.verify(resetToken, env.jwtSecret, { algorithms: ['HS256'] }) as PasswordResetTokenClaims
 
     if (decoded.type !== 'password_reset' || !decoded.userId || !decoded.email) {
       throw new HttpError(401, 'Invalid password reset token.')
@@ -159,7 +160,7 @@ function verifyPasswordResetToken(resetToken: string) {
 
 function verifyAuth0State(state: string) {
   try {
-    const decoded = jwt.verify(state, env.jwtSecret) as Auth0StateClaims
+    const decoded = jwt.verify(state, env.jwtSecret, { algorithms: ['HS256'] }) as Auth0StateClaims
 
     if (decoded.type !== 'auth0_state' || !isAuth0Provider(decoded.provider) || !decoded.returnTo) {
       throw new HttpError(401, 'Invalid Auth0 state.')
@@ -200,18 +201,20 @@ async function issuePasswordResetCode(userId: number, email: string) {
 }
 
 export async function signup(payload: SignupPayload) {
-  const { name, email, password } = payload
+  const { email, password } = payload
+  const name = sanitizePlainText(payload.name, 120)
 
   if (!name || !email || !password) {
     throw new HttpError(400, 'Name, email, and password are required.')
   }
 
-  if (!email.includes('@')) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
     throw new HttpError(400, 'Enter a valid email address.')
   }
 
-  if (password.length < 8) {
-    throw new HttpError(400, 'Password must be at least 8 characters.')
+  const passwordError = passwordValidationMessage(password)
+  if (passwordError) {
+    throw new HttpError(400, passwordError)
   }
 
   const existingUser = await authRepository.findUserByEmail(email)
@@ -275,6 +278,8 @@ export async function verifyEmail(payload: VerifyEmailPayload) {
   const isCodeValid = await bcrypt.compare(code, verificationCode.codeHash)
 
   if (!isCodeValid) {
+    const attempts = await authRepository.recordVerificationCodeAttempt(verificationCode.id)
+    if (attempts >= 5) await authRepository.consumeVerificationCode(verificationCode.id)
     throw new HttpError(400, 'Invalid verification code.')
   }
 
@@ -525,6 +530,8 @@ export async function verifyPasswordResetCode(payload: VerifyPasswordResetCodePa
   const isCodeValid = await bcrypt.compare(code, resetCode.codeHash)
 
   if (!isCodeValid) {
+    const attempts = await authRepository.recordPasswordResetCodeAttempt(resetCode.id)
+    if (attempts >= 5) await authRepository.consumePasswordResetCode(resetCode.id)
     throw new HttpError(400, 'Invalid password reset code.')
   }
 
@@ -544,8 +551,9 @@ export async function resetPassword(payload: ResetPasswordPayload) {
     throw new HttpError(400, 'Reset token and new password are required.')
   }
 
-  if (password.length < 8) {
-    throw new HttpError(400, 'Password must be at least 8 characters.')
+  const passwordError = passwordValidationMessage(password)
+  if (passwordError) {
+    throw new HttpError(400, passwordError)
   }
 
   const decoded = verifyPasswordResetToken(resetToken)
@@ -569,8 +577,9 @@ export async function changePassword(payload: ChangePasswordPayload) {
     throw new HttpError(400, 'Current password and new password are required.')
   }
 
-  if (newPassword.length < 8) {
-    throw new HttpError(400, 'Password must be at least 8 characters.')
+  const passwordError = passwordValidationMessage(newPassword)
+  if (passwordError) {
+    throw new HttpError(400, passwordError)
   }
 
   if (currentPassword === newPassword) {

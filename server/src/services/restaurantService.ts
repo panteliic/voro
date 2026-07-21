@@ -7,6 +7,8 @@ import type {
   UpsertProductPayload,
 } from '../types/restaurant'
 import { HttpError } from '../utils/httpError'
+import { sanitizePlainText } from '../utils/securityInput'
+import { notifyUser } from './notificationService'
 
 type RestaurantOrderStatus =
   | 'pending'
@@ -28,6 +30,20 @@ const allowedNextStatuses: Record<RestaurantOrderStatus, RestaurantOrderStatus[]
 }
 
 const weekdays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+
+function normalizedProductPayload(payload: UpsertProductPayload): UpsertProductPayload {
+  const imageUrl = sanitizePlainText(payload.imageUrl, 2_000)
+  if (imageUrl && !/^https?:\/\//i.test(imageUrl)) {
+    throw new HttpError(400, 'Product image URL must use http or https.')
+  }
+
+  return {
+    ...payload,
+    name: sanitizePlainText(payload.name, 160),
+    description: sanitizePlainText(payload.description, 2_000),
+    imageUrl,
+  }
+}
 
 function validTime(value: unknown) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value || ''))
@@ -131,7 +147,7 @@ export async function updateOrderStatus(restaurantId: number, orderId: number, n
 
   const owner = await operationsRepository.getOrderOwner(orderId)
   if (owner) {
-    await operationsRepository.createUserNotification(Number(owner.user_id), {
+    await notifyUser(Number(owner.user_id), {
       type: 'order_status',
       title: `Order #${orderId}: ${nextStatus.replace('_', ' ')}`,
       body: nextStatus === 'cancelled'
@@ -173,12 +189,16 @@ export async function createCategory(
   restaurantId: number,
   payload: UpsertProductCategoryPayload,
 ) {
-  if (!payload.name) {
+  const normalizedPayload = {
+    name: sanitizePlainText(payload.name, 160),
+    description: sanitizePlainText(payload.description, 2_000),
+  }
+  if (!normalizedPayload.name) {
     throw new HttpError(400, 'Category name is required.')
   }
 
   const restaurant = await getRestaurantScope(restaurantId)
-  const category = await restaurantRepository.createProductCategory(restaurant.id, payload)
+  const category = await restaurantRepository.createProductCategory(restaurant.id, normalizedPayload)
   const categories = await restaurantRepository.listProductCategories(restaurant.id)
   await redisService.invalidateRestaurantCatalog(restaurant.id)
 
@@ -186,16 +206,17 @@ export async function createCategory(
 }
 
 export async function createProduct(restaurantId: number, payload: UpsertProductPayload) {
-  if (!payload.name) {
+  const normalizedPayload = normalizedProductPayload(payload)
+  if (!normalizedPayload.name) {
     throw new HttpError(400, 'Product name is required.')
   }
 
-  if (!Number.isFinite(payload.price) || payload.price < 0) {
+  if (!Number.isFinite(normalizedPayload.price) || normalizedPayload.price < 0) {
     throw new HttpError(400, 'Product price must be zero or greater.')
   }
 
   const restaurant = await getRestaurantScope(restaurantId)
-  const product = await restaurantRepository.createProduct(restaurant.id, payload)
+  const product = await restaurantRepository.createProduct(restaurant.id, normalizedPayload)
   const products = await restaurantRepository.listProducts(restaurant.id)
   await redisService.invalidateRestaurantCatalog(restaurant.id)
 
@@ -207,16 +228,17 @@ export async function updateProduct(
   productId: number,
   payload: UpsertProductPayload,
 ) {
-  if (!payload.name) {
+  const normalizedPayload = normalizedProductPayload(payload)
+  if (!normalizedPayload.name) {
     throw new HttpError(400, 'Product name is required.')
   }
 
-  if (!Number.isFinite(payload.price) || payload.price < 0) {
+  if (!Number.isFinite(normalizedPayload.price) || normalizedPayload.price < 0) {
     throw new HttpError(400, 'Product price must be zero or greater.')
   }
 
   const restaurant = await getRestaurantScope(restaurantId)
-  const product = await restaurantRepository.updateProduct(restaurant.id, productId, payload)
+  const product = await restaurantRepository.updateProduct(restaurant.id, productId, normalizedPayload)
 
   if (!product) {
     throw new HttpError(404, 'Product not found.')

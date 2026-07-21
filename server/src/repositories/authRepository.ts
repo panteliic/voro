@@ -155,9 +155,10 @@ export async function findActiveVerificationCode(email: string) {
     user_id: string;
     code_hash: string;
     expires_at: Date;
+    attempts: number;
   }>(
     `
-      SELECT evc.id, evc.user_id, evc.code_hash, evc.expires_at
+      SELECT evc.id, evc.user_id, evc.code_hash, evc.expires_at, evc.attempts
       FROM email_verification_codes evc
       INNER JOIN "user" u ON u.id = evc.user_id
       WHERE LOWER(u.email) = LOWER($1)
@@ -179,6 +180,7 @@ export async function findActiveVerificationCode(email: string) {
     userId: Number(row.user_id),
     codeHash: row.code_hash,
     expiresAt: row.expires_at,
+    attempts: row.attempts,
   };
 }
 
@@ -187,6 +189,19 @@ export async function consumeVerificationCode(codeId: number) {
     "UPDATE email_verification_codes SET consumed_at = NOW() WHERE id = $1",
     [codeId],
   );
+}
+
+export async function recordVerificationCodeAttempt(codeId: number) {
+  const result = await pool.query<{ attempts: number }>(
+    `
+      UPDATE email_verification_codes
+      SET attempts = attempts + 1, last_attempt_at = NOW()
+      WHERE id = $1 AND consumed_at IS NULL
+      RETURNING attempts
+    `,
+    [codeId],
+  )
+  return result.rows[0]?.attempts || 0
 }
 
 export async function verifyUserEmail(userId: number) {
@@ -247,9 +262,10 @@ export async function findActivePasswordResetCode(email: string) {
     user_id: string;
     code_hash: string;
     expires_at: Date;
+    attempts: number;
   }>(
     `
-      SELECT prc.id, prc.user_id, prc.code_hash, prc.expires_at
+      SELECT prc.id, prc.user_id, prc.code_hash, prc.expires_at, prc.attempts
       FROM password_reset_code prc
       INNER JOIN "user" u ON u.id = prc.user_id
       WHERE LOWER(u.email) = LOWER($1)
@@ -271,6 +287,7 @@ export async function findActivePasswordResetCode(email: string) {
     userId: Number(row.user_id),
     codeHash: row.code_hash,
     expiresAt: row.expires_at,
+    attempts: row.attempts,
   };
 }
 
@@ -279,6 +296,19 @@ export async function consumePasswordResetCode(codeId: number) {
     "UPDATE password_reset_code SET consumed_at = NOW() WHERE id = $1",
     [codeId],
   );
+}
+
+export async function recordPasswordResetCodeAttempt(codeId: number) {
+  const result = await pool.query<{ attempts: number }>(
+    `
+      UPDATE password_reset_code
+      SET attempts = attempts + 1, last_attempt_at = NOW()
+      WHERE id = $1 AND consumed_at IS NULL
+      RETURNING attempts
+    `,
+    [codeId],
+  )
+  return result.rows[0]?.attempts || 0
 }
 
 export async function saveRefreshToken(payload: {

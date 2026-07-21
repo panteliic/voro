@@ -4,6 +4,8 @@ import * as geocodingService from "./geocodingService";
 import * as redisService from "./redisService";
 import * as routingService from "./routingService";
 import * as operationsRepository from "../repositories/operationsRepository";
+import { publishOrderMessage } from './realtimeService'
+import { notifyUser } from './notificationService'
 import type {
   CreateCustomerOrderPayload,
   CustomerAddressPayload,
@@ -13,6 +15,7 @@ import type {
 } from "../types/customer";
 import { HttpError } from "../utils/httpError";
 import { encryptPaymentCardNumber } from "../utils/paymentCardCrypto";
+import { sanitizePlainText } from '../utils/securityInput'
 
 const handoffOptions = new Set([
   "leave_at_door",
@@ -36,7 +39,7 @@ const deliveryEstimateByStatus = {
 } as const;
 
 function trim(value: string) {
-  return value.trim();
+  return sanitizePlainText(value, 2_000)
 }
 
 function nullableNumber(value: unknown) {
@@ -646,13 +649,15 @@ export async function getOrderMessages(userId: number, orderId: number) {
 
 export async function sendOrderMessage(userId: number, orderId: number, bodyValue: unknown) {
   if (!Number.isInteger(orderId) || orderId <= 0) throw new HttpError(400, 'Order not found.')
-  const body = trim(String(bodyValue || '')).slice(0, 1_000)
+  const body = sanitizePlainText(bodyValue, 1_000)
   if (!body) throw new HttpError(400, 'Message cannot be empty.')
   const message = await operationsRepository.createOrderMessage(orderId, userId, 'customer', body)
   if (!message) throw new HttpError(409, 'Messaging is available after a courier is assigned.')
+  publishOrderMessage(message)
   const owner = await operationsRepository.getOrderOwner(orderId)
   if (owner?.courier_user_id) {
-    await operationsRepository.createUserNotification(Number(owner.courier_user_id), {
+    const courierUserId = Number(owner.courier_user_id)
+    await notifyUser(courierUserId, {
       type: 'new_message',
       title: `New message for order #${orderId}`,
       body,
