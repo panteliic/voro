@@ -11,6 +11,7 @@ import { OrdersPanel } from '../components/dashboard/OrdersPanel'
 import { RestaurantDiscoveryPanel } from '../components/dashboard/RestaurantDiscoveryPanel'
 import { RestaurantMenuPanel } from '../components/dashboard/RestaurantMenuPanel'
 import { CheckoutPanel } from '../components/dashboard/CheckoutPanel'
+import { NotificationsPanel } from '../components/dashboard/NotificationsPanel'
 import { SettingsPanel } from '../components/dashboard/settings/SettingsPanel'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import { logout, logoutUser } from '../features/auth/authSlice'
@@ -105,6 +106,7 @@ function Home() {
           {activeView === 'orders' ? (
             <OrdersPanel />
           ) : null}
+          {activeView === 'notifications' ? <NotificationsPanel /> : null}
           {activeView === 'restaurant' ? <RestaurantMenuPanel /> : null}
           {activeView === 'checkout' ? <CheckoutPanel profile={profile} /> : null}
           {activeView === 'settings' ? (
@@ -118,7 +120,7 @@ function Home() {
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-[1000] border-t border-line bg-card px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-12px_24px_rgba(0,0,0,0.08)] lg:hidden">
-        <div className="grid grid-cols-4 gap-1">
+        <div className="grid grid-cols-5 gap-1">
           {[...dashboardNavItems, { icon: Settings, id: 'settings' as const, path: '/settings' }].map(({ icon: Icon, id, path }) => {
             const isActive = activeView === id
             const label = t(`nav.${id}`)

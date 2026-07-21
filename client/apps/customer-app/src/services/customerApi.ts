@@ -6,6 +6,8 @@ import type {
   CustomerOrderTracking,
   CustomerOrderItemPayload,
   CustomerOrderPaymentMethod,
+  CustomerNotification,
+  CustomerOrderMessage,
   CustomerPaymentMethodPayload,
   CustomerPreferences,
   CustomerProfile,
@@ -154,6 +156,52 @@ export const customerApi = {
 
   getOrderTracking(orderId: number) {
     return request<CustomerOrderTracking>(`/customer/orders/${orderId}/tracking`, { cache: 'no-store' })
+  },
+
+  getFavorites() {
+    return request<{ restaurantIds: number[] }>('/customer/favorites')
+  },
+
+  setFavorite(restaurantId: number, isFavorite: boolean) {
+    return request<{ favorite: { restaurantId: number; isFavorite: boolean } }>(
+      `/customer/favorites/${restaurantId}`,
+      {
+        method: isFavorite ? 'PUT' : 'DELETE',
+        ...(isFavorite ? { body: JSON.stringify({ isFavorite: true }) } : {}),
+      },
+    )
+  },
+
+  cancelOrder(orderId: number, reason = '') {
+    return jsonRequest<{ cancelled: true }>(`/customer/orders/${orderId}/cancel`, 'POST', { reason })
+  },
+
+  createOrderIssue(orderId: number, payload: { category: string; description: string }) {
+    return jsonRequest(`/customer/orders/${orderId}/issues`, 'POST', payload)
+  },
+
+  createOrderReview(orderId: number, payload: { rating: number; comment: string }) {
+    return jsonRequest(`/customer/orders/${orderId}/review`, 'POST', payload)
+  },
+
+  reorderOrder(orderId: number, payload: { addressId?: number | null; paymentMethod?: CustomerOrderPaymentMethod; cashTendered?: number | null } = {}) {
+    return jsonRequest<{ order: CreatedCustomerOrder }>(`/customer/orders/${orderId}/reorder`, 'POST', payload)
+  },
+
+  getOrderMessages(orderId: number) {
+    return request<{ messages: CustomerOrderMessage[] }>(`/customer/orders/${orderId}/messages`, { cache: 'no-store' })
+  },
+
+  sendOrderMessage(orderId: number, body: string) {
+    return jsonRequest<{ message: CustomerOrderMessage }>(`/customer/orders/${orderId}/messages`, 'POST', { body })
+  },
+
+  getNotifications() {
+    return request<{ notifications: CustomerNotification[]; unreadCount: number }>('/customer/notifications', { cache: 'no-store' })
+  },
+
+  readNotification(notificationId: number) {
+    return request<{ read: true }>(`/customer/notifications/${notificationId}/read`, { method: 'PATCH', body: '{}' })
   },
 
   updateProfile(payload: Pick<CustomerUserProfile, 'name' | 'phone'>) {

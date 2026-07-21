@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, MapPin, Search, Sparkles, X } from 'lucide-react'
+import { ArrowRight, MapPin, Search, Sparkles, Star, X } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { Button, Input } from '@voro/ui'
 import { useI18n } from '../../i18n/i18n'
@@ -279,9 +279,9 @@ export function RestaurantDiscoveryPanel({
                   ) : (
                     <span className="text-6xl drop-shadow-sm transition duration-300 group-hover:scale-110">{presentation.emoji}</span>
                   )}
-                  <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-card/90 px-2 py-1 text-[0.65rem] font-bold text-emerald-600 shadow-voro-sm dark:text-emerald-400">
-                    <span className="size-1.5 rounded-full bg-emerald-500" />
-                    {t('restaurants.available')}
+                  <span className={`absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-card/90 px-2 py-1 text-[0.65rem] font-bold shadow-voro-sm ${restaurant.isOpen ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-300'}`}>
+                    <span className={`size-1.5 rounded-full ${restaurant.isOpen ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                    {restaurant.isOpen ? t('restaurants.available') : 'Closed'}
                   </span>
                 </div>
                 <div className="p-4">
@@ -302,6 +302,8 @@ export function RestaurantDiscoveryPanel({
                     </div>
                     <ArrowRight className="size-4 shrink-0 text-action transition-transform group-hover:translate-x-1" />
                   </div>
+                  {restaurant.reviewCount ? <p className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-muted-foreground"><Star className="size-3.5 fill-amber-400 text-amber-400" />{restaurant.rating?.toFixed(1)} · {restaurant.reviewCount} review{restaurant.reviewCount === 1 ? '' : 's'}</p> : null}
+                  {restaurant.isFavorite ? <p className="mt-3 text-xs font-bold text-action">Saved to favorites</p> : null}
                 </div>
               </NavLink>
             )

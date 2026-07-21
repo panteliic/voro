@@ -15,6 +15,7 @@ export const dashboardNavItems: DashboardNavItem[] = [
   { id: 'overview', label: 'Home', path: '/', icon: HomeIcon },
   { id: 'search', label: 'Search', path: '/search', icon: Search },
   { id: 'orders', label: 'Orders', path: '/orders', icon: ReceiptText },
+  { id: 'notifications', label: 'Notifications', path: '/notifications', icon: Bell },
 ]
 
 export const settingsNavItems: SettingsNavItem[] = [

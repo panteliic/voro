@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bike, Clock3 } from 'lucide-react'
+import { Bike, Clock3, MessageCircle } from 'lucide-react'
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
 import * as L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useI18n } from '../../i18n/i18n'
 import { customerApi } from '../../services/customerApi'
 import type { CustomerOrderRoute } from '../../types/customer'
+import { OrderChatModal } from './OrderChatModal'
 
 const restaurantIcon = L.divIcon({
   className: 'voro-route-pin',
@@ -97,14 +98,19 @@ export function OrderRouteMap({
   orderId,
   estimatedDeliveryRange,
   fillAvailableHeight = false,
+  allowCancel = false,
+  onCancel,
 }: {
   orderId: number
   estimatedDeliveryRange: { min: number; max: number } | null
   fillAvailableHeight?: boolean
+  allowCancel?: boolean
+  onCancel?: () => void
 }) {
   const { t } = useI18n()
   const [routeData, setRouteData] = useState<CustomerOrderRoute | null>(null)
   const [error, setError] = useState('')
+  const [isChatOpen, setIsChatOpen] = useState(false)
 
   useEffect(() => {
     let isMounted = true
@@ -228,6 +234,10 @@ export function OrderRouteMap({
           <strong className="truncate text-content">{courierLabel}</strong>
           {courierStatus ? <span className="truncate text-xs text-muted-foreground">· {courierStatus}</span> : null}
         </div>
+        <div className="flex flex-wrap gap-2">
+          {routeData.courier ? <button className="inline-flex w-fit items-center gap-2 rounded-voro-md border border-line px-2.5 py-1.5 text-xs font-bold text-action transition hover:bg-accent" onClick={() => setIsChatOpen(true)} type="button"><MessageCircle className="size-3.5" />Message courier</button> : null}
+          {allowCancel ? <button className="inline-flex w-fit items-center gap-2 rounded-voro-md border border-destructive/30 px-2.5 py-1.5 text-xs font-bold text-destructive transition hover:bg-destructive/10" onClick={onCancel} type="button">Cancel order</button> : null}
+        </div>
       </div>
 
       <MapContainer center={courierPosition || endpoints[0]} className="min-h-0 flex-1 w-full" scrollWheelZoom={false} zoom={13}>
@@ -238,6 +248,7 @@ export function OrderRouteMap({
         {courierPosition ? <AnimatedCourierMarker courierLabel={t('map.courierPin')} courierName={routeData.courier?.name || t('map.courier')} targetPosition={courierPosition} /> : null}
         <MapViewport points={mapPoints} />
       </MapContainer>
+      {isChatOpen ? <OrderChatModal onClose={() => setIsChatOpen(false)} orderId={orderId} /> : null}
     </section>
   )
 }

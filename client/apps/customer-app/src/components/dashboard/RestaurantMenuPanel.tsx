@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Minus, Plus, ReceiptText, ShoppingBasket, Store } from 'lucide-react'
+import { ArrowLeft, Heart, Minus, Plus, ReceiptText, ShoppingBasket, Store } from 'lucide-react'
 import { Button } from '@voro/ui'
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import { useI18n } from '../../i18n/i18n'
@@ -39,6 +39,8 @@ export function RestaurantMenuPanel() {
   const [cart, setCart] = useState<Record<number, number>>({})
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
+  const [isFavorite, setIsFavorite] = useState(false)
+  const [isSavingFavorite, setIsSavingFavorite] = useState(false)
 
   useEffect(() => {
     if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
@@ -47,11 +49,11 @@ export function RestaurantMenuPanel() {
 
     let isMounted = true
 
-    customerApi
-      .getRestaurantMenu(restaurantId)
-      .then((result) => {
+    Promise.all([customerApi.getRestaurantMenu(restaurantId), customerApi.getFavorites()])
+      .then(([result, favorites]) => {
         if (isMounted) {
           setMenu(result)
+          setIsFavorite(favorites.restaurantIds.includes(restaurantId))
           setError('')
         }
       })
@@ -102,6 +104,11 @@ export function RestaurantMenuPanel() {
   function continueToCheckout() {
     if (!menu || cartItems.length === 0) return
 
+    if (!menu.restaurant.isOpen) {
+      setError('This restaurant is not accepting orders right now.')
+      return
+    }
+
     const checkoutDraft = {
       restaurantId: menu.restaurant.id,
       restaurantName: menu.restaurant.name,
@@ -116,6 +123,20 @@ export function RestaurantMenuPanel() {
 
     saveCheckoutDraft(checkoutDraft)
     navigate('/checkout', { state: { checkoutDraft } })
+  }
+
+  async function toggleFavorite() {
+    if (!menu || isSavingFavorite) return
+    setIsSavingFavorite(true)
+    try {
+      const nextFavorite = !isFavorite
+      await customerApi.setFavorite(menu.restaurant.id, nextFavorite)
+      setIsFavorite(nextFavorite)
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Could not update favorites.')
+    } finally {
+      setIsSavingFavorite(false)
+    }
   }
 
   if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
@@ -177,7 +198,13 @@ export function RestaurantMenuPanel() {
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
               {menu.restaurant.description || t('restaurants.noDescription')}
             </p>
+            <p className={`mt-3 text-xs font-bold ${menu.restaurant.isOpen ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-300'}`}>
+              {menu.restaurant.isOpen ? 'Open for orders' : 'Currently closed'}
+            </p>
           </div>
+          <Button aria-label="Toggle favorite" disabled={isSavingFavorite} onClick={toggleFavorite} size="icon" type="button" variant="outline">
+            <Heart className={`size-4 ${isFavorite ? 'fill-action text-action' : ''}`} />
+          </Button>
         </div>
       </header>
 

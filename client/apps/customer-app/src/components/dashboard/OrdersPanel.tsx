@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ClipboardList, Clock3, PackageCheck, Search } from 'lucide-react'
+import { ClipboardList, Clock3, MessageSquareWarning, PackageCheck, RotateCcw, Search, Star } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useI18n } from '../../i18n/i18n'
 import { customerApi } from '../../services/customerApi'
@@ -24,7 +24,7 @@ const statusClassName: Record<CustomerOrderStatus, string> = {
   cancelled: 'bg-destructive/10 text-destructive',
 }
 
-function HistoryOrderCard({ order }: { order: CustomerOrder }) {
+function HistoryOrderCard({ order, onRefresh }: { order: CustomerOrder; onRefresh: () => void }) {
   const { language, t } = useI18n()
   const money = useMemo(
     () => new Intl.NumberFormat(language === 'sr' ? 'sr-RS' : 'en-US', { maximumFractionDigits: 0 }),
@@ -40,6 +40,47 @@ function HistoryOrderCard({ order }: { order: CustomerOrder }) {
       }),
     [language],
   )
+  const [mode, setMode] = useState<'review' | 'issue' | null>(null)
+  const [rating, setRating] = useState(5)
+  const [comment, setComment] = useState('')
+  const [issueCategory, setIssueCategory] = useState('late_delivery')
+  const [issueDescription, setIssueDescription] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [feedback, setFeedback] = useState('')
+
+  async function reorder() {
+    setIsSaving(true)
+    try {
+      await customerApi.reorderOrder(order.id)
+      setFeedback('Order placed again.')
+      onRefresh()
+    } catch (requestError) {
+      setFeedback(requestError instanceof Error ? requestError.message : 'Could not reorder.')
+    } finally { setIsSaving(false) }
+  }
+
+  async function submitReview() {
+    setIsSaving(true)
+    try {
+      await customerApi.createOrderReview(order.id, { rating, comment })
+      setFeedback('Thanks for your review.')
+      setMode(null)
+    } catch (requestError) {
+      setFeedback(requestError instanceof Error ? requestError.message : 'Review could not be sent.')
+    } finally { setIsSaving(false) }
+  }
+
+  async function submitIssue() {
+    setIsSaving(true)
+    try {
+      await customerApi.createOrderIssue(order.id, { category: issueCategory, description: issueDescription })
+      setFeedback('Your report was sent to Voro support.')
+      setMode(null)
+      setIssueDescription('')
+    } catch (requestError) {
+      setFeedback(requestError instanceof Error ? requestError.message : 'Report could not be sent.')
+    } finally { setIsSaving(false) }
+  }
 
   return (
     <article className="rounded-voro-xl border border-line bg-card p-4 sm:p-5">
@@ -67,6 +108,14 @@ function HistoryOrderCard({ order }: { order: CustomerOrder }) {
       <p className="mt-4 flex items-center gap-2 border-t border-line pt-4 text-sm text-muted-foreground">
         <Clock3 className="size-4" />{t('orders.placedAt', { time: dateTime.format(new Date(order.createdAt)) })}
       </p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button className="inline-flex items-center gap-1.5 rounded-voro-md border border-line px-3 py-2 text-xs font-bold text-action hover:bg-accent" disabled={isSaving} onClick={() => void reorder()} type="button"><RotateCcw className="size-3.5" />Reorder</button>
+        {order.status === 'delivered' ? <button className="inline-flex items-center gap-1.5 rounded-voro-md border border-line px-3 py-2 text-xs font-bold hover:bg-muted" onClick={() => setMode(mode === 'review' ? null : 'review')} type="button"><Star className="size-3.5" />Rate</button> : null}
+        <button className="inline-flex items-center gap-1.5 rounded-voro-md border border-line px-3 py-2 text-xs font-bold hover:bg-muted" onClick={() => setMode(mode === 'issue' ? null : 'issue')} type="button"><MessageSquareWarning className="size-3.5" />Report issue</button>
+      </div>
+      {mode === 'review' ? <form className="mt-3 rounded-voro-lg bg-muted p-3" onSubmit={(event) => { event.preventDefault(); void submitReview() }}><div className="flex gap-1">{[1, 2, 3, 4, 5].map((value) => <button aria-label={`${value} stars`} className={`rounded p-1 ${value <= rating ? 'text-action' : 'text-muted-foreground'}`} key={value} onClick={() => setRating(value)} type="button"><Star className="size-5 fill-current" /></button>)}</div><textarea className="mt-2 min-h-20 w-full rounded-voro-md border border-line bg-card p-2 text-sm" maxLength={1000} onChange={(event) => setComment(event.target.value)} placeholder="Share your experience (optional)" value={comment} /><button className="mt-2 rounded-voro-md bg-action px-3 py-2 text-xs font-bold text-action-text disabled:opacity-50" disabled={isSaving} type="submit">Send review</button></form> : null}
+      {mode === 'issue' ? <form className="mt-3 rounded-voro-lg bg-muted p-3" onSubmit={(event) => { event.preventDefault(); void submitIssue() }}><select className="w-full rounded-voro-md border border-line bg-card p-2 text-sm" onChange={(event) => setIssueCategory(event.target.value)} value={issueCategory}><option value="late_delivery">Late delivery</option><option value="missing_item">Missing item</option><option value="wrong_item">Wrong item</option><option value="quality">Food quality</option><option value="courier">Courier issue</option><option value="other">Other</option></select><textarea className="mt-2 min-h-20 w-full rounded-voro-md border border-line bg-card p-2 text-sm" maxLength={2000} minLength={5} onChange={(event) => setIssueDescription(event.target.value)} placeholder="Tell support what happened" required value={issueDescription} /><button className="mt-2 rounded-voro-md bg-action px-3 py-2 text-xs font-bold text-action-text disabled:opacity-50" disabled={isSaving} type="submit">Send report</button></form> : null}
+      {feedback ? <p className="mt-3 text-sm font-medium text-action">{feedback}</p> : null}
     </article>
   )
 }
@@ -77,6 +126,23 @@ export function OrdersPanel() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [tab, setTab] = useState<'active' | 'history'>('active')
+
+  async function refreshOrders() {
+    try {
+      const result = await customerApi.getOrders()
+      setOrders(result.orders)
+    } catch {}
+  }
+
+  async function cancelOrder(order: CustomerOrder) {
+    if (!window.confirm(`Cancel order #${order.id}? This is possible before the restaurant accepts it.`)) return
+    try {
+      await customerApi.cancelOrder(order.id)
+      await refreshOrders()
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Order could not be cancelled.')
+    }
+  }
 
   useEffect(() => {
     let isMounted = true
@@ -149,13 +215,15 @@ export function OrdersPanel() {
           {tab === 'active'
             ? activeOrders.map((order) => (
                 <OrderRouteMap
+                  allowCancel={order.status === 'pending'}
                   estimatedDeliveryRange={order.estimatedDeliveryRange}
                   fillAvailableHeight={isSingleActiveOrder}
                   key={order.id}
+                  onCancel={() => void cancelOrder(order)}
                   orderId={order.id}
                 />
               ))
-            : previousOrders.map((order) => <HistoryOrderCard key={order.id} order={order} />)}
+            : previousOrders.map((order) => <HistoryOrderCard key={order.id} onRefresh={() => void refreshOrders()} order={order} />)}
         </div> : <div className="rounded-voro-xl border border-dashed border-line bg-card px-5 py-10 text-center text-sm font-medium text-muted-foreground">
           {tab === 'active' ? t('orders.noActive') : t('orders.noHistory')}
         </div>}
