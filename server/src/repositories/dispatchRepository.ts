@@ -6,6 +6,7 @@ export type DispatchOrder = {
   restaurantLongitude: number
   deliveryLatitude: number
   deliveryLongitude: number
+  deliveryRadiusKm: number
 }
 
 export type DispatchCandidate = {
@@ -22,6 +23,7 @@ type DispatchOrderRow = {
   restaurant_longitude: string | null
   delivery_latitude: string | null
   delivery_longitude: string | null
+  delivery_radius_km: string | null
 }
 
 type DispatchCandidateRow = {
@@ -61,7 +63,8 @@ export async function getPreparingOrderForDispatch(orderId: number) {
         restaurant.latitude AS restaurant_latitude,
         restaurant.longitude AS restaurant_longitude,
         address.latitude AS delivery_latitude,
-        address.longitude AS delivery_longitude
+        address.longitude AS delivery_longitude,
+        restaurant.delivery_radius_km
       FROM "order"
       INNER JOIN order_status ON order_status.id = "order".status_id
         AND order_status.name IN ('accepted', 'preparing', 'ready')
@@ -91,7 +94,24 @@ export async function getPreparingOrderForDispatch(orderId: number) {
     restaurantLongitude: Number(order.restaurant_longitude),
     deliveryLatitude: Number(order.delivery_latitude),
     deliveryLongitude: Number(order.delivery_longitude),
+    deliveryRadiusKm: Number(order.delivery_radius_km || 8),
   } satisfies DispatchOrder
+}
+
+export async function getCourierActiveLoads(courierIds: number[]) {
+  if (courierIds.length === 0) return new Map<number, number>()
+  const result = await pool.query<{ courier_id: string; active_deliveries: string }>(
+    `
+      SELECT delivery.courier_id, COUNT(*)::TEXT AS active_deliveries
+      FROM delivery
+      INNER JOIN delivery_status ON delivery_status.id = delivery.status_id
+      WHERE delivery.courier_id = ANY($1::BIGINT[])
+        AND delivery_status.name NOT IN ('delivered', 'failed', 'cancelled')
+      GROUP BY delivery.courier_id
+    `,
+    [courierIds],
+  )
+  return new Map(result.rows.map((row) => [Number(row.courier_id), Number(row.active_deliveries)]))
 }
 
 export async function listAvailableOnlineCouriers() {

@@ -6,7 +6,8 @@ import { pool } from '../database/pool'
 const offerWindowMs = 60_000
 const retryDelayMs = 30_000
 const workerPollIntervalMs = 1_500
-const matchingRadiusMeters = 7_500
+const defaultMatchingRadiusMeters = 7_500
+const maximumOffersPerRound = 3
 const databaseSweepIntervalMs = 20_000
 
 function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -23,6 +24,8 @@ function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number)
 function nearbyCandidates(
   order: dispatchRepository.DispatchOrder,
   couriers: dispatchRepository.DispatchCandidate[],
+  matchingRadiusMeters: number,
+  activeLoads: Map<number, number>,
 ) {
   return couriers
     .map((courier) => ({
@@ -33,9 +36,17 @@ function nearbyCandidates(
         order.restaurantLatitude,
         order.restaurantLongitude,
       ),
+      activeLoad: activeLoads.get(courier.id) || 0,
     }))
     .filter(({ distanceMeters }) => distanceMeters <= matchingRadiusMeters)
-    .sort((first, second) => first.distanceMeters - second.distanceMeters)
+    .sort((first, second) => {
+      // A courier already carrying work gets a meaningful penalty. Distance is
+      // still the primary signal, but dispatch does not repeatedly favour the
+      // same closest courier when the fleet has alternatives.
+      const firstScore = first.distanceMeters + first.activeLoad * 2_000
+      const secondScore = second.distanceMeters + second.activeLoad * 2_000
+      return firstScore - secondScore
+    })
 }
 
 async function processDispatch(orderId: number) {
@@ -48,6 +59,10 @@ async function processDispatch(orderId: number) {
     }
 
     await dispatchRepository.markDispatchMatching(orderId)
+    const matchingRadiusMeters = Math.max(
+      4_000,
+      Math.min(12_000, Math.round(order.deliveryRadiusKm * 1_000) || defaultMatchingRadiusMeters),
+    )
     const liveCouriers = await redisService.listNearbyLiveDrivers(
       order.restaurantLatitude,
       order.restaurantLongitude,
@@ -62,7 +77,8 @@ async function processDispatch(orderId: number) {
           longitude: courier.currentLongitude,
         }))
       : await dispatchRepository.listAvailableOnlineCouriers()
-    const nearby = nearbyCandidates(order, couriers)
+    const activeLoads = await dispatchRepository.getCourierActiveLoads(couriers.map((courier) => courier.id))
+    const nearby = nearbyCandidates(order, couriers, matchingRadiusMeters, activeLoads)
 
     if (nearby.length === 0) {
       await dispatchRepository.markDispatchWaiting(
@@ -75,7 +91,7 @@ async function processDispatch(orderId: number) {
 
     const offerCount = await dispatchRepository.createDispatchOffers(
       orderId,
-      nearby.map(({ courier }) => courier.id),
+      nearby.slice(0, maximumOffersPerRound).map(({ courier }) => courier.id),
       offerWindowMs,
     )
     await dispatchRepository.markDispatchWaiting(
