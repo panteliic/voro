@@ -66,3 +66,35 @@ export async function getDeliveryRoute(req: Request, res: Response) {
     sendError(error, res)
   }
 }
+
+export async function getOrderMessages(req: Request, res: Response) {
+  try {
+    res.set('Cache-Control', 'no-store').json(await driverService.getOrderMessages(auth(req).userId, numericParam(req.params.orderId)))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function sendOrderMessage(req: Request, res: Response) {
+  try {
+    res.status(201).json(await driverService.sendOrderMessage(auth(req).userId, numericParam(req.params.orderId), req.body?.body))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function getNotifications(req: Request, res: Response) {
+  try {
+    res.set('Cache-Control', 'no-store').json(await driverService.getNotifications(auth(req).userId))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function readNotification(req: Request, res: Response) {
+  try {
+    res.json(await driverService.readNotification(auth(req).userId, numericParam(req.params.notificationId)))
+  } catch (error) {
+    sendError(error, res)
+  }
+}

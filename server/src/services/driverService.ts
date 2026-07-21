@@ -1,6 +1,7 @@
 import * as driverRepository from '../repositories/driverRepository'
 import * as redisService from './redisService'
 import * as routingService from './routingService'
+import * as operationsRepository from '../repositories/operationsRepository'
 import type { DriverAnalytics, DriverAnalyticsDay, DriverAnalyticsPeriod } from '../types/driver'
 import { HttpError } from '../utils/httpError'
 
@@ -178,6 +179,24 @@ export async function acceptOffer(userId: number, offerId: number) {
   ])
   await redisService.syncDriverPresence(updatedDriver)
 
+  const owner = await operationsRepository.getOrderOwner(delivery?.orderId || 0)
+  if (owner) {
+    await Promise.all([
+      operationsRepository.createUserNotification(Number(owner.user_id), {
+        type: 'courier_assigned',
+        title: `Courier assigned to order #${delivery?.orderId}`,
+        body: `${updatedDriver.name} is heading to the restaurant.`,
+        data: { orderId: delivery?.orderId },
+      }),
+      operationsRepository.createRestaurantNotification(Number(owner.restaurant_id), {
+        type: 'courier_assigned',
+        title: `Courier assigned to order #${delivery?.orderId}`,
+        body: `${updatedDriver.name} has accepted the delivery.`,
+        data: { orderId: delivery?.orderId },
+      }),
+    ])
+  }
+
   return { delivery }
 }
 
@@ -206,6 +225,10 @@ export async function updateDeliveryStatus(userId: number, deliveryId: number, s
   }
 
   const driver = await getOwnedDriver(userId)
+  const activeDelivery = await driverRepository.getActiveDelivery(driver.id, deliveryId)
+  if (!activeDelivery) {
+    throw new HttpError(404, 'Active delivery was not found.')
+  }
   const updated = await driverRepository.setDeliveryStatus(driver.id, deliveryId, status)
 
   if (!updated) {
@@ -214,7 +237,60 @@ export async function updateDeliveryStatus(userId: number, deliveryId: number, s
 
   await redisService.syncDriverPresence(await getOwnedDriver(userId))
 
+  const owner = await operationsRepository.getOrderOwner(activeDelivery.orderId)
+  if (owner) {
+    const message = status === 'picked_up'
+      ? 'Your order was picked up and will leave the restaurant shortly.'
+      : status === 'on_the_way'
+        ? 'Your courier is on the way. You can follow the route live.'
+        : 'Your delivery has been completed. Enjoy your meal!'
+    await operationsRepository.createUserNotification(Number(owner.user_id), {
+      type: 'delivery_status',
+      title: `Order #${activeDelivery.orderId}: ${status.replace(/_/g, ' ')}`,
+      body: message,
+      data: { orderId: activeDelivery.orderId, status },
+    })
+  }
+
   return { delivery: updated }
+}
+
+export async function getOrderMessages(userId: number, orderId: number) {
+  if (!Number.isInteger(orderId) || orderId <= 0) throw new HttpError(400, 'Order not found.')
+  const messages = await operationsRepository.listOrderMessages(orderId, userId, 'courier')
+  if (!messages) throw new HttpError(404, 'Order conversation not found.')
+  return { messages }
+}
+
+export async function sendOrderMessage(userId: number, orderId: number, bodyValue: unknown) {
+  if (!Number.isInteger(orderId) || orderId <= 0) throw new HttpError(400, 'Order not found.')
+  const body = String(bodyValue || '').trim().slice(0, 1_000)
+  if (!body) throw new HttpError(400, 'Message cannot be empty.')
+  const message = await operationsRepository.createOrderMessage(orderId, userId, 'courier', body)
+  if (!message) throw new HttpError(409, 'Order conversation not found.')
+  const owner = await operationsRepository.getOrderOwner(orderId)
+  if (owner) {
+    await operationsRepository.createUserNotification(Number(owner.user_id), {
+      type: 'new_message',
+      title: `New message for order #${orderId}`,
+      body,
+      data: { orderId },
+    })
+  }
+  return { message }
+}
+
+export async function getNotifications(userId: number) {
+  const notifications = await operationsRepository.listUserNotifications(userId)
+  return { notifications, unreadCount: notifications.filter((notification) => !notification.readAt).length }
+}
+
+export async function readNotification(userId: number, notificationId: number) {
+  if (!Number.isInteger(notificationId) || notificationId <= 0) throw new HttpError(400, 'Notification not found.')
+  if (!(await operationsRepository.markUserNotificationRead(userId, notificationId))) {
+    throw new HttpError(404, 'Notification not found.')
+  }
+  return { read: true }
 }
 
 export async function getDeliveryRoute(userId: number, deliveryId: number) {
