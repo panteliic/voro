@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { AuthPage } from './pages/AuthPage'
 import { DashboardPage } from './pages/DashboardPage'
-import { acceptDeliveryOffer, declineDeliveryOffer, getDriverDashboard, updateDeliveryStatus, updateDriverPresence } from './services/driverApi'
+import { acceptDeliveryOffer, declineDeliveryOffer, getDriverDashboard, updateDeliveryStatus, updateDriverPresence, withdrawFromDelivery } from './services/driverApi'
 import { revokeSession, SessionExpiredError } from './services/apiClient'
 import { loginDriver, setupDriverPassword } from './services/authApi'
 import type { AuthUser, LoginPayload, SetupPasswordPayload } from './types/auth'
 import type { DashboardResponse } from './types/driver'
 import { clearSession, storedToken, storedUser, storeSession } from './utils/storage'
+import { translate, type DriverLanguage } from './i18n'
 
 type Position = { latitude: number; longitude: number }
 
@@ -16,6 +17,11 @@ const presenceHeartbeatMs = 15_000
 
 function canUseLocalDemoLocation() {
   return ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
+}
+
+function driverTranslation(key: string) {
+  const language: DriverLanguage = localStorage.getItem('voro-driver-language') === 'en' ? 'en' : 'sr'
+  return translate(language, key)
 }
 
 function distanceMeters(first: Position, second: Position) {
@@ -168,7 +174,7 @@ function App() {
 
           const hasLocationPermission = locationError.code !== GeolocationPositionError.PERMISSION_DENIED
           if (hasLocationPermission && hasFreshLocation()) {
-            setStatus('GPS signal se osvežava. Ostaješ online dok je poslednja lokacija sveža.')
+            setStatus(driverTranslation('status.gpsRefreshing'))
             return
           }
 
@@ -180,7 +186,7 @@ function App() {
               .then(() => loadDashboard(token, true))
               .catch((error) => handleError(error, 'Status dostavljača nije mogao da se ažurira.'))
           }
-          setStatus('Lokacija mora stalno biti uključena dok si online. Uključi GPS dozvolu da bi primao ponude.')
+          setStatus(driverTranslation('status.locationRequired'))
         },
         { enableHighAccuracy: true, maximumAge: 5_000, timeout: locationFreshForMs },
       )
@@ -196,7 +202,7 @@ function App() {
           .catch((error) => {
             if (active) handleError(error, 'Status dostavljača nije mogao da se ažurira.')
           })
-        if (active) setStatus('GPS lokacija nije osvežena na vreme, zato si automatski prebačen offline.')
+        if (active) setStatus(driverTranslation('status.locationStale'))
         return
       }
 
@@ -206,11 +212,26 @@ function App() {
       })
     }, presenceHeartbeatMs)
 
+    // Mobile browsers can pause timers while the app is in the background.
+    // Immediately publish the latest GPS reading when the courier returns so
+    // the server does not keep a stale position longer than necessary.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible' || !onlineRef.current || !hasFreshLocation()) return
+
+      const latestPosition = isDemoLocationRef.current ? domacePalacinkeDemoPosition : positionRef.current
+      void publishPresence(true, latestPosition).catch((error) => {
+        if (active) handleError(error, 'Lokacija nije mogla da se osveži po povratku u aplikaciju.')
+      })
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     return () => {
       active = false
       window.clearTimeout(initialSync)
       window.clearInterval(refreshInterval)
       window.clearInterval(heartbeatInterval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
       if (watchId !== null) navigator.geolocation.clearWatch(watchId)
     }
     // GPS subscription belongs to the authenticated session; callbacks intentionally read the latest refs.
@@ -230,7 +251,7 @@ function App() {
       setToken(data.accessToken)
       setUser(data.user)
     } catch (error) {
-      handleError(error, 'Prijava nije uspela.')
+      handleError(error, driverTranslation('status.signInFailed'))
     } finally {
       setIsLoading(false)
     }
@@ -242,9 +263,9 @@ function App() {
 
     try {
       await setupDriverPassword(payload)
-      setStatus('Lozinka je napravljena. Prijavi se novom lozinkom.')
+      setStatus(driverTranslation('status.passwordCreated'))
     } catch (error) {
-      handleError(error, 'Lozinka nije mogla da se postavi.')
+      handleError(error, driverTranslation('status.setupFailed'))
     } finally {
       setIsSettingPassword(false)
     }
@@ -254,7 +275,7 @@ function App() {
     setStatus('')
 
     if (!isOnline && dashboard?.activeDelivery) {
-      setStatus('Ne možeš biti offline dok je dostava aktivna, jer kupac prati tvoju lokaciju.')
+      setStatus(driverTranslation('status.activeDeliveryOnline'))
       return
     }
 
@@ -265,10 +286,10 @@ function App() {
         await publishPresence(false, null)
         await loadDashboard(token, true)
       } catch (error) {
-        handleError(error, 'Status dostavljača nije mogao da se promeni.')
+        handleError(error, driverTranslation('status.presenceFailed'))
         return
       }
-      setStatus('Uključi lokaciju i sačekaj preciznu GPS poziciju pre nego što postaneš online.')
+      setStatus(driverTranslation('status.waitForGps'))
       return
     }
 
@@ -281,7 +302,7 @@ function App() {
     } catch (error) {
       onlineRef.current = !isOnline
       wantsOnlineRef.current = !isOnline
-      handleError(error, 'Status dostavljača nije mogao da se promeni.')
+      handleError(error, driverTranslation('status.presenceFailed'))
     }
   }
 
@@ -291,17 +312,17 @@ function App() {
 
     try {
       if (!onlineRef.current || !hasFreshLocation()) {
-        throw new Error('Uključi lokaciju i sačekaj svežu GPS poziciju pre prihvatanja vožnje.')
+        throw new Error(driverTranslation('status.acceptGpsRequired'))
       }
 
       // Refresh presence immediately before accepting. This removes the race
       // between the 15-second heartbeat and the server-side 45-second cutoff.
       await publishPresence(true, isDemoLocationRef.current ? domacePalacinkeDemoPosition : positionRef.current)
       await acceptDeliveryOffer(token, offerId)
-      setStatus('Dostava je prihvaćena. Ruta do restorana je spremna.')
+      setStatus(driverTranslation('status.accepted'))
       await loadDashboard(token, true)
     } catch (error) {
-      handleError(error, 'Ponuda više nije dostupna.')
+      handleError(error, driverTranslation('status.offerUnavailable'))
       await loadDashboard(token, true)
     } finally {
       setIsAccepting(false)
@@ -314,10 +335,10 @@ function App() {
 
     try {
       await declineDeliveryOffer(token, offerId)
-      setStatus('Ponuda je odbijena.')
+      setStatus(driverTranslation('status.declined'))
       await loadDashboard(token, true)
     } catch (error) {
-      handleError(error, 'Ponuda više nije dostupna.')
+      handleError(error, driverTranslation('status.offerUnavailable'))
       await loadDashboard(token, true)
     } finally {
       setIsAccepting(false)
@@ -333,10 +354,30 @@ function App() {
 
     try {
       await updateDeliveryStatus(token, delivery.id, statusValue)
-      setStatus(statusValue === 'delivered' ? 'Dostava je uspešno završena.' : 'Status dostave je ažuriran.')
+      setStatus(driverTranslation(statusValue === 'delivered' ? 'status.deliveryCompleted' : 'status.deliveryUpdated'))
       await loadDashboard(token, true)
     } catch (error) {
-      handleError(error, 'Status dostave nije mogao da se ažurira.')
+      handleError(error, driverTranslation('status.deliveryUpdateFailed'))
+    } finally {
+      setIsUpdatingDelivery(false)
+    }
+  }
+
+  async function handleWithdrawFromDelivery() {
+    const delivery = dashboard?.activeDelivery
+    if (!delivery) return
+
+    const reason = window.prompt(driverTranslation('status.withdrawPrompt'))
+    if (reason === null) return
+
+    setIsUpdatingDelivery(true)
+    setStatus('')
+    try {
+      await withdrawFromDelivery(token, delivery.id, reason)
+      setStatus(driverTranslation('status.withdrawn'))
+      await loadDashboard(token, true)
+    } catch (error) {
+      handleError(error, driverTranslation('status.withdrawError'))
     } finally {
       setIsUpdatingDelivery(false)
     }
@@ -400,6 +441,7 @@ function App() {
       onRefresh={() => void loadDashboard()}
       onSetOnline={(isOnline) => void handleSetOnline(isOnline)}
       onUpdateDelivery={(statusValue) => void handleUpdateDelivery(statusValue)}
+      onWithdrawFromDelivery={() => void handleWithdrawFromDelivery()}
       status={status}
       showDemoLocation={canUseLocalDemoLocation()}
       token={token}

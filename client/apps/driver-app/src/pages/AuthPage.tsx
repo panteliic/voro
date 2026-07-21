@@ -1,8 +1,9 @@
-import { FormEvent, useMemo, useState } from 'react'
+import { FormEvent, useState } from 'react'
 import { Button, Input } from '@voro/ui'
 import { PublicHeader } from '../components/layout/PublicHeader'
 import type { AuthMode, LoginPayload, SetupPasswordPayload, SetupPurpose } from '../types/auth'
 import { emptySetup } from '../utils/forms'
+import { translate, type DriverLanguage } from '../i18n'
 
 type AuthPageProps = {
   status: string
@@ -21,27 +22,17 @@ export function AuthPage({
   onLogin,
   onSetupPassword,
 }: AuthPageProps) {
+  const language: DriverLanguage = localStorage.getItem('voro-driver-language') === 'en' ? 'en' : 'sr'
+  const t = (key: string) => translate(language, key)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [authMode, setAuthMode] = useState<AuthMode>('login')
   const [setupPurpose, setSetupPurpose] = useState<SetupPurpose>('firstAccess')
   const [setupForm, setSetupForm] = useState(emptySetup)
 
-  const setupCopy = useMemo(
-    () =>
-      setupPurpose === 'firstAccess'
-        ? {
-            title: 'First driver access',
-            description: 'Use the admin invite code once, then create your password.',
-            button: 'Create password',
-          }
-        : {
-            title: 'Password reset',
-            description: 'Use the new code from admin to replace the old password.',
-            button: 'Set new password',
-          },
-    [setupPurpose],
-  )
+  const setupCopy = setupPurpose === 'firstAccess'
+    ? { title: t('auth.firstAccessTitle'), description: t('auth.firstAccessDesc'), button: t('auth.createPassword') }
+    : { title: t('auth.resetTitle'), description: t('auth.resetDesc'), button: t('auth.setPassword') }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -69,37 +60,37 @@ export function AuthPage({
       <div className="mx-auto grid max-w-5xl px-4 py-8">
         {authMode === 'login' ? (
           <section className="mx-auto w-full max-w-md rounded-voro-lg border border-line bg-card p-5">
-            <h1 className="text-xl font-bold">Driver sign in</h1>
+            <h1 className="text-xl font-bold">{t('auth.title')}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Open your delivery dashboard.
+              {t('auth.description')}
             </p>
             <form className="mt-5 grid gap-3" onSubmit={handleLogin}>
               <Input
-                placeholder="Driver email"
+                placeholder={t('auth.email')}
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
               />
               <Input
-                placeholder="Password"
+                placeholder={t('auth.password')}
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
               />
               {status ? <p className="text-sm font-medium text-destructive">{status}</p> : null}
               <Button disabled={isLoading} type="submit" variant="outline">
-                {isLoading ? 'Opening driver app...' : 'Open driver app'}
+                {isLoading ? t('auth.opening') : t('auth.open')}
               </Button>
             </form>
             <div className="mt-5 grid gap-2 border-t border-line pt-4">
               <p className="text-xs font-bold uppercase text-muted-foreground">
-                Setup code access
+                {t('auth.setupAccess')}
               </p>
               <div className="grid gap-2 sm:grid-cols-2">
                 <Button onClick={() => openSetup('firstAccess')} type="button" variant="outline">
-                  First access
+                  {t('auth.firstAccess')}
                 </Button>
                 <Button onClick={() => openSetup('passwordReset')} type="button" variant="outline">
-                  Reset password
+                  {t('auth.resetPassword')}
                 </Button>
               </div>
             </div>
@@ -110,21 +101,21 @@ export function AuthPage({
             <p className="mt-1 text-sm text-muted-foreground">{setupCopy.description}</p>
             <form className="mt-5 grid gap-3" onSubmit={handleSetupPassword}>
               <Input
-                placeholder="Driver email"
+                placeholder={t('auth.email')}
                 value={setupForm.email}
                 onChange={(event) =>
                   setSetupForm((current) => ({ ...current, email: event.target.value }))
                 }
               />
               <Input
-                placeholder="Setup code from admin"
+                placeholder={t('auth.setupCode')}
                 value={setupForm.setupCode}
                 onChange={(event) =>
                   setSetupForm((current) => ({ ...current, setupCode: event.target.value }))
                 }
               />
               <Input
-                placeholder={setupPurpose === 'firstAccess' ? 'Create driver password' : 'Create new password'}
+                placeholder={setupPurpose === 'firstAccess' ? t('auth.createDriverPassword') : t('auth.createNewPassword')}
                 type="password"
                 value={setupForm.password}
                 onChange={(event) =>
@@ -133,7 +124,7 @@ export function AuthPage({
               />
               {status ? <p className="text-sm font-medium text-destructive">{status}</p> : null}
               <Button disabled={isSettingPassword} type="submit">
-                {isSettingPassword ? 'Saving password...' : setupCopy.button}
+                {isSettingPassword ? t('auth.savingPassword') : setupCopy.button}
               </Button>
               <Button
                 onClick={() => {
@@ -143,7 +134,7 @@ export function AuthPage({
                 type="button"
                 variant="outline"
               >
-                Back to sign in
+                {t('auth.backToSignIn')}
               </Button>
             </form>
           </section>

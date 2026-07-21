@@ -49,7 +49,7 @@ export function DeliveryOffers({
         </span>
       </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      <div className="mt-4 grid gap-3">
         {activeOffers.map((offer) => {
           const seconds = remainingSeconds(offer.expiresAt, now)
           return (

@@ -1,5 +1,7 @@
-import { Globe2, MapPin, Moon, Sun } from 'lucide-react'
+import { Bell, Globe2, MapPin, Moon, Sun } from 'lucide-react'
+import { useState } from 'react'
 import { translate, type DriverLanguage } from '../../i18n'
+import { enableDriverPushNotifications } from '../../services/pushNotifications'
 
 export type DriverTheme = 'light' | 'dark'
 
@@ -11,6 +13,7 @@ export function DriverSettings({
   onLanguageChange,
   onDemoLocationChange,
   onThemeChange,
+  token,
 }: {
   language: DriverLanguage
   theme: DriverTheme
@@ -19,8 +22,19 @@ export function DriverSettings({
   onLanguageChange: (language: DriverLanguage) => void
   onDemoLocationChange: (enabled: boolean) => void
   onThemeChange: (theme: DriverTheme) => void
+  token: string
 }) {
   const t = (key: string, values?: Record<string, string | number>) => translate(language, key, values)
+  const [pushStatus, setPushStatus] = useState('')
+
+  async function enablePush() {
+    try {
+      await enableDriverPushNotifications(token)
+      setPushStatus(t('settings.pushEnabled'))
+    } catch {
+      setPushStatus(t('settings.pushError'))
+    }
+  }
 
   return (
     <section className="grid max-w-3xl gap-5">
@@ -38,6 +52,10 @@ export function DriverSettings({
         <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
           <div className="flex items-center gap-3">{theme === 'dark' ? <Moon className="size-5 text-action" /> : <Sun className="size-5 text-action" />}<div><p className="font-bold">{t('settings.theme')}</p><p className="text-sm text-muted-foreground">{t('settings.themeDesc')}</p></div></div>
           <div className="flex rounded-voro-md border border-line p-1 text-sm font-bold"><button className={`rounded-voro-sm px-3 py-2 ${theme === 'light' ? 'bg-accent text-action' : 'text-muted-foreground'}`} onClick={() => onThemeChange('light')} type="button">{t('settings.light')}</button><button className={`rounded-voro-sm px-3 py-2 ${theme === 'dark' ? 'bg-accent text-action' : 'text-muted-foreground'}`} onClick={() => onThemeChange('dark')} type="button">{t('settings.dark')}</button></div>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line px-5 py-4">
+          <div className="flex items-center gap-3"><Bell className="size-5 text-action" /><div><p className="font-bold">{t('settings.pushTitle')}</p><p className="text-sm text-muted-foreground">{t('settings.pushDesc')}</p>{pushStatus ? <p className="mt-1 text-xs font-medium text-muted-foreground">{pushStatus}</p> : null}</div></div>
+          <button className="rounded-voro-md bg-action px-3 py-2 text-sm font-bold text-action-text" onClick={() => void enablePush()} type="button">{t('settings.pushEnable')}</button>
         </div>
         {showDemoLocation ? <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line px-5 py-4">
           <div className="flex items-center gap-3"><MapPin className="size-5 text-action" /><div><p className="font-bold">{t('settings.demoTitle')}</p><p className="text-sm text-muted-foreground">{t('settings.demoDesc')}</p></div></div>

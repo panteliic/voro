@@ -1,4 +1,8 @@
+import { translate, type DriverLanguage } from '../../i18n'
+
 export function PublicHeader() {
+  const language: DriverLanguage = localStorage.getItem('voro-driver-language') === 'en' ? 'en' : 'sr'
+  const t = (key: string) => translate(language, key)
   return (
     <header className="border-b border-line bg-card">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4">
@@ -6,11 +10,11 @@ export function PublicHeader() {
           <img src="/logo.svg" alt="Voro" className="size-10 shrink-0 rounded-voro-md" />
           <div className="min-w-0">
             <p className="truncate text-sm font-bold">Voro Driver</p>
-            <p className="truncate text-xs text-muted-foreground">Admin-issued accounts only</p>
+            <p className="truncate text-xs text-muted-foreground">{t('auth.publicSubtitle')}</p>
           </div>
         </div>
         <span className="rounded-voro-md border border-line px-3 py-2 text-xs font-bold text-muted-foreground">
-          Setup code required once
+          {t('auth.publicSetupHint')}
         </span>
       </div>
     </header>

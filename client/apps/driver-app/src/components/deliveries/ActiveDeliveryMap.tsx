@@ -6,7 +6,6 @@ import 'leaflet/dist/leaflet.css'
 import { translate, type DriverLanguage } from '../../i18n'
 import { getDriverDeliveryRoute } from '../../services/driverApi'
 import type { Delivery, DriverRoute } from '../../types/driver'
-import { DriverOrderChatModal } from './DriverOrderChatModal'
 
 const driverIcon = L.divIcon({
   className: 'voro-driver-pin',
@@ -76,20 +75,23 @@ export function ActiveDeliveryMap({
   token,
   locationKey,
   isUpdating,
+  onOpenChat,
   onUpdateStatus,
+  onWithdraw,
 }: {
   delivery: Delivery
   language: DriverLanguage
   token: string
   locationKey: string
   isUpdating: boolean
+  onOpenChat: () => void
   onUpdateStatus: (status: 'picked_up' | 'on_the_way' | 'delivered') => void
+  onWithdraw: () => void
 }) {
   const t = (key: string, values?: Record<string, string | number>) => translate(language, key, values)
   const [routeData, setRouteData] = useState<DriverRoute | null>(null)
   const [error, setError] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
-  const [isChatOpen, setIsChatOpen] = useState(false)
   const [isShowingPickupCode, setIsShowingPickupCode] = useState(false)
   const copy = deliveryCopy(delivery, language)
   const shouldShowRoute = delivery.status !== 'picked_up'
@@ -142,9 +144,10 @@ export function ActiveDeliveryMap({
     (shouldShowRoute && routeData?.destination.type === 'restaurant') ||
     (!routeData && (delivery.status === 'assigned' || delivery.status === 'arriving_to_restaurant'))
   const canShowPickupCode = Boolean(delivery.pickupCode) && (delivery.status === 'assigned' || delivery.status === 'arriving_to_restaurant')
+  const canWithdraw = delivery.status === 'assigned' || delivery.status === 'arriving_to_restaurant'
 
   return (
-    <section className="relative overflow-hidden rounded-voro-lg border border-line bg-card">
+    <section className="relative flex min-h-[calc(100dvh-10rem)] flex-col overflow-hidden rounded-voro-lg border border-line bg-card">
       <div className="flex flex-col justify-between gap-4 border-b border-line bg-card px-5 py-4 md:flex-row md:items-center">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-action">{copy.eyebrow}</p>
@@ -157,7 +160,7 @@ export function ActiveDeliveryMap({
             <span className="flex items-center gap-1 rounded-voro-md bg-accent px-3 py-2 text-action"><Clock3 className="size-4" />{routeData.route.etaMinutes} min</span>
           </div>
         ) : null}
-        <button className="inline-flex items-center justify-center gap-2 rounded-voro-md border border-line px-3 py-2 text-sm font-bold text-action hover:bg-accent" onClick={() => setIsChatOpen(true)} type="button"><MessageCircle className="size-4" />Chat</button>
+        <button className="inline-flex items-center justify-center gap-2 rounded-voro-md border border-line px-3 py-2 text-sm font-bold text-action hover:bg-accent" onClick={onOpenChat} type="button"><MessageCircle className="size-4" />{t('delivery.chat')}</button>
       </div>
 
       {canShowPickupCode ? <button className="mx-4 my-4 flex w-[calc(100%-2rem)] items-center justify-between gap-4 rounded-voro-lg bg-action px-5 py-4 text-left text-action-text shadow-voro-sm" onClick={() => setIsShowingPickupCode(true)} type="button">
@@ -178,7 +181,7 @@ export function ActiveDeliveryMap({
       </div>
       {shouldShowRoute && error ? <p className="px-5 py-3 text-sm text-destructive">{error}</p> : null}
       {!shouldShowRoute ? <p className="border-b border-line px-5 py-3 text-sm text-muted-foreground">{t('delivery.routeAfterPickup')}</p> : null}
-      <MapContainer center={points[0]} className="h-[22rem] w-full sm:h-[24rem]" scrollWheelZoom zoom={14}>
+      <MapContainer center={points[0]} className="min-h-0 flex-1 w-full" scrollWheelZoom zoom={14}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -204,6 +207,7 @@ export function ActiveDeliveryMap({
           <p className="mt-1 truncate text-muted-foreground">{targetIsRestaurant ? delivery.restaurantAddress : delivery.customerAddress}</p>
         </div>
         <div className="flex gap-2">
+          {canWithdraw ? <button className="rounded-voro-md border border-destructive/40 px-4 py-3 text-sm font-bold text-destructive hover:bg-destructive/10 disabled:opacity-60" disabled={isUpdating} onClick={onWithdraw} type="button">{t('delivery.withdraw')}</button> : null}
           {canShowPickupCode ? <button className="rounded-voro-md border border-action bg-accent px-4 py-3 text-sm font-bold text-action" onClick={() => setIsShowingPickupCode(true)} type="button"><KeyRound className="mr-2 inline size-4" />{t('delivery.showCode')}</button> : null}
           <button
             className="rounded-voro-md bg-action px-5 py-3 text-sm font-bold text-action-text transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
@@ -224,7 +228,6 @@ export function ActiveDeliveryMap({
           <button className="mt-6 w-full rounded-voro-md bg-action px-4 py-3 text-sm font-bold text-action-text" onClick={() => setIsShowingPickupCode(false)} type="button">{t('common.close')}</button>
         </div>
       </div> : null}
-      {isChatOpen ? <DriverOrderChatModal onClose={() => setIsChatOpen(false)} orderId={delivery.orderId} token={token} /> : null}
     </section>
   )
 }

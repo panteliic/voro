@@ -35,6 +35,13 @@ export function updateDeliveryStatus(
   })
 }
 
+export function withdrawFromDelivery(token: string, deliveryId: number, reason: string) {
+  return request<{ withdrawn: true; orderId: number }>(`/driver/deliveries/${deliveryId}/withdraw`, token, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  })
+}
+
 export function getDriverDeliveryRoute(token: string, deliveryId: number) {
   return request<DriverRoute>(`/driver/deliveries/${deliveryId}/route`, token)
 }
@@ -58,5 +65,12 @@ export function readDriverNotification(token: string, notificationId: number) {
   return request<{ read: true }>(`/driver/notifications/${notificationId}/read`, token, {
     method: 'PATCH',
     body: '{}',
+  })
+}
+
+export function registerDriverPushSubscription(token: string, subscription: PushSubscriptionJSON) {
+  return request<{ subscribed: true }>('/driver/push-subscriptions', token, {
+    method: 'POST',
+    body: JSON.stringify(subscription),
   })
 }
