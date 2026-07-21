@@ -46,3 +46,6 @@ adminRoutes.post('/couriers/:driverId/password-reset', adminController.resetCour
 
 adminRoutes.get('/orders', adminController.listOrders)
 adminRoutes.get('/orders/:orderId', adminController.getOrder)
+adminRoutes.get('/operations', adminController.getOperations)
+adminRoutes.post('/orders/:orderId/reassign', adminController.reassignOrder)
+adminRoutes.patch('/issues/:issueId', adminController.updateIssue)

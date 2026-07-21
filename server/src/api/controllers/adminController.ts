@@ -309,3 +309,33 @@ export async function getOrder(req: Request, res: Response) {
     sendError(error, res)
   }
 }
+
+export async function getOperations(_req: Request, res: Response) {
+  try {
+    res.set('Cache-Control', 'no-store').json(await adminService.getOperations())
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function reassignOrder(req: Request, res: Response) {
+  try {
+    res.json(await adminService.reassignOrder(numericParam(req.params.orderId), Number(req.body?.courierId)))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function updateIssue(req: Request, res: Response) {
+  try {
+    const status = req.body?.status === 'resolved' ? 'resolved' : 'in_review'
+    res.json(await adminService.updateIssue(
+      numericParam(req.params.issueId),
+      auth(req).userId,
+      status,
+      normalizeText(req.body?.resolutionNote),
+    ))
+  } catch (error) {
+    sendError(error, res)
+  }
+}

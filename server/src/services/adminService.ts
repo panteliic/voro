@@ -5,6 +5,7 @@ import * as authRepository from '../repositories/authRepository'
 import * as driverRepository from '../repositories/driverRepository'
 import * as geocodingService from './geocodingService'
 import * as redisService from './redisService'
+import * as operationsRepository from '../repositories/operationsRepository'
 import * as restaurantAuthRepository from '../repositories/restaurantAuthRepository'
 import * as restaurantRepository from '../repositories/restaurantRepository'
 import * as restaurantAuthService from './restaurantAuthService'
@@ -307,4 +308,66 @@ export async function getOrder(orderId: number) {
   }
 
   return order
+}
+
+export async function getOperations() {
+  const [orders, issues, couriers] = await Promise.all([
+    operationsRepository.listActiveOperations(),
+    operationsRepository.listOpenIssues(),
+    adminRepository.listCouriers(),
+  ])
+  return { orders, issues, couriers }
+}
+
+export async function reassignOrder(orderId: number, courierId: number) {
+  assertId(orderId, 'Order not found.')
+  assertId(courierId, 'Courier not found.')
+  const assignment = await operationsRepository.assignCourierToOrder(orderId, courierId)
+  if (!assignment) {
+    throw new HttpError(409, 'This order cannot be reassigned after pickup, or the courier is unavailable.')
+  }
+
+  await Promise.all([
+    operationsRepository.createUserNotification(assignment.customerUserId, {
+      type: 'courier_reassigned',
+      title: `Courier updated for order #${orderId}`,
+      body: `${assignment.courierName} is now assigned to your delivery.`,
+      data: { orderId, courierId },
+    }),
+    operationsRepository.createUserNotification(assignment.courierUserId, {
+      type: 'manual_assignment',
+      title: `New delivery assignment #${orderId}`,
+      body: 'Operations assigned this delivery to you. Open the app to start the route.',
+      data: { orderId },
+    }),
+    operationsRepository.createRestaurantNotification(assignment.restaurantId, {
+      type: 'courier_reassigned',
+      title: `Courier updated for order #${orderId}`,
+      body: `${assignment.courierName} is assigned to the delivery.`,
+      data: { orderId, courierId },
+    }),
+  ])
+
+  return { assigned: true }
+}
+
+export async function updateIssue(
+  issueId: number,
+  adminUserId: number,
+  status: 'in_review' | 'resolved',
+  resolutionNote: string,
+) {
+  assertId(issueId, 'Issue not found.')
+  const issue = await operationsRepository.resolveIssue(issueId, adminUserId, status, resolutionNote)
+  if (!issue) throw new HttpError(404, 'Issue not found.')
+
+  await operationsRepository.createUserNotification(issue.reporterUserId, {
+    type: 'issue_update',
+    title: `Support update for order #${issue.orderId}`,
+    body: status === 'resolved'
+      ? (resolutionNote || 'Your report was resolved by Voro support.')
+      : 'Voro support is reviewing your report.',
+    data: { orderId: issue.orderId, issueId: issue.id, status },
+  })
+  return { issue }
 }
