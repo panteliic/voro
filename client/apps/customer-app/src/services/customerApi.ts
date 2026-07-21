@@ -204,6 +204,10 @@ export const customerApi = {
     return request<{ read: true }>(`/customer/notifications/${notificationId}/read`, { method: 'PATCH', body: '{}' })
   },
 
+  registerPushSubscription(subscription: PushSubscriptionJSON) {
+    return jsonRequest<{ subscribed: true }>('/customer/push-subscriptions', 'POST', subscription)
+  },
+
   updateProfile(payload: Pick<CustomerUserProfile, 'name' | 'phone'>) {
     return jsonRequest<Pick<CustomerProfile, 'user'>>('/customer/profile', 'PATCH', payload)
   },

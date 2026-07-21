@@ -2,11 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { Bike, Clock3, MessageCircle } from 'lucide-react'
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
 import * as L from 'leaflet'
+import { createSocketClient } from '@voro/socket'
 import 'leaflet/dist/leaflet.css'
 import { useI18n } from '../../i18n/i18n'
 import { customerApi } from '../../services/customerApi'
-import type { CustomerOrderRoute } from '../../types/customer'
+import type { CustomerOrderRoute, CustomerOrderTracking } from '../../types/customer'
 import { OrderChatModal } from './OrderChatModal'
+
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
 const restaurantIcon = L.divIcon({
   className: 'voro-route-pin',
@@ -132,7 +135,9 @@ export function OrderRouteMap({
     }
 
     load()
-    const interval = window.setInterval(load, 10_000)
+    // The socket below updates the moving courier marker. This slow refresh is
+    // only for recalculating an OSRM route after a longer trip.
+    const interval = window.setInterval(load, 60_000)
 
     return () => {
       isMounted = false
@@ -142,48 +147,64 @@ export function OrderRouteMap({
 
   useEffect(() => {
     let isMounted = true
-    let isRequestInFlight = false
+    let isSocketConnected = false
 
-    const loadTracking = () => {
-      if (isRequestInFlight) return
-      isRequestInFlight = true
+    const applyTracking = (tracking: CustomerOrderTracking) => {
+      if (!isMounted || tracking.orderId !== orderId) return
 
-      void customerApi
-        .getOrderTracking(orderId)
-        .then((tracking) => {
-          if (!isMounted) return
+      setRouteData((current) => {
+        if (!current) return current
 
-          setRouteData((current) => {
-            if (!current) return current
+        const sameCourier =
+          current.courier?.name === tracking.courier?.name &&
+          current.courier?.latitude === tracking.courier?.latitude &&
+          current.courier?.longitude === tracking.courier?.longitude
 
-            const sameCourier =
-              current.courier?.name === tracking.courier?.name &&
-              current.courier?.latitude === tracking.courier?.latitude &&
-              current.courier?.longitude === tracking.courier?.longitude
+        if (sameCourier && current.deliveryStatus === tracking.deliveryStatus) return current
 
-            if (sameCourier && current.deliveryStatus === tracking.deliveryStatus) {
-              return current
-            }
-
-            return {
-              ...current,
-              courier: tracking.courier,
-              deliveryStatus: tracking.deliveryStatus,
-            }
-          })
-        })
-        .catch(() => undefined)
-        .finally(() => {
-          isRequestInFlight = false
-        })
+        return {
+          ...current,
+          courier: tracking.courier,
+          deliveryStatus: tracking.deliveryStatus,
+        }
+      })
     }
 
-    loadTracking()
-    const interval = window.setInterval(loadTracking, 800)
+    const loadFallbackTracking = () => {
+      void customerApi
+        .getOrderTracking(orderId)
+        .then(applyTracking)
+        .catch(() => undefined)
+    }
+
+    const token = window.localStorage.getItem('voro_access_token') || ''
+    const socket = token ? createSocketClient(SOCKET_URL, { auth: { token } }) : null
+    socket?.on('connect', () => {
+      isSocketConnected = true
+      socket.emit('order:join', { orderId }, (result: { ok: boolean }) => {
+        if (!result.ok) isSocketConnected = false
+      })
+    })
+    socket?.on('disconnect', () => { isSocketConnected = false })
+    socket?.on('order:tracking', applyTracking)
+    socket?.connect()
+
+    // HTTP is a recovery path when the socket is unavailable, not the live
+    // transport. It avoids one request per map every 800 ms.
+    const interval = window.setInterval(() => {
+      if (!isSocketConnected) loadFallbackTracking()
+    }, 30_000)
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !isSocketConnected) loadFallbackTracking()
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       isMounted = false
       window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      socket?.disconnect()
     }
   }, [orderId])
 
@@ -235,20 +256,19 @@ export function OrderRouteMap({
           {courierStatus ? <span className="truncate text-xs text-muted-foreground">· {courierStatus}</span> : null}
         </div>
         <div className="flex flex-wrap gap-2">
-          {routeData.courier ? <button className="inline-flex w-fit items-center gap-2 rounded-voro-md border border-line px-2.5 py-1.5 text-xs font-bold text-action transition hover:bg-accent" onClick={() => setIsChatOpen(true)} type="button"><MessageCircle className="size-3.5" />Message courier</button> : null}
-          {allowCancel ? <button className="inline-flex w-fit items-center gap-2 rounded-voro-md border border-destructive/30 px-2.5 py-1.5 text-xs font-bold text-destructive transition hover:bg-destructive/10" onClick={onCancel} type="button">Cancel order</button> : null}
+          {routeData.courier ? <button className="inline-flex w-fit items-center gap-2 rounded-voro-md border border-line px-2.5 py-1.5 text-xs font-bold text-action transition hover:bg-accent" onClick={() => setIsChatOpen(true)} type="button"><MessageCircle className="size-3.5" />{t('map.messageCourier')}</button> : null}
+          {allowCancel ? <button className="inline-flex w-fit items-center gap-2 rounded-voro-md border border-destructive/30 px-2.5 py-1.5 text-xs font-bold text-destructive transition hover:bg-destructive/10" onClick={onCancel} type="button">{t('map.cancelOrder')}</button> : null}
         </div>
       </div>
 
-      <MapContainer center={courierPosition || endpoints[0]} className="min-h-0 flex-1 w-full" scrollWheelZoom={false} zoom={13}>
+      {isChatOpen ? <OrderChatModal onClose={() => setIsChatOpen(false)} orderId={orderId} /> : <MapContainer center={courierPosition || endpoints[0]} className="min-h-0 flex-1 w-full" scrollWheelZoom={false} zoom={13}>
         <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         {courierOnWay && routePoints.length > 1 ? <Polyline color="#ef5a35" pathOptions={{ opacity: 0.88, weight: 5 }} positions={routePoints} /> : null}
         <Marker icon={restaurantIcon} position={endpoints[0]}><Popup><strong>{routeData.restaurant.name}</strong><br />{t('map.restaurantPin')}</Popup></Marker>
         <Marker icon={deliveryIcon} position={endpoints[1]}><Popup><strong>{routeData.delivery.address || t('map.deliveryPin')}</strong><br />{t('map.deliveryPin')}</Popup></Marker>
         {courierPosition ? <AnimatedCourierMarker courierLabel={t('map.courierPin')} courierName={routeData.courier?.name || t('map.courier')} targetPosition={courierPosition} /> : null}
         <MapViewport points={mapPoints} />
-      </MapContainer>
-      {isChatOpen ? <OrderChatModal onClose={() => setIsChatOpen(false)} orderId={orderId} /> : null}
+      </MapContainer>}
     </section>
   )
 }

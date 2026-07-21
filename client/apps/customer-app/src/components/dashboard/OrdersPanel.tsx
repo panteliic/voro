@@ -52,10 +52,10 @@ function HistoryOrderCard({ order, onRefresh }: { order: CustomerOrder; onRefres
     setIsSaving(true)
     try {
       await customerApi.reorderOrder(order.id)
-      setFeedback('Order placed again.')
+      setFeedback(t('orders.reordered'))
       onRefresh()
     } catch (requestError) {
-      setFeedback(requestError instanceof Error ? requestError.message : 'Could not reorder.')
+      setFeedback(requestError instanceof Error ? requestError.message : t('orders.reorderError'))
     } finally { setIsSaving(false) }
   }
 
@@ -63,10 +63,10 @@ function HistoryOrderCard({ order, onRefresh }: { order: CustomerOrder; onRefres
     setIsSaving(true)
     try {
       await customerApi.createOrderReview(order.id, { rating, comment })
-      setFeedback('Thanks for your review.')
+      setFeedback(t('orders.reviewThanks'))
       setMode(null)
     } catch (requestError) {
-      setFeedback(requestError instanceof Error ? requestError.message : 'Review could not be sent.')
+      setFeedback(requestError instanceof Error ? requestError.message : t('orders.reviewError'))
     } finally { setIsSaving(false) }
   }
 
@@ -74,11 +74,11 @@ function HistoryOrderCard({ order, onRefresh }: { order: CustomerOrder; onRefres
     setIsSaving(true)
     try {
       await customerApi.createOrderIssue(order.id, { category: issueCategory, description: issueDescription })
-      setFeedback('Your report was sent to Voro support.')
+      setFeedback(t('orders.reportSent'))
       setMode(null)
       setIssueDescription('')
     } catch (requestError) {
-      setFeedback(requestError instanceof Error ? requestError.message : 'Report could not be sent.')
+      setFeedback(requestError instanceof Error ? requestError.message : t('orders.reportError'))
     } finally { setIsSaving(false) }
   }
 
@@ -109,12 +109,12 @@ function HistoryOrderCard({ order, onRefresh }: { order: CustomerOrder; onRefres
         <Clock3 className="size-4" />{t('orders.placedAt', { time: dateTime.format(new Date(order.createdAt)) })}
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
-        <button className="inline-flex items-center gap-1.5 rounded-voro-md border border-line px-3 py-2 text-xs font-bold text-action hover:bg-accent" disabled={isSaving} onClick={() => void reorder()} type="button"><RotateCcw className="size-3.5" />Reorder</button>
-        {order.status === 'delivered' ? <button className="inline-flex items-center gap-1.5 rounded-voro-md border border-line px-3 py-2 text-xs font-bold hover:bg-muted" onClick={() => setMode(mode === 'review' ? null : 'review')} type="button"><Star className="size-3.5" />Rate</button> : null}
-        <button className="inline-flex items-center gap-1.5 rounded-voro-md border border-line px-3 py-2 text-xs font-bold hover:bg-muted" onClick={() => setMode(mode === 'issue' ? null : 'issue')} type="button"><MessageSquareWarning className="size-3.5" />Report issue</button>
+        <button className="inline-flex items-center gap-1.5 rounded-voro-md border border-line px-3 py-2 text-xs font-bold text-action hover:bg-accent" disabled={isSaving} onClick={() => void reorder()} type="button"><RotateCcw className="size-3.5" />{t('orders.reorder')}</button>
+        {order.status === 'delivered' ? <button className="inline-flex items-center gap-1.5 rounded-voro-md border border-line px-3 py-2 text-xs font-bold hover:bg-muted" onClick={() => setMode(mode === 'review' ? null : 'review')} type="button"><Star className="size-3.5" />{t('orders.rate')}</button> : null}
+        <button className="inline-flex items-center gap-1.5 rounded-voro-md border border-line px-3 py-2 text-xs font-bold hover:bg-muted" onClick={() => setMode(mode === 'issue' ? null : 'issue')} type="button"><MessageSquareWarning className="size-3.5" />{t('orders.reportIssue')}</button>
       </div>
-      {mode === 'review' ? <form className="mt-3 rounded-voro-lg bg-muted p-3" onSubmit={(event) => { event.preventDefault(); void submitReview() }}><div className="flex gap-1">{[1, 2, 3, 4, 5].map((value) => <button aria-label={`${value} stars`} className={`rounded p-1 ${value <= rating ? 'text-action' : 'text-muted-foreground'}`} key={value} onClick={() => setRating(value)} type="button"><Star className="size-5 fill-current" /></button>)}</div><textarea className="mt-2 min-h-20 w-full rounded-voro-md border border-line bg-card p-2 text-sm" maxLength={1000} onChange={(event) => setComment(event.target.value)} placeholder="Share your experience (optional)" value={comment} /><button className="mt-2 rounded-voro-md bg-action px-3 py-2 text-xs font-bold text-action-text disabled:opacity-50" disabled={isSaving} type="submit">Send review</button></form> : null}
-      {mode === 'issue' ? <form className="mt-3 rounded-voro-lg bg-muted p-3" onSubmit={(event) => { event.preventDefault(); void submitIssue() }}><select className="w-full rounded-voro-md border border-line bg-card p-2 text-sm" onChange={(event) => setIssueCategory(event.target.value)} value={issueCategory}><option value="late_delivery">Late delivery</option><option value="missing_item">Missing item</option><option value="wrong_item">Wrong item</option><option value="quality">Food quality</option><option value="courier">Courier issue</option><option value="other">Other</option></select><textarea className="mt-2 min-h-20 w-full rounded-voro-md border border-line bg-card p-2 text-sm" maxLength={2000} minLength={5} onChange={(event) => setIssueDescription(event.target.value)} placeholder="Tell support what happened" required value={issueDescription} /><button className="mt-2 rounded-voro-md bg-action px-3 py-2 text-xs font-bold text-action-text disabled:opacity-50" disabled={isSaving} type="submit">Send report</button></form> : null}
+      {mode === 'review' ? <form className="mt-3 rounded-voro-lg bg-muted p-3" onSubmit={(event) => { event.preventDefault(); void submitReview() }}><div className="flex gap-1">{[1, 2, 3, 4, 5].map((value) => <button aria-label={t('orders.stars', { count: value })} className={`rounded p-1 ${value <= rating ? 'text-action' : 'text-muted-foreground'}`} key={value} onClick={() => setRating(value)} type="button"><Star className="size-5 fill-current" /></button>)}</div><textarea className="mt-2 min-h-20 w-full rounded-voro-md border border-line bg-card p-2 text-sm" maxLength={1000} onChange={(event) => setComment(event.target.value)} placeholder={t('orders.reviewPlaceholder')} value={comment} /><button className="mt-2 rounded-voro-md bg-action px-3 py-2 text-xs font-bold text-action-text disabled:opacity-50" disabled={isSaving} type="submit">{t('orders.sendReview')}</button></form> : null}
+      {mode === 'issue' ? <form className="mt-3 rounded-voro-lg bg-muted p-3" onSubmit={(event) => { event.preventDefault(); void submitIssue() }}><select className="w-full rounded-voro-md border border-line bg-card p-2 text-sm" onChange={(event) => setIssueCategory(event.target.value)} value={issueCategory}><option value="late_delivery">{t('orders.issue.lateDelivery')}</option><option value="missing_item">{t('orders.issue.missingItem')}</option><option value="wrong_item">{t('orders.issue.wrongItem')}</option><option value="quality">{t('orders.issue.quality')}</option><option value="courier">{t('orders.issue.courier')}</option><option value="other">{t('orders.issue.other')}</option></select><textarea className="mt-2 min-h-20 w-full rounded-voro-md border border-line bg-card p-2 text-sm" maxLength={2000} minLength={5} onChange={(event) => setIssueDescription(event.target.value)} placeholder={t('orders.issuePlaceholder')} required value={issueDescription} /><button className="mt-2 rounded-voro-md bg-action px-3 py-2 text-xs font-bold text-action-text disabled:opacity-50" disabled={isSaving} type="submit">{t('orders.sendReport')}</button></form> : null}
       {feedback ? <p className="mt-3 text-sm font-medium text-action">{feedback}</p> : null}
     </article>
   )
@@ -135,12 +135,12 @@ export function OrdersPanel() {
   }
 
   async function cancelOrder(order: CustomerOrder) {
-    if (!window.confirm(`Cancel order #${order.id}? This is possible before the restaurant accepts it.`)) return
+    if (!window.confirm(t('orders.cancelConfirm', { id: order.id }))) return
     try {
       await customerApi.cancelOrder(order.id)
       await refreshOrders()
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Order could not be cancelled.')
+      setError(requestError instanceof Error ? requestError.message : t('orders.cancelError'))
     }
   }
 
@@ -168,13 +168,19 @@ export function OrdersPanel() {
         }
       })
 
-    const refreshInterval = window.setInterval(() => {
+    const refreshFromRealtimeEvent = () => {
       customerApi.getOrders().then(({ orders: nextOrders }) => updateOrders(nextOrders)).catch(() => {})
-    }, 3_000)
+    }
+
+    // Status notifications arrive over Socket.IO. Keep a slow HTTP fallback
+    // for reconnections and a tab that was asleep in the background.
+    window.addEventListener('voro:customer-order-change', refreshFromRealtimeEvent)
+    const refreshInterval = window.setInterval(refreshFromRealtimeEvent, 60_000)
 
     return () => {
       isMounted = false
       window.clearInterval(refreshInterval)
+      window.removeEventListener('voro:customer-order-change', refreshFromRealtimeEvent)
     }
   }, [t])
 
@@ -211,7 +217,7 @@ export function OrdersPanel() {
           <button aria-selected={tab === 'history'} className={`relative flex items-center justify-center gap-2 px-3 py-3 text-sm font-bold transition-colors after:absolute after:inset-x-0 after:bottom-[-1px] after:h-0.5 ${tab === 'history' ? 'text-action after:bg-action' : 'text-muted-foreground after:bg-transparent hover:text-content'}`} onClick={() => setTab('history')} role="tab" type="button"><ClipboardList className="size-4" />{t('orders.history')} ({previousOrders.length})</button>
         </div>
 
-        {visibleOrders.length > 0 ? <div className={isSingleActiveOrder ? 'min-h-0 flex-1' : tab === 'active' ? 'grid gap-4 pb-3 xl:grid-cols-2' : 'grid gap-3'}>
+        {visibleOrders.length > 0 ? <div className={isSingleActiveOrder ? 'min-h-0 flex-1' : tab === 'active' ? 'grid gap-4 pb-3' : 'grid gap-3'}>
           {tab === 'active'
             ? activeOrders.map((order) => (
                 <OrderRouteMap

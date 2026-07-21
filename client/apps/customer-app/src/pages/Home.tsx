@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Settings } from 'lucide-react'
+import { MessageCircle, Settings, X } from 'lucide-react'
+import { createSocketClient } from '@voro/socket'
 import { DashboardSidebar } from '../components/dashboard/DashboardSidebar'
 import {
   getDashboardView,
   getSettingsSection,
 } from '../components/dashboard/utils/dashboardUtils'
 import { dashboardNavItems } from '../components/dashboard/data/dashboardData'
+import { customerNotificationText } from '../components/dashboard/utils/notificationText'
 import { OrdersPanel } from '../components/dashboard/OrdersPanel'
 import { RestaurantDiscoveryPanel } from '../components/dashboard/RestaurantDiscoveryPanel'
 import { RestaurantMenuPanel } from '../components/dashboard/RestaurantMenuPanel'
@@ -17,19 +19,22 @@ import { useAppDispatch, useAppSelector } from '../app/hooks'
 import { logout, logoutUser } from '../features/auth/authSlice'
 import { useI18n } from '../i18n/i18n'
 import { customerApi } from '../services/customerApi'
-import type { CustomerProfile } from '../types/customer'
+import type { CustomerNotification, CustomerProfile } from '../types/customer'
+
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
 function Home() {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
   const location = useLocation()
   const { t } = useI18n()
-  const { logoutStatus, refreshToken, user } = useAppSelector((state) => state.auth)
+  const { accessToken, logoutStatus, refreshToken, user } = useAppSelector((state) => state.auth)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const activeView = getDashboardView(location.pathname)
   const activeSettingsSection = getSettingsSection(location.pathname)
   const [profile, setProfile] = useState<CustomerProfile | null>(null)
   const [profileError, setProfileError] = useState('')
+  const [messageNotification, setMessageNotification] = useState<CustomerNotification | null>(null)
   const name = user?.name || 'korisnice'
   const displayName = profile?.user.name || user?.name || name
   const firstName = displayName.split(' ')[0] || displayName
@@ -61,6 +66,48 @@ function Home() {
     }
   }, [t])
 
+  useEffect(() => {
+    const token = accessToken || window.localStorage.getItem('voro_access_token') || ''
+    if (!token) return
+
+    const socket = createSocketClient(SOCKET_URL, { auth: { token } })
+    socket.on('notification:new', (notification: CustomerNotification) => {
+      window.dispatchEvent(new CustomEvent('voro:customer-notification', { detail: notification }))
+      if (typeof notification.data.orderId === 'number') {
+        window.dispatchEvent(new CustomEvent('voro:customer-order-change', { detail: notification.data.orderId }))
+      }
+      if (notification.type !== 'new_message') return
+      setMessageNotification(notification)
+      const text = customerNotificationText(notification, t)
+
+      if (!('Notification' in window)) return
+      const showBrowserNotification = () => {
+        if (document.visibilityState !== 'visible') {
+          new Notification(text.title, { body: text.body, icon: '/logo.svg' })
+        }
+      }
+
+      if (Notification.permission === 'granted') {
+        showBrowserNotification()
+      } else if (Notification.permission === 'default') {
+        void Notification.requestPermission().then((permission) => {
+          if (permission === 'granted') showBrowserNotification()
+        })
+      }
+    })
+    socket.connect()
+
+    return () => {
+      socket.disconnect()
+    }
+  }, [accessToken, t])
+
+  useEffect(() => {
+    if (!messageNotification) return
+    const timeout = window.setTimeout(() => setMessageNotification(null), 7_000)
+    return () => window.clearTimeout(timeout)
+  }, [messageNotification])
+
   async function handleLogout() {
     if (refreshToken) {
       await dispatch(logoutUser({ refreshToken }))
@@ -72,7 +119,10 @@ function Home() {
   }
 
   return (
-    <main className="h-screen overflow-hidden bg-background text-content">
+    <main
+      className="h-screen overflow-hidden bg-background text-content"
+      style={{ '--customer-sidebar-width': isSidebarCollapsed ? '6rem' : '17rem' } as CSSProperties}
+    >
       <div
         className={`grid h-full grid-rows-1 transition-[grid-template-columns] duration-200 ${
           isSidebarCollapsed ? 'lg:grid-cols-[6rem_1fr]' : 'lg:grid-cols-[17rem_1fr]'
@@ -143,6 +193,7 @@ function Home() {
           })}
         </div>
       </nav>
+      {messageNotification ? <aside className="fixed bottom-24 right-4 z-[1400] flex w-[min(24rem,calc(100vw-2rem))] items-start gap-3 rounded-voro-lg border border-line bg-card p-3 shadow-2xl lg:bottom-5" role="status"><span className="grid size-9 shrink-0 place-items-center rounded-voro-md bg-accent text-action"><MessageCircle className="size-4" /></span><div className="min-w-0 flex-1"><p className="font-bold">{customerNotificationText(messageNotification, t).title}</p><p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{customerNotificationText(messageNotification, t).body}</p></div><button aria-label={t('common.close')} className="grid size-8 shrink-0 place-items-center rounded-voro-md hover:bg-muted" onClick={() => setMessageNotification(null)} type="button"><X className="size-4" /></button></aside> : null}
     </main>
   )
 }

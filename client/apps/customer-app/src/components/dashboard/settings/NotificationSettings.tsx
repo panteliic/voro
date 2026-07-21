@@ -1,8 +1,9 @@
-import type { Dispatch, SetStateAction } from 'react'
+import { type Dispatch, type SetStateAction, useState } from 'react'
 import { Switch } from '@voro/ui'
 import { Bell } from 'lucide-react'
 import { useI18n } from '../../../i18n/i18n'
 import { customerApi } from '../../../services/customerApi'
+import { enableCustomerPushNotifications } from '../../../services/pushNotifications'
 import type { CustomerPreferences, CustomerProfile } from '../../../types/customer'
 import { SettingsSectionLayout } from './SettingsSectionLayout'
 
@@ -13,10 +14,20 @@ type NotificationSettingsProps = {
 
 export function NotificationSettings({ preferences, setProfile }: NotificationSettingsProps) {
   const { t } = useI18n()
+  const [pushStatus, setPushStatus] = useState('')
 
   async function updatePreference(key: keyof CustomerPreferences, value: boolean) {
     const result = await customerApi.updatePreferences({ ...preferences, [key]: value })
     setProfile((current) => (current ? { ...current, preferences: result.preferences } : current))
+  }
+
+  async function enablePush() {
+    try {
+      await enableCustomerPushNotifications()
+      setPushStatus(t('notifications.pushEnabled'))
+    } catch {
+      setPushStatus(t('notifications.pushError'))
+    }
   }
 
   return (
@@ -55,6 +66,10 @@ export function NotificationSettings({ preferences, setProfile }: NotificationSe
           />
         </div>
       ))}
+      <div className="grid gap-3 rounded-voro-lg border border-line bg-background px-4 py-3 sm:grid-cols-[1fr_auto] sm:items-center">
+        <div><p className="text-sm font-bold text-content">{t('notifications.pushTitle')}</p><p className="mt-1 text-sm text-muted-foreground">{t('notifications.pushDesc')}</p>{pushStatus ? <p className="mt-2 text-xs font-medium text-muted-foreground">{pushStatus}</p> : null}</div>
+        <button className="rounded-voro-md bg-action px-3 py-2 text-sm font-bold text-action-text" onClick={() => void enablePush()} type="button">{t('notifications.pushEnable')}</button>
+      </div>
     </SettingsSectionLayout>
   )
 }

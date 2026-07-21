@@ -105,7 +105,7 @@ export function RestaurantMenuPanel() {
     if (!menu || cartItems.length === 0) return
 
     if (!menu.restaurant.isOpen) {
-      setError('This restaurant is not accepting orders right now.')
+      setError(t('menu.notAccepting'))
       return
     }
 
@@ -133,7 +133,7 @@ export function RestaurantMenuPanel() {
       await customerApi.setFavorite(menu.restaurant.id, nextFavorite)
       setIsFavorite(nextFavorite)
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Could not update favorites.')
+      setError(requestError instanceof Error ? requestError.message : t('menu.favoriteError'))
     } finally {
       setIsSavingFavorite(false)
     }
@@ -199,10 +199,10 @@ export function RestaurantMenuPanel() {
               {menu.restaurant.description || t('restaurants.noDescription')}
             </p>
             <p className={`mt-3 text-xs font-bold ${menu.restaurant.isOpen ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-300'}`}>
-              {menu.restaurant.isOpen ? 'Open for orders' : 'Currently closed'}
+              {menu.restaurant.isOpen ? t('menu.openForOrders') : t('menu.currentlyClosed')}
             </p>
           </div>
-          <Button aria-label="Toggle favorite" disabled={isSavingFavorite} onClick={toggleFavorite} size="icon" type="button" variant="outline">
+          <Button aria-label={t('menu.toggleFavorite')} disabled={isSavingFavorite} onClick={toggleFavorite} size="icon" type="button" variant="outline">
             <Heart className={`size-4 ${isFavorite ? 'fill-action text-action' : ''}`} />
           </Button>
         </div>

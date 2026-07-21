@@ -303,7 +303,7 @@ export function RestaurantDiscoveryPanel({
                     <ArrowRight className="size-4 shrink-0 text-action transition-transform group-hover:translate-x-1" />
                   </div>
                   {restaurant.reviewCount ? <p className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-muted-foreground"><Star className="size-3.5 fill-amber-400 text-amber-400" />{restaurant.rating?.toFixed(1)} · {restaurant.reviewCount} review{restaurant.reviewCount === 1 ? '' : 's'}</p> : null}
-                  {restaurant.isFavorite ? <p className="mt-3 text-xs font-bold text-action">Saved to favorites</p> : null}
+                  {restaurant.isFavorite ? <p className="mt-3 text-xs font-bold text-action">{t('restaurants.favoriteSaved')}</p> : null}
                 </div>
               </NavLink>
             )
