@@ -327,19 +327,31 @@ export async function recordActiveDeliveryLocation(
   latitude: number,
   longitude: number,
 ) {
-  await pool.query(
+  const result = await pool.query<{ order_id: string; delivery_status: string }>(
     `
+      WITH active_delivery AS (
+        SELECT delivery.id, delivery.order_id, delivery.courier_id, delivery_status.name AS delivery_status
+        FROM delivery
+        INNER JOIN delivery_status ON delivery_status.id = delivery.status_id
+        WHERE delivery.courier_id = $1
+          AND delivery_status.name NOT IN ('delivered', 'failed', 'cancelled')
+        ORDER BY delivery.updated_at DESC
+        LIMIT 1
+      )
       INSERT INTO delivery_location (delivery_id, courier_id, latitude, longitude)
-      SELECT delivery.id, delivery.courier_id, $2, $3
-      FROM delivery
-      INNER JOIN delivery_status ON delivery_status.id = delivery.status_id
-      WHERE delivery.courier_id = $1
-        AND delivery_status.name NOT IN ('delivered', 'failed', 'cancelled')
-      ORDER BY delivery.updated_at DESC
-      LIMIT 1
+      SELECT id, courier_id, $2, $3
+      FROM active_delivery
+      RETURNING
+        (SELECT order_id FROM active_delivery) AS order_id,
+        (SELECT delivery_status FROM active_delivery) AS delivery_status
     `,
     [courierId, latitude, longitude],
   )
+
+  const row = result.rows[0]
+  return row
+    ? { orderId: Number(row.order_id), deliveryStatus: row.delivery_status }
+    : null
 }
 
 export async function listActiveDeliveries(courierId: number) {
@@ -470,8 +482,14 @@ export async function acceptDispatchOffer(courierId: number, offerId: number) {
       return null
     }
 
-    const existingDelivery = await client.query<{ id: string }>(
-      'SELECT id FROM delivery WHERE order_id = $1 FOR UPDATE',
+    const existingDelivery = await client.query<{ id: string; status: string }>(
+      `
+        SELECT delivery.id, delivery_status.name AS status
+        FROM delivery
+        INNER JOIN delivery_status ON delivery_status.id = delivery.status_id
+        WHERE delivery.order_id = $1
+        FOR UPDATE
+      `,
       [offer.order_id],
     )
 
@@ -486,7 +504,8 @@ export async function acceptDispatchOffer(courierId: number, offerId: number) {
       [offer.order_id],
     )
 
-    if (existingDelivery.rows[0] || !eligibleOrder.rows[0]) {
+    const previousDelivery = existingDelivery.rows[0]
+    if ((previousDelivery && !['failed', 'cancelled'].includes(previousDelivery.status)) || !eligibleOrder.rows[0]) {
       await client.query(
         `
           UPDATE delivery_dispatch_offer
@@ -499,19 +518,37 @@ export async function acceptDispatchOffer(courierId: number, offerId: number) {
       return null
     }
 
-    const deliveryResult = await client.query<{ id: string }>(
-      `
-        INSERT INTO delivery (order_id, courier_id, status_id, pickup_code)
-        VALUES (
-          $1,
-          $2,
-          (SELECT id FROM delivery_status WHERE name = 'arriving_to_restaurant'),
-          LPAD((($1::BIGINT) % 1000000)::TEXT, 6, '0')
+    const deliveryResult = previousDelivery
+      ? await client.query<{ id: string }>(
+          `
+            UPDATE delivery
+            SET
+              courier_id = $2,
+              status_id = (SELECT id FROM delivery_status WHERE name = 'arriving_to_restaurant'),
+              picked_up_at = NULL,
+              delivered_at = NULL,
+              failure_reason = NULL,
+              failed_at = NULL,
+              reassign_count = reassign_count + 1,
+              updated_at = NOW()
+            WHERE id = $1
+            RETURNING id
+          `,
+          [previousDelivery.id, courierId],
         )
-        RETURNING id
-      `,
-      [offer.order_id, courierId],
-    )
+      : await client.query<{ id: string }>(
+          `
+            INSERT INTO delivery (order_id, courier_id, status_id, pickup_code)
+            VALUES (
+              $1,
+              $2,
+              (SELECT id FROM delivery_status WHERE name = 'arriving_to_restaurant'),
+              LPAD((($1::BIGINT) % 1000000)::TEXT, 6, '0')
+            )
+            RETURNING id
+          `,
+          [offer.order_id, courierId],
+        )
 
     await client.query(
       'UPDATE courier SET is_available = FALSE, updated_at = NOW() WHERE id = $1',
@@ -550,6 +587,19 @@ export async function acceptDispatchOffer(courierId: number, offerId: number) {
           AND courier.current_longitude IS NOT NULL
       `,
       [deliveryResult.rows[0].id, courierId],
+    )
+    await client.query(
+      `
+        INSERT INTO delivery_event (delivery_id, order_id, courier_id, event_type, metadata)
+        VALUES ($1, $2, $3, $4, $5::JSONB)
+      `,
+      [
+        deliveryResult.rows[0].id,
+        offer.order_id,
+        courierId,
+        previousDelivery ? 'reassigned' : 'assigned',
+        JSON.stringify({ offerId, reassignCount: previousDelivery ? true : false }),
+      ],
     )
 
     await client.query('COMMIT')
@@ -631,6 +681,14 @@ export async function setDeliveryStatus(
       [deliveryId, status],
     )
 
+    await client.query(
+      `
+        INSERT INTO delivery_event (delivery_id, order_id, courier_id, event_type)
+        VALUES ($1, $2, $3, $4)
+      `,
+      [deliveryId, current.order_id, courierId, status],
+    )
+
     if (status === 'picked_up') {
       await client.query(
         `
@@ -664,6 +722,93 @@ export async function setDeliveryStatus(
 
     await client.query('COMMIT')
     return { id: deliveryId, status }
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+export async function withdrawFromDelivery(
+  courierId: number,
+  actorUserId: number,
+  deliveryId: number,
+  reason: string,
+) {
+  const client = await pool.connect()
+
+  try {
+    await client.query('BEGIN')
+    const deliveryResult = await client.query<{ order_id: string; status: string }>(
+      `
+        SELECT delivery.order_id, delivery_status.name AS status
+        FROM delivery
+        INNER JOIN delivery_status ON delivery_status.id = delivery.status_id
+        WHERE delivery.id = $1 AND delivery.courier_id = $2
+        FOR UPDATE
+      `,
+      [deliveryId, courierId],
+    )
+    const delivery = deliveryResult.rows[0]
+
+    if (!delivery || !['assigned', 'arriving_to_restaurant'].includes(delivery.status)) {
+      await client.query('ROLLBACK')
+      return null
+    }
+
+    await client.query(
+      `
+        UPDATE delivery
+        SET
+          courier_id = NULL,
+          status_id = (SELECT id FROM delivery_status WHERE name = 'failed'),
+          failed_at = NOW(),
+          failure_reason = $2,
+          updated_at = NOW()
+        WHERE id = $1
+      `,
+      [deliveryId, reason || null],
+    )
+    await client.query(
+      `
+        INSERT INTO delivery_event (delivery_id, order_id, courier_id, actor_user_id, event_type, reason)
+        VALUES ($1, $2, $3, $4, 'driver_withdrew', $5)
+      `,
+      [deliveryId, delivery.order_id, courierId, actorUserId, reason || null],
+    )
+    await client.query(
+      `
+        UPDATE courier
+        SET is_available = is_online, updated_at = NOW()
+        WHERE id = $1
+      `,
+      [courierId],
+    )
+    await client.query(
+      `
+        UPDATE delivery_dispatch_offer
+        SET status = 'expired', updated_at = NOW()
+        WHERE order_id = $1 AND status = 'pending'
+      `,
+      [delivery.order_id],
+    )
+    await client.query(
+      `
+        UPDATE delivery_dispatch_job
+        SET
+          status = 'queued',
+          assigned_courier_id = NULL,
+          last_error = $2,
+          next_attempt_at = NOW(),
+          updated_at = NOW()
+        WHERE order_id = $1
+      `,
+      [delivery.order_id, reason ? `Courier withdrew: ${reason}` : 'Courier withdrew before pickup.'],
+    )
+
+    await client.query('COMMIT')
+    return { orderId: Number(delivery.order_id) }
   } catch (error) {
     await client.query('ROLLBACK')
     throw error

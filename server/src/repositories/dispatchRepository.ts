@@ -71,7 +71,9 @@ export async function getPreparingOrderForDispatch(orderId: number) {
       INNER JOIN restaurant ON restaurant.id = "order".restaurant_id
       INNER JOIN address ON address.id = "order".address_id
       LEFT JOIN delivery ON delivery.order_id = "order".id
-      WHERE "order".id = $1 AND delivery.id IS NULL
+      LEFT JOIN delivery_status existing_delivery_status ON existing_delivery_status.id = delivery.status_id
+      WHERE "order".id = $1
+        AND (delivery.id IS NULL OR existing_delivery_status.name IN ('failed', 'cancelled'))
       LIMIT 1
     `,
     [orderId],

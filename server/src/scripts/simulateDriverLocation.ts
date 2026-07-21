@@ -2,6 +2,8 @@ import { pool } from '../database/pool'
 import * as driverRepository from '../repositories/driverRepository'
 import * as redisService from '../services/redisService'
 import * as routingService from '../services/routingService'
+import { env } from '../config/env'
+import jwt from 'jsonwebtoken'
 
 type Position = { latitude: number; longitude: number }
 
@@ -33,6 +35,40 @@ type TargetRestaurant = {
 const defaultDriverEmail = 'marko.jovanovic@driver.voro.test'
 const defaultRestaurantName = 'Domaće palačinke'
 const metersPerLatitudeDegree = 111_320
+
+function simulatorAccessToken(userId: number, email: string) {
+  return jwt.sign(
+    { userId, email, role: 'courier', type: 'access' },
+    env.jwtSecret,
+    { algorithm: 'HS256', expiresIn: '1h' },
+  )
+}
+
+async function publishSimulatedPresence(token: string, position: Position) {
+  let response: Response
+
+  try {
+    response = await fetch(`${env.apiUrl}/driver/presence`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isOnline: true, latitude: position.latitude, longitude: position.longitude }),
+    })
+  } catch {
+    throw new Error(`Cannot reach the API at ${env.apiUrl}. Start the API before running the simulator.`)
+  }
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      const retryAfter = response.headers.get('Retry-After')
+      throw new Error(
+        `Driver presence updates were rate-limited. Retry after ${retryAfter || 'a short wait'} ` +
+          `or use a longer --interval value.`,
+      )
+    }
+
+    throw new Error(`Driver presence request failed with ${response.status}.`)
+  }
+}
 
 function argumentValue(name: string) {
   const position = process.argv.indexOf(name)
@@ -229,6 +265,10 @@ function moveAlongRoute(current: Position, routePoints: Position[], nextPointInd
 }
 
 async function main() {
+  if (env.isProduction) {
+    throw new Error('The driver location simulator is only available outside production.')
+  }
+
   const options = parseOptions()
   const [targetDriver, targetRestaurant] = await Promise.all([
     findTargetDriver(options.driverEmail),
@@ -238,6 +278,8 @@ async function main() {
   if (!driverProfile) {
     throw new Error(`Courier profile for ${targetDriver.email} no longer exists.`)
   }
+
+  const accessToken = simulatorAccessToken(targetDriver.userId, targetDriver.email)
 
   const simulatorLeaseSeconds = Math.max(5, Math.ceil((options.intervalMs * 3) / 1_000))
   let tick = 0
@@ -264,11 +306,13 @@ async function main() {
     await redisService.clearDriverSimulatorLease(driverProfile.id).catch(() => undefined)
     await redisService.disconnectRedis().catch(() => undefined)
     await pool.end().catch(() => undefined)
-    process.exit(exitCode)
+    process.exitCode = exitCode
   }
 
   const updateLocation = async () => {
-    await redisService.refreshDriverSimulatorLease(driverProfile.id, simulatorLeaseSeconds)
+    // The API owns the database/Redis update and Socket.IO broadcast. Briefly
+    // release the local lease so the simulator request itself is accepted.
+    await redisService.clearDriverSimulatorLease(driverProfile.id)
     const activeDelivery = (await driverRepository.listActiveDeliveries(driverProfile.id))[0] || null
     let movementLabel = 'waiting in front'
     let arrivedAtRestaurantNow = false
@@ -314,18 +358,8 @@ async function main() {
       }
     }
 
-    const driver = await driverRepository.updateDriverPresence(targetDriver.userId, {
-      isOnline: true,
-      latitude: currentPoint.latitude,
-      longitude: currentPoint.longitude,
-    })
-
-    if (!driver) {
-      throw new Error(`Courier profile for ${targetDriver.email} no longer exists.`)
-    }
-
-    await driverRepository.recordActiveDeliveryLocation(driver.id, currentPoint.latitude, currentPoint.longitude)
-    await redisService.syncDriverPresence(driver)
+    await publishSimulatedPresence(accessToken, currentPoint)
+    await redisService.refreshDriverSimulatorLease(driverProfile.id, simulatorLeaseSeconds)
     tick += 1
 
     console.log(
@@ -368,5 +402,5 @@ void main().catch(async (error) => {
   console.error('Driver location simulator failed.', error)
   await redisService.disconnectRedis().catch(() => undefined)
   await pool.end().catch(() => undefined)
-  process.exit(1)
+  process.exitCode = 1
 })

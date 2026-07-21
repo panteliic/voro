@@ -59,6 +59,14 @@ export async function updateDeliveryStatus(req: Request, res: Response) {
   }
 }
 
+export async function withdrawFromDelivery(req: Request, res: Response) {
+  try {
+    res.json(await driverService.withdrawFromDelivery(auth(req).userId, numericParam(req.params.deliveryId), req.body?.reason))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
 export async function getDeliveryRoute(req: Request, res: Response) {
   try {
     res.json(await driverService.getDeliveryRoute(auth(req).userId, numericParam(req.params.deliveryId)))

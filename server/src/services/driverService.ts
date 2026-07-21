@@ -1,9 +1,13 @@
 import * as driverRepository from '../repositories/driverRepository'
 import * as redisService from './redisService'
 import * as routingService from './routingService'
+import * as dispatchService from './dispatchService'
 import * as operationsRepository from '../repositories/operationsRepository'
+import { publishOrderMessage, publishOrderTracking } from './realtimeService'
+import { notifyUser } from './notificationService'
 import type { DriverAnalytics, DriverAnalyticsDay, DriverAnalyticsPeriod } from '../types/driver'
 import { HttpError } from '../utils/httpError'
+import { sanitizePlainText } from '../utils/securityInput'
 
 type WorkSession = { started_at: Date; ended_at: Date | null; updated_at: Date }
 type DeliveredTotal = { deliveredAt: Date; total: number }
@@ -153,7 +157,14 @@ export async function updatePresence(userId: number, payload: unknown) {
   }
 
   if (nextLatitude !== null && nextLongitude !== null) {
-    await driverRepository.recordActiveDeliveryLocation(driver.id, nextLatitude, nextLongitude)
+    const activeDelivery = await driverRepository.recordActiveDeliveryLocation(driver.id, nextLatitude, nextLongitude)
+    if (activeDelivery) {
+      publishOrderTracking({
+        orderId: activeDelivery.orderId,
+        courier: { name: driver.name, latitude: nextLatitude, longitude: nextLongitude },
+        deliveryStatus: activeDelivery.deliveryStatus,
+      })
+    }
   }
 
   await redisService.syncDriverPresence(driver)
@@ -179,10 +190,22 @@ export async function acceptOffer(userId: number, offerId: number) {
   ])
   await redisService.syncDriverPresence(updatedDriver)
 
+  if (delivery) {
+    publishOrderTracking({
+      orderId: delivery.orderId,
+      courier: {
+        name: updatedDriver.name,
+        latitude: updatedDriver.currentLatitude,
+        longitude: updatedDriver.currentLongitude,
+      },
+      deliveryStatus: delivery.status,
+    })
+  }
+
   const owner = await operationsRepository.getOrderOwner(delivery?.orderId || 0)
   if (owner) {
     await Promise.all([
-      operationsRepository.createUserNotification(Number(owner.user_id), {
+      notifyUser(Number(owner.user_id), {
         type: 'courier_assigned',
         title: `Courier assigned to order #${delivery?.orderId}`,
         body: `${updatedDriver.name} is heading to the restaurant.`,
@@ -237,6 +260,16 @@ export async function updateDeliveryStatus(userId: number, deliveryId: number, s
 
   await redisService.syncDriverPresence(await getOwnedDriver(userId))
 
+  publishOrderTracking({
+    orderId: activeDelivery.orderId,
+    courier: {
+      name: driver.name,
+      latitude: driver.currentLatitude,
+      longitude: driver.currentLongitude,
+    },
+    deliveryStatus: updated.status,
+  })
+
   const owner = await operationsRepository.getOrderOwner(activeDelivery.orderId)
   if (owner) {
     const message = status === 'picked_up'
@@ -244,7 +277,7 @@ export async function updateDeliveryStatus(userId: number, deliveryId: number, s
       : status === 'on_the_way'
         ? 'Your courier is on the way. You can follow the route live.'
         : 'Your delivery has been completed. Enjoy your meal!'
-    await operationsRepository.createUserNotification(Number(owner.user_id), {
+    await notifyUser(Number(owner.user_id), {
       type: 'delivery_status',
       title: `Order #${activeDelivery.orderId}: ${status.replace(/_/g, ' ')}`,
       body: message,
@@ -253,6 +286,32 @@ export async function updateDeliveryStatus(userId: number, deliveryId: number, s
   }
 
   return { delivery: updated }
+}
+
+export async function withdrawFromDelivery(userId: number, deliveryId: number, reasonValue: unknown) {
+  if (!Number.isInteger(deliveryId) || deliveryId <= 0) {
+    throw new HttpError(400, 'Delivery was not found.')
+  }
+
+  const driver = await getOwnedDriver(userId)
+  const reason = sanitizePlainText(reasonValue, 500)
+  const withdrawn = await driverRepository.withdrawFromDelivery(driver.id, userId, deliveryId, reason)
+  if (!withdrawn) {
+    throw new HttpError(409, 'Only a delivery that has not been picked up can be reassigned.')
+  }
+
+  const owner = await operationsRepository.getOrderOwner(withdrawn.orderId)
+  await redisService.syncDriverPresence(await getOwnedDriver(userId))
+  if (owner) {
+    await notifyUser(Number(owner.user_id), {
+      type: 'courier_reassignment',
+      title: `Order #${withdrawn.orderId}: finding a new courier`,
+      body: 'Your courier could not complete pickup. We are finding another available courier now.',
+      data: { orderId: withdrawn.orderId },
+    })
+  }
+  dispatchService.enqueueDispatch(withdrawn.orderId)
+  return { withdrawn: true, orderId: withdrawn.orderId }
 }
 
 export async function getOrderMessages(userId: number, orderId: number) {
@@ -264,13 +323,15 @@ export async function getOrderMessages(userId: number, orderId: number) {
 
 export async function sendOrderMessage(userId: number, orderId: number, bodyValue: unknown) {
   if (!Number.isInteger(orderId) || orderId <= 0) throw new HttpError(400, 'Order not found.')
-  const body = String(bodyValue || '').trim().slice(0, 1_000)
+  const body = sanitizePlainText(bodyValue, 1_000)
   if (!body) throw new HttpError(400, 'Message cannot be empty.')
   const message = await operationsRepository.createOrderMessage(orderId, userId, 'courier', body)
   if (!message) throw new HttpError(409, 'Order conversation not found.')
+  publishOrderMessage(message)
   const owner = await operationsRepository.getOrderOwner(orderId)
   if (owner) {
-    await operationsRepository.createUserNotification(Number(owner.user_id), {
+    const customerUserId = Number(owner.user_id)
+    await notifyUser(customerUserId, {
       type: 'new_message',
       title: `New message for order #${orderId}`,
       body,
