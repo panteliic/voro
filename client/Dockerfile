@@ -15,7 +15,9 @@ RUN npm ci --fetch-retries=5 --fetch-retry-factor=2 --fetch-retry-mintimeout=100
 
 ARG APP_NAME
 ARG VITE_API_URL=http://localhost:5000
+ARG VITE_VAPID_PUBLIC_KEY
 ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_VAPID_PUBLIC_KEY=$VITE_VAPID_PUBLIC_KEY
 
 COPY . .
 RUN npm run build --workspace=$APP_NAME

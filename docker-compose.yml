@@ -38,7 +38,7 @@ services:
       context: ./server
     command: node dist/database/migrate.js
     environment: &server-environment
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 5000
       API_URL: http://localhost:5000
       DB_HOST: database
@@ -56,6 +56,9 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
     depends_on:
       database:
@@ -89,6 +92,7 @@ services:
       args:
         APP_NAME: customer-app
         VITE_API_URL: http://localhost:5000
+        VITE_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
     ports:
       - "5173:80"
     depends_on:
@@ -115,6 +119,7 @@ services:
       args:
         APP_NAME: driver-app
         VITE_API_URL: http://localhost:5000
+        VITE_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
     ports:
       - "5175:80"
     depends_on:

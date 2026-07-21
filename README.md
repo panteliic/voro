@@ -52,9 +52,10 @@ The project contains four independent React applications backed by one Express A
 
 ### Driver
 
-- Online/offline availability with continuous location heartbeats.
+- Online/offline availability with continuous location heartbeats and automatic stale-location protection.
 - Nearby dispatch offers with accept/decline flow.
 - Pickup, on-the-way, and delivered status workflow.
+- Safe pre-pickup withdrawal with automatic dispatch recovery and an auditable delivery-event history.
 - Live route view, pickup code, and cash/change instructions.
 - Earnings and delivery history overview.
 
@@ -85,10 +86,11 @@ flowchart LR
 
 ### Backend responsibilities
 
-- JWT authentication, refresh tokens, role-based access, email verification, and password reset.
+- JWT authentication, refresh tokens, role-based access, email verification, password reset, password policy, and one-time-code attempt limits.
 - PostgreSQL as the source of truth for users, restaurants, menus, orders, payments, and deliveries.
-- Redis for catalog/address caching, dispatch queueing, and live courier presence/geo lookup.
+- Redis for catalog/address caching, dispatch queueing, rate limits, and live courier presence/geo lookup.
 - A background dispatch worker that offers eligible orders to nearby available couriers.
+- Socket.IO in-app events plus Web Push subscriptions for customer and courier notifications.
 - OpenStreetMap tiles and OSRM routing for map and route visualisation.
 
 ## Tech stack
@@ -275,10 +277,43 @@ Use `server/.env.example` and `.env.docker.example` as templates. The important 
 | `PORT` | API port, defaults to `5000`. |
 | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | PostgreSQL connection. |
 | `REDIS_URL` | Redis connection URL. |
-| `JWT_SECRET` | Secret used to sign access and refresh tokens. |
+| `JWT_SECRET` | Secret used to sign access and refresh tokens; at least 32 random characters in production. |
 | `PAYMENT_CARD_ENCRYPTION_KEY` | Encryption key for stored payment-card data. |
 | `CLIENT_URLS` | Allowed frontend origins for CORS. |
+| `VAPID_SUBJECT`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Web Push identity and keys. The public key is also injected into the customer and driver builds. |
 | `SMTP_*` | Optional email delivery configuration. |
+
+## Production readiness and security
+
+The API applies Helmet headers, a restrictive API CORS allow-list, request-size limits, Redis-backed rate limiting on authentication and write endpoints, strong password rules, safe plain-text normalization for user content, and no-store headers on API responses. React escapes rendered text by default; server-side plain-text sanitization adds a second protection layer for stored content.
+
+Before deploying:
+
+1. Serve every app and the API over HTTPS. Browser push and reliable geolocation require it.
+2. Set `NODE_ENV=production`, a unique 32+ character `JWT_SECRET`, and a unique `PAYMENT_CARD_ENCRYPTION_KEY`. The server refuses unsafe production values.
+3. Generate VAPID keys once, save the private key only on the server, and build the customer/driver apps with the public key:
+
+   ```powershell
+   cd server
+   npx web-push generate-vapid-keys
+   ```
+
+   Put the resulting values into `VAPID_SUBJECT`, `VAPID_PUBLIC_KEY`, and `VAPID_PRIVATE_KEY`. Customer and driver enable notifications from Settings; subscriptions are saved per device and invalid endpoints are removed automatically.
+
+4. Run database migrations, schedule PostgreSQL backups, and restrict database/Redis access to the private network.
+5. Check runtime dependencies before releases:
+
+   ```powershell
+   cd server
+   npm audit --omit=dev
+   npm run test:security
+   ```
+
+### Location tracking limitation
+
+The driver web/PWA app uses high-accuracy `watchPosition`, sends movement updates and 15-second heartbeats, goes offline after a stale reading, and resynchronizes immediately when it returns to the foreground. A normal browser, however, may suspend JavaScript/GPS in the background and cannot continue guaranteed tracking after the browser is fully closed.
+
+For delivery-grade, always-on tracking, package the driver workspace as a native Android/iOS app (for example with Capacitor) and use an OS-approved background-location service/foreground notification. The server endpoint and live map are ready for that client; the operating-system background permission is the remaining native-client requirement.
 
 ## Notes
 
