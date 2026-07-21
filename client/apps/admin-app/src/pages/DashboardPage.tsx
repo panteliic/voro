@@ -393,7 +393,7 @@ export function DashboardPage() {
               <Clock3 className="size-4 text-action" />
               <h2 className="font-bold">{t('dashboard.activities')}</h2>
             </div>
-            <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300">LIVE</span>
+            <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300">{t('common.live')}</span>
           </div>
           {activities.length ? (
             <div className="divide-y divide-line px-5">

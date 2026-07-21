@@ -15,14 +15,14 @@ export function Header() {
     <header className="admin-header flex min-h-[4.25rem] items-center justify-between gap-3 border-b border-line bg-card px-4 sm:px-6 lg:px-8">
       <div className="min-w-0">
         <p className="text-xs text-muted-foreground">Voro / <span className="text-content">{pageName}</span></p>
-        <p className="mt-1 truncate text-sm font-bold sm:hidden">{user?.name || 'Admin'}</p>
+        <p className="mt-1 truncate text-sm font-bold sm:hidden">{user?.name || t('common.admin')}</p>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <LanguageSwitch />
         <Button aria-label={t('common.refresh')} onClick={() => window.location.reload()} size="icon-sm" title={t('common.refresh')} type="button" variant="ghost">
           <RefreshCw className="size-4" />
         </Button>
-        <Button aria-label="Notifications" className="hidden sm:inline-flex" size="icon-sm" title="Notifications" type="button" variant="ghost">
+        <Button aria-label={t('common.notifications')} className="hidden sm:inline-flex" size="icon-sm" title={t('common.notifications')} type="button" variant="ghost">
           <Bell className="size-4" />
         </Button>
         <Button aria-label={t('common.logout')} onClick={logout} size="icon-sm" title={t('common.logout')} type="button" variant="ghost">

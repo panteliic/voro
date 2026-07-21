@@ -3,6 +3,7 @@ import * as L from 'leaflet'
 import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { OperationsOrder } from '../../types/operations'
+import { useI18n } from '../../i18n/i18n'
 
 const restaurantIcon = L.divIcon({
   className: 'voro-operations-pin',
@@ -36,11 +37,12 @@ function FitBounds({ points }: { points: Array<[number, number]> }) {
 }
 
 export function LiveOperationsMap({ orders }: { orders: OperationsOrder[] }) {
+  const { t } = useI18n()
   const points = orders.flatMap((order) => [
     order.restaurantLatitude !== null && order.restaurantLongitude !== null ? [[order.restaurantLatitude, order.restaurantLongitude] as [number, number]] : [],
     order.customerLatitude !== null && order.customerLongitude !== null ? [[order.customerLatitude, order.customerLongitude] as [number, number]] : [],
     order.courierLatitude !== null && order.courierLongitude !== null ? [[order.courierLatitude, order.courierLongitude] as [number, number]] : [],
   ].flat())
 
-  return <div className="h-[22rem] overflow-hidden border-b border-line sm:h-[28rem]"><MapContainer center={points[0] || [44.816, 20.46]} className="size-full" scrollWheelZoom zoom={12}><TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />{orders.map((order) => <div key={order.id}>{order.restaurantLatitude !== null && order.restaurantLongitude !== null ? <Marker icon={restaurantIcon} position={[order.restaurantLatitude, order.restaurantLongitude]}><Popup><strong>{order.restaurantName}</strong><br />Order #{order.id} pickup</Popup></Marker> : null}{order.customerLatitude !== null && order.customerLongitude !== null ? <Marker icon={customerIcon} position={[order.customerLatitude, order.customerLongitude]}><Popup><strong>{order.customerName}</strong><br />Order #{order.id} delivery</Popup></Marker> : null}{order.courierLatitude !== null && order.courierLongitude !== null ? <Marker icon={courierIcon} position={[order.courierLatitude, order.courierLongitude]}><Popup><strong>{order.courierName || 'Courier'}</strong><br />Order #{order.id} · {order.deliveryStatus || 'assigned'}</Popup></Marker> : null}</div>)}<FitBounds points={points} /></MapContainer></div>
+  return <div className="h-[22rem] overflow-hidden border-b border-line sm:h-[28rem]"><MapContainer center={points[0] || [44.816, 20.46]} className="size-full" scrollWheelZoom zoom={12}><TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />{orders.map((order) => <div key={order.id}>{order.restaurantLatitude !== null && order.restaurantLongitude !== null ? <Marker icon={restaurantIcon} position={[order.restaurantLatitude, order.restaurantLongitude]}><Popup><strong>{order.restaurantName}</strong><br />{t('operations.pickup', { id: order.id })}</Popup></Marker> : null}{order.customerLatitude !== null && order.customerLongitude !== null ? <Marker icon={customerIcon} position={[order.customerLatitude, order.customerLongitude]}><Popup><strong>{order.customerName}</strong><br />{t('operations.delivery', { id: order.id })}</Popup></Marker> : null}{order.courierLatitude !== null && order.courierLongitude !== null ? <Marker icon={courierIcon} position={[order.courierLatitude, order.courierLongitude]}><Popup><strong>{order.courierName || t('operations.courier')}</strong><br />{t('operations.order', { id: order.id })} · {order.deliveryStatus || t('operations.assign')}</Popup></Marker> : null}</div>)}<FitBounds points={points} /></MapContainer></div>
 }

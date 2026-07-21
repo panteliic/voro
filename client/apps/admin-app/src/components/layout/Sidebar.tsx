@@ -64,7 +64,7 @@ export function Sidebar() {
             {user?.name?.slice(0, 1).toUpperCase() || 'A'}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-xs font-bold text-content">{user?.name || 'Admin'}</p>
+            <p className="truncate text-xs font-bold text-content">{user?.name || t('common.admin')}</p>
             <p className="truncate text-[11px] text-muted-foreground">{user?.email}</p>
           </div>
         </div>
