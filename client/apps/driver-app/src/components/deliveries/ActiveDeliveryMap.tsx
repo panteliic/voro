@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Banknote, Clock3, CreditCard, KeyRound, Navigation, Store } from 'lucide-react'
+import { Banknote, Clock3, CreditCard, KeyRound, MessageCircle, Navigation, Store } from 'lucide-react'
 import * as L from 'leaflet'
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import { translate, type DriverLanguage } from '../../i18n'
 import { getDriverDeliveryRoute } from '../../services/driverApi'
 import type { Delivery, DriverRoute } from '../../types/driver'
+import { DriverOrderChatModal } from './DriverOrderChatModal'
 
 const driverIcon = L.divIcon({
   className: 'voro-driver-pin',
@@ -88,6 +89,7 @@ export function ActiveDeliveryMap({
   const [routeData, setRouteData] = useState<DriverRoute | null>(null)
   const [error, setError] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
+  const [isChatOpen, setIsChatOpen] = useState(false)
   const [isShowingPickupCode, setIsShowingPickupCode] = useState(false)
   const copy = deliveryCopy(delivery, language)
   const shouldShowRoute = delivery.status !== 'picked_up'
@@ -155,6 +157,7 @@ export function ActiveDeliveryMap({
             <span className="flex items-center gap-1 rounded-voro-md bg-accent px-3 py-2 text-action"><Clock3 className="size-4" />{routeData.route.etaMinutes} min</span>
           </div>
         ) : null}
+        <button className="inline-flex items-center justify-center gap-2 rounded-voro-md border border-line px-3 py-2 text-sm font-bold text-action hover:bg-accent" onClick={() => setIsChatOpen(true)} type="button"><MessageCircle className="size-4" />Chat</button>
       </div>
 
       {canShowPickupCode ? <button className="mx-4 my-4 flex w-[calc(100%-2rem)] items-center justify-between gap-4 rounded-voro-lg bg-action px-5 py-4 text-left text-action-text shadow-voro-sm" onClick={() => setIsShowingPickupCode(true)} type="button">
@@ -221,6 +224,7 @@ export function ActiveDeliveryMap({
           <button className="mt-6 w-full rounded-voro-md bg-action px-4 py-3 text-sm font-bold text-action-text" onClick={() => setIsShowingPickupCode(false)} type="button">{t('common.close')}</button>
         </div>
       </div> : null}
+      {isChatOpen ? <DriverOrderChatModal onClose={() => setIsChatOpen(false)} orderId={delivery.orderId} token={token} /> : null}
     </section>
   )
 }

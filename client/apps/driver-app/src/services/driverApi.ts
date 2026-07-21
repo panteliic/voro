@@ -1,4 +1,4 @@
-import type { DashboardResponse, Delivery, Driver, DriverRoute, UpdatePresencePayload } from '../types/driver'
+import type { DashboardResponse, Delivery, Driver, DriverNotification, DriverOrderMessage, DriverRoute, UpdatePresencePayload } from '../types/driver'
 import { request } from './apiClient'
 
 export function getDriverDashboard(token: string) {
@@ -37,4 +37,26 @@ export function updateDeliveryStatus(
 
 export function getDriverDeliveryRoute(token: string, deliveryId: number) {
   return request<DriverRoute>(`/driver/deliveries/${deliveryId}/route`, token)
+}
+
+export function getDriverOrderMessages(token: string, orderId: number) {
+  return request<{ messages: DriverOrderMessage[] }>(`/driver/orders/${orderId}/messages`, token)
+}
+
+export function sendDriverOrderMessage(token: string, orderId: number, body: string) {
+  return request<{ message: DriverOrderMessage }>(`/driver/orders/${orderId}/messages`, token, {
+    method: 'POST',
+    body: JSON.stringify({ body }),
+  })
+}
+
+export function getDriverNotifications(token: string) {
+  return request<{ notifications: DriverNotification[]; unreadCount: number }>('/driver/notifications', token)
+}
+
+export function readDriverNotification(token: string, notificationId: number) {
+  return request<{ read: true }>(`/driver/notifications/${notificationId}/read`, token, {
+    method: 'PATCH',
+    body: '{}',
+  })
 }

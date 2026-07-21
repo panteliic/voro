@@ -100,6 +100,27 @@ export type DriverRoute = {
   }
 }
 
+export type DriverOrderMessage = {
+  id: number
+  orderId: number
+  senderUserId: number
+  senderRole: 'customer' | 'courier'
+  senderName: string
+  body: string
+  readAt: string | null
+  createdAt: string
+}
+
+export type DriverNotification = {
+  id: number
+  type: string
+  title: string
+  body: string
+  data: Record<string, unknown>
+  readAt: string | null
+  createdAt: string
+}
+
 export type DashboardResponse = {
   driver: Driver
   deliveries: Delivery[]

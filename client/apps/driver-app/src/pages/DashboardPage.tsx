@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Bike, CalendarDays, LayoutDashboard, LogOut, MapPinned, RefreshCw, Settings, Wifi, WifiOff } from 'lucide-react'
+import { Bell, Bike, CalendarDays, LayoutDashboard, LogOut, MapPinned, RefreshCw, Settings, Wifi, WifiOff } from 'lucide-react'
 import { ActiveDeliveryMap } from '../components/deliveries/ActiveDeliveryMap'
 import { DeliveryOffers } from '../components/deliveries/DeliveryOffers'
 import { DriverHistory } from '../components/history/DriverHistory'
 import { DriverSettings, type DriverTheme } from '../components/settings/DriverSettings'
+import { DriverNotificationsModal } from '../components/settings/DriverNotificationsModal'
 import { translate, type DriverLanguage } from '../i18n'
 import type { AuthUser } from '../types/auth'
 import type { DashboardResponse } from '../types/driver'
@@ -57,6 +58,7 @@ export function DashboardPage({
   const [view, setView] = useState<View>('home')
   const [theme, setTheme] = useState<DriverTheme>(() => (localStorage.getItem('voro-driver-theme') === 'dark' ? 'dark' : 'light'))
   const [language, setLanguage] = useState<DriverLanguage>(() => (localStorage.getItem('voro-driver-language') === 'en' ? 'en' : 'sr'))
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const t = (key: string, values?: Record<string, string | number>) => translate(language, key, values)
   const driver = dashboard?.driver
   const activeDelivery = dashboard?.activeDelivery
@@ -102,6 +104,7 @@ export function DashboardPage({
               {driver?.isOnline ? t('common.online') : t('common.offline')}
             </button>
             <button aria-label={t('common.refresh')} className="grid size-9 place-items-center rounded-voro-md border border-line hover:bg-muted" disabled={isLoading} onClick={onRefresh} type="button"><RefreshCw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} /></button>
+            <button aria-label="Activity" className="grid size-9 place-items-center rounded-voro-md border border-line hover:bg-muted" onClick={() => setIsNotificationsOpen(true)} type="button"><Bell className="size-4" /></button>
             <button aria-label={t('common.logout')} className="grid size-9 place-items-center rounded-voro-md border border-line hover:bg-muted" onClick={onLogout} type="button"><LogOut className="size-4" /></button>
           </div>
         </div>
@@ -139,6 +142,7 @@ export function DashboardPage({
           {navItems.map(({ icon: Icon, id, label }) => <button aria-current={view === id ? 'page' : undefined} className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-voro-md px-1 text-[0.65rem] font-bold leading-none transition ${view === id ? 'bg-accent text-action' : 'text-muted-foreground hover:bg-muted hover:text-content'}`} key={id} onClick={() => setView(id)} type="button"><Icon className="size-5 shrink-0" /><span className="max-w-full truncate">{label}</span></button>)}
         </div>
       </nav>
+      {isNotificationsOpen ? <DriverNotificationsModal onClose={() => setIsNotificationsOpen(false)} token={token} /> : null}
     </main>
   )
 }
