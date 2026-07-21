@@ -6,12 +6,14 @@ import { DashboardOverviewPage } from './DashboardOverviewPage'
 import { MenuPage } from './MenuPage'
 import { OrderCalendarPage } from './OrderCalendarPage'
 import { OrderDayPage } from './OrderDayPage'
+import { OperationsPage } from './OperationsPage'
 import type { AuthUser } from '../types/auth'
 import type {
   CategoryForm,
   DashboardResponse,
   OrderStatus,
   ProductForm,
+  RestaurantOperations,
 } from '../types/restaurant'
 
 type DashboardPageProps = {
@@ -21,11 +23,13 @@ type DashboardPageProps = {
   isLoading: boolean
   isSavingCategory: boolean
   isSavingProduct: boolean
+  isSavingOperations: boolean
   isUpdatingOrderId: number | null
   onRefresh: () => void
   onLogout: () => void
   onCreateCategory: (payload: CategoryForm) => Promise<void>
   onSaveProduct: (payload: ProductForm, editingProductId: number | null) => Promise<void>
+  onSaveOperations: (payload: RestaurantOperations) => Promise<void>
   onUpdateOrderStatus: (orderId: number, status: OrderStatus) => Promise<void>
 }
 
@@ -34,11 +38,13 @@ export function DashboardPage({
   isLoading,
   isSavingCategory,
   isSavingProduct,
+  isSavingOperations,
   isUpdatingOrderId,
   onCreateCategory,
   onLogout,
   onRefresh,
   onSaveProduct,
+  onSaveOperations,
   onUpdateOrderStatus,
   status,
   user,
@@ -80,6 +86,7 @@ export function DashboardPage({
             />
             <Route element={<OrderCalendarPage />} path="/calendar" />
             <Route element={<OrderDayPage />} path="/calendar/:day" />
+            <Route element={<OperationsPage dashboard={dashboard} isSaving={isSavingOperations} onSave={onSaveOperations} />} path="/operations" />
             <Route
               element={
                 <MenuPage

@@ -41,6 +41,7 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'nav.dashboard': 'Dashboard',
     'nav.calendar': 'Calendar',
     'nav.menu': 'Menu',
+    'nav.operations': 'Operations',
 
     'restaurant.privateAccess': 'Private console access',
     'restaurant.adminOnly': 'Admin-issued accounts only',
@@ -174,6 +175,7 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'nav.dashboard': 'Pregled',
     'nav.calendar': 'Kalendar',
     'nav.menu': 'Meni',
+    'nav.operations': 'Operativa',
 
     'restaurant.privateAccess': 'Privatni pristup konzoli',
     'restaurant.adminOnly': 'Samo nalozi koje izda admin',

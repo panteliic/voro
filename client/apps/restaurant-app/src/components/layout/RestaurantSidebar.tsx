@@ -1,4 +1,4 @@
-import { CalendarDays, ClipboardList, LayoutDashboard, Utensils, type LucideIcon } from 'lucide-react'
+import { CalendarDays, ClipboardList, LayoutDashboard, MapPinned, Utensils, type LucideIcon } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useI18n } from '../../i18n/i18n'
 
@@ -7,6 +7,7 @@ const navItems: Array<{ to: string; labelKey: string; icon: LucideIcon; end?: bo
   { to: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
   { to: '/calendar', labelKey: 'nav.calendar', icon: CalendarDays },
   { to: '/menu', labelKey: 'nav.menu', icon: Utensils },
+  { to: '/operations', labelKey: 'nav.operations', icon: MapPinned },
 ]
 
 export function RestaurantSidebar() {
@@ -33,7 +34,7 @@ export function RestaurantSidebar() {
       </aside>
 
       <nav className="fixed inset-x-0 bottom-0 z-[1000] border-t border-line bg-card px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-12px_24px_rgba(0,0,0,0.08)] lg:hidden">
-        <div className="grid grid-cols-4 gap-1">
+        <div className="grid grid-cols-5 gap-1">
           {navItems.map(({ end, icon: Icon, labelKey, to }) => (
             <NavLink
               className={({ isActive }) =>

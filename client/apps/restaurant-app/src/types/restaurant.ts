@@ -7,6 +7,9 @@ export type Restaurant = {
   email: string
   imageUrl: string
   isActive: boolean
+  deliveryRadiusKm: number
+  openingHours: Record<string, { enabled: boolean; open: string; close: string }>
+  isAcceptingOrders: boolean
 }
 
 export type ProductCategory = {
@@ -31,7 +34,21 @@ export type DashboardResponse = {
   categories: ProductCategory[]
   products: Product[]
   orders: RestaurantOrder[]
+  notifications: RestaurantNotification[]
+  unreadNotifications: number
 }
+
+export type RestaurantNotification = {
+  id: number
+  type: string
+  title: string
+  body: string
+  data: Record<string, unknown>
+  readAt: string | null
+  createdAt: string
+}
+
+export type RestaurantOperations = Pick<Restaurant, 'deliveryRadiusKm' | 'openingHours' | 'isAcceptingOrders'>
 
 export type OrderStatus =
   | 'pending'

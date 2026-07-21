@@ -9,6 +9,7 @@ import {
   createCategory,
   getRestaurantDashboard,
   saveProduct,
+  updateRestaurantOperations,
   updateOrderStatus,
 } from './services/restaurantApi'
 import type { AuthUser, LoginPayload, SetupPasswordPayload } from './types/auth'
@@ -17,6 +18,7 @@ import type {
   DashboardResponse,
   OrderStatus,
   ProductForm,
+  RestaurantOperations,
 } from './types/restaurant'
 import { clearSession, storedToken, storedUser, storeSession } from './utils/storage'
 
@@ -31,6 +33,7 @@ function App() {
   const [isSavingProduct, setIsSavingProduct] = useState(false)
   const [isUpdatingOrderId, setIsUpdatingOrderId] = useState<number | null>(null)
   const [isSettingPassword, setIsSettingPassword] = useState(false)
+  const [isSavingOperations, setIsSavingOperations] = useState(false)
 
   function endSession(message?: string) {
     clearSession()
@@ -179,6 +182,20 @@ function App() {
     }
   }
 
+  async function handleSaveOperations(payload: RestaurantOperations) {
+    setIsSavingOperations(true)
+    setStatus('')
+    try {
+      const result = await updateRestaurantOperations(token, payload)
+      setDashboard((current) => current ? { ...current, restaurant: { ...current.restaurant, ...result.operations } } : current)
+      setStatus('Delivery settings saved.')
+    } catch (error) {
+      handleRequestError(error, 'Delivery settings could not be saved.')
+    } finally {
+      setIsSavingOperations(false)
+    }
+  }
+
   async function handleLogout() {
     await revokeSession()
     endSession()
@@ -204,11 +221,13 @@ function App() {
         isLoading={isLoading}
         isSavingCategory={isSavingCategory}
         isSavingProduct={isSavingProduct}
+        isSavingOperations={isSavingOperations}
         isUpdatingOrderId={isUpdatingOrderId}
         onCreateCategory={handleCreateCategory}
         onLogout={() => void handleLogout()}
         onRefresh={() => void loadDashboard()}
         onSaveProduct={handleSaveProduct}
+        onSaveOperations={handleSaveOperations}
         onUpdateOrderStatus={handleUpdateOrderStatus}
         status={status}
         user={user}

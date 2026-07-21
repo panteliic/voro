@@ -5,6 +5,7 @@ import type {
   Product,
   ProductCategory,
   ProductForm,
+  RestaurantOperations,
 } from '../types/restaurant'
 import { request } from './apiClient'
 
@@ -52,5 +53,12 @@ export function saveProduct(
   return request<{ product: Product; products: Product[] }>(path, token, {
     method,
     body: JSON.stringify(body),
+  })
+}
+
+export function updateRestaurantOperations(token: string, payload: RestaurantOperations) {
+  return request<{ operations: RestaurantOperations }>('/restaurant/operations', token, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
   })
 }
