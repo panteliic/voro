@@ -9,6 +9,7 @@ import { DriversPage } from '../pages/DriversPage'
 import { LoginPage } from '../pages/LoginPage'
 import { OrderDetailsPage } from '../pages/OrderDetailsPage'
 import { OrdersPage } from '../pages/OrdersPage'
+import { OperationsPage } from '../pages/OperationsPage'
 import { RegisterPage } from '../pages/RegisterPage'
 import { RestaurantsPage } from '../pages/RestaurantsPage'
 import { RestaurantAnalyticsPage } from '../pages/RestaurantAnalyticsPage'
@@ -34,6 +35,7 @@ export const router = createBrowserRouter([
           { path: '/drivers/:driverId', element: <DriverAnalyticsPage /> },
           { path: '/orders', element: <OrdersPage /> },
           { path: '/orders/:orderId', element: <OrderDetailsPage /> },
+          { path: '/operations', element: <OperationsPage /> },
           { path: '/settings', element: <SettingsPage /> },
         ],
       },

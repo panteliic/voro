@@ -3,6 +3,7 @@ import {
   Bike,
   ClipboardList,
   LayoutDashboard,
+  MapPinned,
   Settings,
   Store,
   Users,
@@ -16,6 +17,7 @@ const navItems = [
   { to: '/restaurants', labelKey: 'nav.restaurants', icon: Store },
   { to: '/drivers', labelKey: 'nav.drivers', icon: Bike },
   { to: '/orders', labelKey: 'nav.orders', icon: ClipboardList },
+  { to: '/operations', labelKey: 'nav.operations', icon: MapPinned },
   { to: '/settings', labelKey: 'nav.settings', icon: Settings },
 ]
 
@@ -70,7 +72,7 @@ export function Sidebar() {
       </aside>
 
       <nav className="fixed inset-x-0 bottom-0 z-[1000] border-t border-line bg-card px-1 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-12px_24px_rgba(0,0,0,0.08)] lg:hidden">
-        <div className="grid grid-cols-6 gap-1">
+        <div className="grid grid-cols-7 gap-1">
           {navItems.map((item) => {
             const Icon = item.icon
 
