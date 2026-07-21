@@ -23,16 +23,11 @@ export function AppHeader({
   const { t } = useI18n()
 
   return (
-    <header className="border-b border-line bg-card">
-      <div className="mx-auto flex max-w-none items-center justify-between gap-2 px-3 py-3 sm:gap-4 sm:px-4 sm:py-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <img src="/logo.svg" alt="Voro" className="hidden size-10 shrink-0 rounded-voro-lg min-[360px]:block" />
-          <div className="min-w-0">
-            <p className="truncate text-sm font-bold">
-              {dashboard?.restaurant.name || t('restaurant.console')}
-            </p>
-            <p className="truncate text-xs text-muted-foreground">{user.email}</p>
-          </div>
+    <header className="flex min-h-[4.25rem] items-center border-b border-line bg-card">
+      <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold">{dashboard?.restaurant.name || user.restaurantName}</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground sm:hidden">{user.email}</p>
         </div>
         <div className="flex shrink-0 gap-1.5 sm:gap-2">
           <LanguageSwitch />

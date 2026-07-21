@@ -10,7 +10,7 @@ export function PublicHeader() {
         <div className="flex min-w-0 items-center gap-3">
           <img src="/logo.svg" alt="Voro" className="size-10 shrink-0 rounded-voro-md" />
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold">Voro Restaurant Operations</p>
+            <p className="truncate text-sm font-bold">{t('restaurant.publicName')}</p>
             <p className="truncate text-xs text-muted-foreground">
               {t('restaurant.privateAccess')}
             </p>
