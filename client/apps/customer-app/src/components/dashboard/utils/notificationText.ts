@@ -31,6 +31,13 @@ export function customerNotificationText(notification: CustomerNotification, t: 
     }
   }
 
+  if (notification.type === 'courier_nearby') {
+    return {
+      title: t('activity.courierNearbyTitle', { id: orderId }),
+      body: t('activity.courierNearbyBody'),
+    }
+  }
+
   if (notification.type === 'delivery_status') {
     const status = notification.data.status
     if (status === 'picked_up') {

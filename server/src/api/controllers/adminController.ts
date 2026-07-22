@@ -310,6 +310,14 @@ export async function getOrder(req: Request, res: Response) {
   }
 }
 
+export async function getOrderConversation(req: Request, res: Response) {
+  try {
+    res.set('Cache-Control', 'no-store').json(await adminService.getOrderConversation(numericParam(req.params.orderId)))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
 export async function getOperations(_req: Request, res: Response) {
   try {
     res.set('Cache-Control', 'no-store').json(await adminService.getOperations())
@@ -335,6 +343,14 @@ export async function updateIssue(req: Request, res: Response) {
       status,
       normalizeText(req.body?.resolutionNote),
     ))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function acknowledgeDispatchAlert(req: Request, res: Response) {
+  try {
+    res.json(await adminService.acknowledgeDispatchAlert(numericParam(req.params.alertId), auth(req).userId))
   } catch (error) {
     sendError(error, res)
   }

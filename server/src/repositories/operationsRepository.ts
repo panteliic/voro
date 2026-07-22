@@ -6,6 +6,9 @@ type RestaurantOperationsRow = {
   delivery_radius_km: string
   opening_hours: Record<string, unknown>
   is_accepting_orders: boolean
+  preparation_minutes: number
+  busy_until: Date | null
+  auto_accept_orders: boolean
 }
 
 type OrderOwnerRow = {
@@ -44,6 +47,15 @@ type IssueRow = {
   resolution_note: string | null
   created_at: Date
   updated_at: Date
+}
+
+type DispatchAlertRow = {
+  id: string
+  order_id: string
+  severity: 'warning' | 'critical'
+  reason: string
+  status: 'open' | 'acknowledged' | 'resolved'
+  created_at: Date
 }
 
 type MessageRow = {
@@ -94,6 +106,9 @@ function toOperations(row: RestaurantOperationsRow) {
     deliveryRadiusKm: Number(row.delivery_radius_km),
     openingHours: row.opening_hours || {},
     isAcceptingOrders: row.is_accepting_orders,
+    preparationMinutes: row.preparation_minutes,
+    busyUntil: row.busy_until,
+    autoAcceptOrders: row.auto_accept_orders,
   }
 }
 
@@ -124,6 +139,17 @@ function toIssue(row: IssueRow) {
   }
 }
 
+function toDispatchAlert(row: DispatchAlertRow) {
+  return {
+    id: Number(row.id),
+    orderId: Number(row.order_id),
+    severity: row.severity,
+    reason: row.reason,
+    status: row.status,
+    createdAt: row.created_at,
+  }
+}
+
 function toMessage(row: MessageRow) {
   return {
     id: Number(row.id),
@@ -151,7 +177,7 @@ function toNotification(row: NotificationRow) {
 
 export async function getRestaurantOperations(restaurantId: number) {
   const result = await pool.query<RestaurantOperationsRow>(
-    `SELECT id, delivery_radius_km, opening_hours, is_accepting_orders FROM restaurant WHERE id = $1`,
+    `SELECT id, delivery_radius_km, opening_hours, is_accepting_orders, preparation_minutes, busy_until, auto_accept_orders FROM restaurant WHERE id = $1`,
     [restaurantId],
   )
   return result.rows[0] ? toOperations(result.rows[0]) : null
@@ -159,7 +185,14 @@ export async function getRestaurantOperations(restaurantId: number) {
 
 export async function updateRestaurantOperations(
   restaurantId: number,
-  payload: { deliveryRadiusKm: number; openingHours: Record<string, unknown>; isAcceptingOrders: boolean },
+  payload: {
+    deliveryRadiusKm: number
+    openingHours: Record<string, unknown>
+    isAcceptingOrders: boolean
+    preparationMinutes: number
+    busyUntil: Date | null
+    autoAcceptOrders: boolean
+  },
 ) {
   const result = await pool.query<RestaurantOperationsRow>(
     `
@@ -168,11 +201,22 @@ export async function updateRestaurantOperations(
         delivery_radius_km = $2,
         opening_hours = $3::JSONB,
         is_accepting_orders = $4,
+        preparation_minutes = $5,
+        busy_until = $6,
+        auto_accept_orders = $7,
         updated_at = NOW()
       WHERE id = $1
-      RETURNING id, delivery_radius_km, opening_hours, is_accepting_orders
+      RETURNING id, delivery_radius_km, opening_hours, is_accepting_orders, preparation_minutes, busy_until, auto_accept_orders
     `,
-    [restaurantId, payload.deliveryRadiusKm, JSON.stringify(payload.openingHours), payload.isAcceptingOrders],
+    [
+      restaurantId,
+      payload.deliveryRadiusKm,
+      JSON.stringify(payload.openingHours),
+      payload.isAcceptingOrders,
+      payload.preparationMinutes,
+      payload.busyUntil,
+      payload.autoAcceptOrders,
+    ],
   )
   return result.rows[0] ? toOperations(result.rows[0]) : null
 }
@@ -343,6 +387,21 @@ export async function listOrderMessages(orderId: number, userId: number, role: '
   return result.rows.map(toMessage)
 }
 
+export async function listOrderMessagesForAdmin(orderId: number) {
+  const result = await pool.query<MessageRow>(
+    `
+      SELECT order_message.*, "user".name AS sender_name
+      FROM order_message
+      INNER JOIN "user" ON "user".id = order_message.sender_user_id
+      WHERE order_message.order_id = $1
+      ORDER BY order_message.created_at ASC
+      LIMIT 200
+    `,
+    [orderId],
+  )
+  return result.rows.map(toMessage)
+}
+
 export async function createOrderMessage(
   orderId: number,
   userId: number,
@@ -373,6 +432,24 @@ export async function createUserNotification(
       RETURNING id, type, title, body, data, read_at, created_at
     `,
     [userId, payload.type, payload.title, payload.body, JSON.stringify(payload.data || {})],
+  )
+  return result.rows[0] ? toNotification(result.rows[0]) : null
+}
+
+export async function createCourierNearbyNotification(userId: number, orderId: number, distanceMeters: number) {
+  const result = await pool.query<NotificationRow>(
+    `
+      INSERT INTO app_notification (recipient_user_id, type, title, body, data)
+      VALUES ($1, 'courier_nearby', $2, $3, $4::JSONB)
+      ON CONFLICT DO NOTHING
+      RETURNING id, type, title, body, data, read_at, created_at
+    `,
+    [
+      userId,
+      `Order #${orderId}: courier is nearby`,
+      'Your courier is close to the delivery address. Please be ready to receive the order.',
+      JSON.stringify({ orderId, distanceMeters }),
+    ],
   )
   return result.rows[0] ? toNotification(result.rows[0]) : null
 }
@@ -449,6 +526,26 @@ export async function listOpenIssues() {
     `SELECT * FROM order_issue WHERE status <> 'resolved' ORDER BY created_at ASC LIMIT 100`,
   )
   return result.rows.map(toIssue)
+}
+
+export async function listOpenDispatchAlerts() {
+  const result = await pool.query<DispatchAlertRow>(
+    `SELECT id, order_id, severity, reason, status, created_at FROM dispatch_alert WHERE status <> 'resolved' ORDER BY severity DESC, created_at ASC LIMIT 100`,
+  )
+  return result.rows.map(toDispatchAlert)
+}
+
+export async function acknowledgeDispatchAlert(alertId: number, adminUserId: number) {
+  const result = await pool.query<DispatchAlertRow>(
+    `
+      UPDATE dispatch_alert
+      SET status = 'acknowledged', acknowledged_by_user_id = $2, acknowledged_at = NOW(), updated_at = NOW()
+      WHERE id = $1 AND status = 'open'
+      RETURNING id, order_id, severity, reason, status, created_at
+    `,
+    [alertId, adminUserId],
+  )
+  return result.rows[0] ? toDispatchAlert(result.rows[0]) : null
 }
 
 export async function resolveIssue(
@@ -582,6 +679,8 @@ export async function assignCourierToOrder(orderId: number, courierId: number) {
             status_id = (SELECT id FROM delivery_status WHERE name = 'assigned'),
             picked_up_at = NULL,
             delivered_at = NULL,
+            delivery_proof_note = NULL,
+            delivery_proof_photo_url = NULL,
             updated_at = NOW()
       `,
       [orderId, courierId],
@@ -597,6 +696,10 @@ export async function assignCourierToOrder(orderId: number, courierId: number) {
     )
     await client.query(
       `UPDATE delivery_dispatch_offer SET status = 'expired', updated_at = NOW() WHERE order_id = $1 AND status = 'pending'`,
+      [orderId],
+    )
+    await client.query(
+      `UPDATE dispatch_alert SET status = 'resolved', updated_at = NOW() WHERE order_id = $1 AND status <> 'resolved'`,
       [orderId],
     )
     await client.query(`UPDATE courier SET is_available = FALSE, updated_at = NOW() WHERE id = $1`, [courierId])

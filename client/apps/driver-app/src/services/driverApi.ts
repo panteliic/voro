@@ -28,10 +28,11 @@ export function updateDeliveryStatus(
   token: string,
   deliveryId: number,
   status: 'picked_up' | 'on_the_way' | 'delivered',
+  proof: { proofNote?: string } = {},
 ) {
   return request<{ delivery: { id: number; status: string } }>(`/driver/deliveries/${deliveryId}/status`, token, {
     method: 'PATCH',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, ...proof }),
   })
 }
 
