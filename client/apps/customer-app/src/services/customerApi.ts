@@ -11,6 +11,7 @@ import type {
   CustomerPaymentMethodPayload,
   CustomerPreferences,
   CustomerProfile,
+  CustomerSession,
   CustomerUserProfile,
   RestaurantDiscovery,
   RestaurantMenu,
@@ -114,6 +115,31 @@ function jsonRequest<TResponse>(path: string, method: string, body: unknown) {
   })
 }
 
+async function sessionRequest<TResponse>(path: string, body: Record<string, unknown> = {}) {
+  const send = (accessToken: string) => fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      ...body,
+      currentRefreshToken: localStorage.getItem(REFRESH_TOKEN_KEY) || '',
+    }),
+  })
+
+  let response = await send(localStorage.getItem(ACCESS_TOKEN_KEY) || '')
+  if (response.status === 401) {
+    response = await send(await refreshAccessToken())
+  }
+
+  const data = (await response.json().catch(() => ({}))) as TResponse & { message?: string }
+  if (!response.ok) {
+    throw new Error(data.message || 'Request failed.')
+  }
+  return data
+}
+
 export const customerApi = {
   searchAddressSuggestions(query: string, signal?: AbortSignal) {
     return request<{ suggestions: LocationSuggestion[] }>(
@@ -202,6 +228,29 @@ export const customerApi = {
 
   readNotification(notificationId: number) {
     return request<{ read: true }>(`/customer/notifications/${notificationId}/read`, { method: 'PATCH', body: '{}' })
+  },
+
+  exportPersonalData() {
+    return request<Record<string, unknown>>('/customer/privacy/export', { cache: 'no-store' })
+  },
+
+  deleteAccount() {
+    return request<{ deleted: true }>('/customer/privacy/account', {
+      method: 'DELETE',
+      body: JSON.stringify({ confirmation: 'DELETE' }),
+    })
+  },
+
+  getSessions() {
+    return sessionRequest<{ sessions: CustomerSession[] }>('/auth/sessions')
+  },
+
+  revokeOtherSessions() {
+    return sessionRequest<{ revoked: true }>('/auth/sessions/revoke-others')
+  },
+
+  revokeSession(sessionId: number) {
+    return sessionRequest<{ revoked: true }>(`/auth/sessions/${sessionId}/revoke`)
   },
 
   registerPushSubscription(subscription: PushSubscriptionJSON) {

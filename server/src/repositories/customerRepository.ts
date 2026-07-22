@@ -91,6 +91,8 @@ type CustomerOrderRow = {
   restaurant_id: string
   restaurant_name: string
   restaurant_image_url: string | null
+  preparation_minutes: number
+  busy_until: Date | null
   status: string
   driver_name: string | null
   delivery_status: string | null
@@ -204,6 +206,8 @@ function toCustomerOrder(row: CustomerOrderRow) {
     restaurantId: Number(row.restaurant_id),
     restaurantName: row.restaurant_name,
     restaurantImageUrl: row.restaurant_image_url || '',
+    restaurantPreparationMinutes: row.preparation_minutes || 20,
+    restaurantBusyUntil: row.busy_until,
     status: row.status,
     driverName: row.driver_name || '',
     deliveryStatus: row.delivery_status || '',
@@ -623,6 +627,8 @@ export async function listCustomerOrders(userId: number, limit = 50) {
         o.restaurant_id,
         restaurant.name AS restaurant_name,
         restaurant.image_url AS restaurant_image_url,
+        restaurant.preparation_minutes,
+        restaurant.busy_until,
         status.name AS status,
         driver.name AS driver_name,
         delivery_status.name AS delivery_status,
@@ -661,6 +667,8 @@ export async function listCustomerOrders(userId: number, limit = 50) {
         restaurant.id,
         restaurant.name,
         restaurant.image_url,
+        restaurant.preparation_minutes,
+        restaurant.busy_until,
         status.name,
         driver.name,
         delivery_status.name,
@@ -755,6 +763,106 @@ export async function getCustomerOrderRouteLocations(userId: number, orderId: nu
     courierLatitude: row.courier_latitude === null ? null : Number(row.courier_latitude),
     courierLongitude: row.courier_longitude === null ? null : Number(row.courier_longitude),
     deliveryStatus: row.delivery_status || '',
+  }
+}
+
+export async function exportCustomerData(userId: number) {
+  const [profile, addresses, orders, reviews, issues] = await Promise.all([
+    getUserProfile(userId),
+    listAddresses(userId),
+    listCustomerOrders(userId, 100),
+    pool.query<{ order_id: string; rating: number; comment: string | null; created_at: Date }>(
+      `SELECT order_id, rating, comment, created_at FROM order_review WHERE user_id = $1 ORDER BY created_at DESC`,
+      [userId],
+    ),
+    pool.query<{ order_id: string; category: string; description: string; status: string; created_at: Date }>(
+      `SELECT order_id, category, description, status, created_at FROM order_issue WHERE reporter_user_id = $1 ORDER BY created_at DESC`,
+      [userId],
+    ),
+  ])
+
+  return {
+    exportedAt: new Date(),
+    profile,
+    addresses,
+    orders,
+    reviews: reviews.rows.map((row) => ({
+      orderId: Number(row.order_id),
+      rating: row.rating,
+      comment: row.comment || '',
+      createdAt: row.created_at,
+    })),
+    supportIssues: issues.rows.map((row) => ({
+      orderId: Number(row.order_id),
+      category: row.category,
+      description: row.description,
+      status: row.status,
+      createdAt: row.created_at,
+    })),
+  }
+}
+
+export async function anonymizeCustomerAccount(userId: number) {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const user = await client.query<{ role_name: string }>(
+      `
+        SELECT role.name AS role_name
+        FROM "user"
+        INNER JOIN role ON role.id = "user".role_id
+        WHERE "user".id = $1
+        FOR UPDATE
+      `,
+      [userId],
+    )
+    if (user.rows[0]?.role_name !== 'customer') {
+      await client.query('ROLLBACK')
+      return false
+    }
+
+    await client.query(`DELETE FROM app_notification WHERE recipient_user_id = $1`, [userId])
+    await client.query(`DELETE FROM push_subscription WHERE user_id = $1`, [userId])
+    await client.query(`DELETE FROM refresh_tokens WHERE user_id = $1`, [userId])
+    await client.query(`DELETE FROM email_verification_codes WHERE user_id = $1`, [userId])
+    await client.query(`DELETE FROM password_reset_code WHERE user_id = $1`, [userId])
+    await client.query(`DELETE FROM payment_method WHERE user_id = $1`, [userId])
+    await client.query(`DELETE FROM customer_preferences WHERE user_id = $1`, [userId])
+    await client.query(`DELETE FROM restaurant_favorite WHERE user_id = $1`, [userId])
+    await client.query(`DELETE FROM order_review WHERE user_id = $1`, [userId])
+    await client.query(`DELETE FROM order_issue WHERE reporter_user_id = $1`, [userId])
+    await client.query(`DELETE FROM order_message WHERE sender_user_id = $1`, [userId])
+    await client.query(`DELETE FROM address WHERE user_id = $1`, [userId])
+    await client.query(
+      `
+        UPDATE "order" SET note = NULL, updated_at = NOW()
+        WHERE user_id = $1
+      `,
+      [userId],
+    )
+    await client.query(
+      `
+        UPDATE "user"
+        SET
+          name = 'Deleted customer',
+          email = CONCAT('deleted-customer-', id, '-', EXTRACT(EPOCH FROM NOW())::BIGINT, '@deleted.voro.invalid'),
+          phone = NULL,
+          password = 'deleted-account',
+          is_active = FALSE,
+          email_verified = FALSE,
+          verified_at = NULL,
+          updated_at = NOW()
+        WHERE id = $1
+      `,
+      [userId],
+    )
+    await client.query('COMMIT')
+    return true
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
   }
 }
 
