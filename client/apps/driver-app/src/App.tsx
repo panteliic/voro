@@ -345,7 +345,10 @@ function App() {
     }
   }
 
-  async function handleUpdateDelivery(statusValue: 'picked_up' | 'on_the_way' | 'delivered') {
+  async function handleUpdateDelivery(
+    statusValue: 'picked_up' | 'on_the_way' | 'delivered',
+    proof: { proofNote: string } = { proofNote: '' },
+  ) {
     const delivery = dashboard?.activeDelivery
     if (!delivery) return
 
@@ -353,7 +356,7 @@ function App() {
     setStatus('')
 
     try {
-      await updateDeliveryStatus(token, delivery.id, statusValue)
+      await updateDeliveryStatus(token, delivery.id, statusValue, proof)
       setStatus(driverTranslation(statusValue === 'delivered' ? 'status.deliveryCompleted' : 'status.deliveryUpdated'))
       await loadDashboard(token, true)
     } catch (error) {

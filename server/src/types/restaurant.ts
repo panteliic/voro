@@ -28,6 +28,9 @@ export type RestaurantOperationsPayload = {
   deliveryRadiusKm: number
   openingHours: RestaurantOpeningHours
   isAcceptingOrders: boolean
+  preparationMinutes: number
+  busyUntil: string | null
+  autoAcceptOrders: boolean
 }
 
 export type UpsertProductCategoryPayload = {

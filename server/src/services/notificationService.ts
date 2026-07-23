@@ -17,3 +17,16 @@ export async function notifyUser(
   }).catch((error) => console.error('Could not queue web push notification.', error))
   return notification
 }
+
+export async function notifyUserOnceCourierIsNearby(userId: number, orderId: number, distanceMeters: number) {
+  const notification = await operationsRepository.createCourierNearbyNotification(userId, orderId, distanceMeters)
+  if (!notification) return null
+
+  publishUserNotification(userId, notification)
+  void sendUserPush(userId, {
+    title: notification.title,
+    body: notification.body,
+    data: { ...notification.data, notificationId: notification.id },
+  }).catch((error) => console.error('Could not queue web push notification.', error))
+  return notification
+}

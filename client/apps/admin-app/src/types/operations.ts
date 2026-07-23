@@ -33,8 +33,28 @@ export type SupportIssue = {
   updatedAt: string
 }
 
+export type DispatchAlert = {
+  id: number
+  orderId: number
+  severity: 'warning' | 'critical'
+  reason: string
+  status: 'open' | 'acknowledged' | 'resolved'
+  createdAt: string
+}
+
+export type AdminOrderMessage = {
+  id: number
+  orderId: number
+  senderUserId: number
+  senderRole: 'customer' | 'courier'
+  senderName: string
+  body: string
+  createdAt: string
+}
+
 export type OperationsSnapshot = {
   orders: OperationsOrder[]
   issues: SupportIssue[]
   couriers: Driver[]
+  dispatchAlerts: DispatchAlert[]
 }

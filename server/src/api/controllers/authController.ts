@@ -5,6 +5,19 @@ import type { AuthenticatedRequest } from '../middleware/authenticate'
 import { normalizeEmail, normalizePassword, normalizeText } from '../../utils/authInput'
 import { sendError } from '../../utils/sendError'
 
+function sessionMetadata(req: Request) {
+  return {
+    userAgent: String(req.headers['user-agent'] || ''),
+    ipAddress: String(req.ip || ''),
+  }
+}
+
+function numericParam(value: unknown) {
+  const param = Array.isArray(value) ? value[0] : value
+  const parsed = Number(param)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 0
+}
+
 export async function signup(req: Request, res: Response) {
   try {
     const result = await authService.signup({
@@ -24,7 +37,7 @@ export async function login(req: Request, res: Response) {
     const result = await authService.login({
       email: normalizeEmail(req.body.email),
       password: normalizePassword(req.body.password),
-    })
+    }, sessionMetadata(req))
 
     res.json(result)
   } catch (error) {
@@ -49,7 +62,7 @@ export async function auth0Callback(req: Request, res: Response) {
       state: normalizeText(req.query.state),
       error: normalizeText(req.query.error),
       errorDescription: normalizeText(req.query.error_description),
-    })
+    }, sessionMetadata(req))
     const params = new URLSearchParams({
       message: result.message,
       accessToken: result.accessToken,
@@ -70,7 +83,7 @@ export async function refresh(req: Request, res: Response) {
   try {
     const result = await authService.refresh({
       refreshToken: normalizeText(req.body.refreshToken),
-    })
+    }, sessionMetadata(req))
 
     res.json(result)
   } catch (error) {
@@ -110,6 +123,46 @@ export async function resetPassword(req: Request, res: Response) {
     })
 
     res.json(result)
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function listSessions(req: Request, res: Response) {
+  try {
+    res.set('Cache-Control', 'no-store').json(
+      await authService.listActiveSessions(
+        (req as AuthenticatedRequest).auth.userId,
+        normalizeText(req.body?.currentRefreshToken),
+      ),
+    )
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function revokeOtherSessions(req: Request, res: Response) {
+  try {
+    res.json(
+      await authService.revokeOtherSessions(
+        (req as AuthenticatedRequest).auth.userId,
+        normalizeText(req.body?.currentRefreshToken),
+      ),
+    )
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function revokeSession(req: Request, res: Response) {
+  try {
+    res.json(
+      await authService.revokeSession(
+        (req as AuthenticatedRequest).auth.userId,
+        numericParam(req.params.sessionId),
+        normalizeText(req.body?.currentRefreshToken),
+      ),
+    )
   } catch (error) {
     sendError(error, res)
   }

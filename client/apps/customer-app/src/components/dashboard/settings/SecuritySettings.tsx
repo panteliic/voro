@@ -1,14 +1,13 @@
-import { useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Input, Switch } from '@voro/ui'
-import { Eye, EyeOff, LockKeyhole } from 'lucide-react'
+import { Download, Eye, EyeOff, Laptop, LockKeyhole, LogOut, RefreshCw, Trash2 } from 'lucide-react'
 import { useAppDispatch } from '../../../app/hooks'
 import { logout } from '../../../features/auth/authSlice'
 import { useI18n } from '../../../i18n/i18n'
 import { authApi } from '../../../services/authApi'
 import { customerApi } from '../../../services/customerApi'
-import type { CustomerPreferences, CustomerProfile } from '../../../types/customer'
-import { SettingRow } from './SettingRow'
+import type { CustomerPreferences, CustomerProfile, CustomerSession } from '../../../types/customer'
 import { SettingsSectionLayout } from './SettingsSectionLayout'
 
 type SecuritySettingsProps = {
@@ -73,13 +72,68 @@ function PasswordInput({
 export function SecuritySettings({ preferences, setProfile }: SecuritySettingsProps) {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
-  const { t } = useI18n()
+  const { language, t } = useI18n()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<PasswordErrors>({})
   const [passwordStatus, setPasswordStatus] = useState('')
   const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [privacyStatus, setPrivacyStatus] = useState('')
+  const [isManagingPrivacy, setIsManagingPrivacy] = useState(false)
+  const [sessions, setSessions] = useState<CustomerSession[]>([])
+  const [sessionsStatus, setSessionsStatus] = useState('')
+  const [isManagingSessions, setIsManagingSessions] = useState(false)
+
+  async function loadSessions() {
+    setIsManagingSessions(true)
+    setSessionsStatus('')
+    try {
+      const result = await customerApi.getSessions()
+      setSessions(result.sessions)
+    } catch (error) {
+      setSessionsStatus(error instanceof Error ? error.message : t('security.sessionsError'))
+    } finally {
+      setIsManagingSessions(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadSessions()
+  }, [])
+
+  async function revokeSession(sessionId: number) {
+    setIsManagingSessions(true)
+    setSessionsStatus('')
+    try {
+      await customerApi.revokeSession(sessionId)
+      await loadSessions()
+      setSessionsStatus(t('security.sessionSignedOut'))
+    } catch (error) {
+      setSessionsStatus(error instanceof Error ? error.message : t('security.sessionsError'))
+    } finally {
+      setIsManagingSessions(false)
+    }
+  }
+
+  async function revokeOtherSessions() {
+    if (!window.confirm(t('security.signOutOthersConfirm'))) return
+    setIsManagingSessions(true)
+    setSessionsStatus('')
+    try {
+      await customerApi.revokeOtherSessions()
+      await loadSessions()
+      setSessionsStatus(t('security.otherSessionsSignedOut'))
+    } catch (error) {
+      setSessionsStatus(error instanceof Error ? error.message : t('security.sessionsError'))
+    } finally {
+      setIsManagingSessions(false)
+    }
+  }
+
+  function sessionDate(value: string) {
+    return new Date(value).toLocaleString(language === 'sr' ? 'sr-RS' : 'en-US')
+  }
 
   async function updatePreference(key: keyof CustomerPreferences, value: boolean) {
     const result = await customerApi.updatePreferences({ ...preferences, [key]: value })
@@ -138,6 +192,40 @@ export function SecuritySettings({ preferences, setProfile }: SecuritySettingsPr
       setPasswordStatus(message)
     } finally {
       setIsChangingPassword(false)
+    }
+  }
+
+  async function downloadPersonalData() {
+    setIsManagingPrivacy(true)
+    setPrivacyStatus('')
+    try {
+      const data = await customerApi.exportPersonalData()
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `voro-personal-data-${new Date().toISOString().slice(0, 10)}.json`
+      link.click()
+      URL.revokeObjectURL(url)
+      setPrivacyStatus(t('security.exported'))
+    } catch (error) {
+      setPrivacyStatus(error instanceof Error ? error.message : t('account.error'))
+    } finally {
+      setIsManagingPrivacy(false)
+    }
+  }
+
+  async function deleteAccount() {
+    if (!window.confirm(t('security.deleteConfirm'))) return
+    setIsManagingPrivacy(true)
+    setPrivacyStatus('')
+    try {
+      await customerApi.deleteAccount()
+      dispatch(logout())
+      navigate('/login', { replace: true })
+    } catch (error) {
+      setPrivacyStatus(error instanceof Error ? error.message : t('security.deleteError'))
+      setIsManagingPrivacy(false)
     }
   }
 
@@ -213,7 +301,41 @@ export function SecuritySettings({ preferences, setProfile }: SecuritySettingsPr
           }
         />
       </div>
-      <SettingRow label={t('security.sessions')} value={t('security.sessionsDesc')} />
+      <div className="grid gap-3 rounded-voro-lg border border-line bg-background px-4 py-4">
+        <div>
+          <p className="text-sm font-bold text-content">{t('security.privacyTitle')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('security.privacyDesc')}</p>
+        </div>
+        {privacyStatus ? <p className="text-sm font-medium text-muted-foreground">{privacyStatus}</p> : null}
+        <div className="flex flex-wrap gap-2">
+          <Button disabled={isManagingPrivacy} onClick={() => void downloadPersonalData()} type="button" variant="outline"><Download className="size-4" />{t('security.exportData')}</Button>
+          <Button disabled={isManagingPrivacy} onClick={() => void deleteAccount()} type="button" variant="destructive"><Trash2 className="size-4" />{t('security.deleteAccount')}</Button>
+        </div>
+      </div>
+      <div className="grid gap-4 rounded-voro-lg border border-line bg-background p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold text-content">{t('security.sessions')}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t('security.sessionsDesc')}</p>
+          </div>
+          <Button aria-label={t('security.refreshSessions')} disabled={isManagingSessions} onClick={() => void loadSessions()} size="icon" type="button" variant="outline"><RefreshCw className={`size-4 ${isManagingSessions ? 'animate-spin' : ''}`} /></Button>
+        </div>
+        {sessionsStatus ? <p className="text-sm font-medium text-muted-foreground">{sessionsStatus}</p> : null}
+        <div className="grid gap-2">
+          {sessions.map((session) => <article className="flex flex-wrap items-center justify-between gap-3 rounded-voro-md border border-line bg-card px-3 py-3" key={session.id}>
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-voro-md bg-accent text-action"><Laptop className="size-4" /></span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-content">{session.deviceLabel || t('security.unknownDevice')} {session.isCurrent ? <span className="ml-1 rounded-full bg-accent px-2 py-0.5 text-xs text-action">{t('security.currentDevice')}</span> : null}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{session.ipAddress ? `${session.ipAddress} · ` : ''}{t('security.lastActive', { date: sessionDate(session.lastActiveAt) })}</p>
+              </div>
+            </div>
+            {!session.isCurrent ? <Button disabled={isManagingSessions} onClick={() => void revokeSession(session.id)} size="sm" type="button" variant="outline"><LogOut className="size-4" />{t('security.signOutDevice')}</Button> : null}
+          </article>)}
+          {!isManagingSessions && sessions.length === 0 ? <p className="rounded-voro-md border border-dashed border-line px-3 py-4 text-sm text-muted-foreground">{t('security.sessionsEmpty')}</p> : null}
+        </div>
+        {sessions.some((session) => !session.isCurrent) ? <div className="flex justify-end"><Button disabled={isManagingSessions} onClick={() => void revokeOtherSessions()} type="button" variant="outline"><LogOut className="size-4" />{t('security.signOutOthers')}</Button></div> : null}
+      </div>
       <div className="grid gap-3 rounded-voro-lg border border-line bg-background px-4 py-3 sm:grid-cols-[1fr_auto] sm:items-center">
         <div>
           <p className="text-sm font-bold text-content">{t('security.recommendations')}</p>

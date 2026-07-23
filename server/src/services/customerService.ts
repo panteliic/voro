@@ -3,6 +3,7 @@ import * as restaurantRepository from "../repositories/restaurantRepository";
 import * as geocodingService from "./geocodingService";
 import * as redisService from "./redisService";
 import * as routingService from "./routingService";
+import * as dispatchService from './dispatchService'
 import * as operationsRepository from "../repositories/operationsRepository";
 import { publishOrderMessage } from './realtimeService'
 import { notifyUser } from './notificationService'
@@ -448,7 +449,18 @@ export async function createOrder(userId: number, payload: Record<string, unknow
     data: { orderId: order.id },
   })
 
-  return { order };
+  if (restaurant.autoAcceptOrders) {
+    await restaurantRepository.updateRestaurantOrderStatus(restaurant.id, order.id, 'accepted')
+    dispatchService.enqueueDispatch(order.id)
+    await notifyUser(userId, {
+      type: 'order_status',
+      title: `Order #${order.id}: accepted`,
+      body: 'The restaurant accepted your order and is preparing it.',
+      data: { orderId: order.id, status: 'accepted' },
+    })
+  }
+
+  return { order: { ...order, status: restaurant.autoAcceptOrders ? 'accepted' : 'pending' } };
 }
 
 export async function getOrders(userId: number) {
@@ -472,13 +484,19 @@ export async function getOrders(userId: number) {
         12,
         Math.max(0, order.items.reduce((total, item) => total + item.quantity, 0) - 1) * 2,
       )
+      const busyMinutes = order.restaurantBusyUntil && new Date(order.restaurantBusyUntil).getTime() > Date.now()
+        ? Math.ceil((new Date(order.restaurantBusyUntil).getTime() - Date.now()) / 60_000)
+        : 0
+      const preparationMinutes = ['pending', 'accepted', 'preparing', 'ready'].includes(order.status)
+        ? Math.max(order.restaurantPreparationMinutes || 20, busyMinutes)
+        : 0
 
       return {
         ...order,
-        estimatedDeliveryMinutes: estimate.max + extraPreparationMinutes,
+        estimatedDeliveryMinutes: estimate.max + extraPreparationMinutes + preparationMinutes,
         estimatedDeliveryRange: {
-          min: estimate.min + extraPreparationMinutes,
-          max: estimate.max + extraPreparationMinutes,
+          min: estimate.min + extraPreparationMinutes + preparationMinutes,
+          max: estimate.max + extraPreparationMinutes + preparationMinutes,
         },
       }
     }),
@@ -670,6 +688,19 @@ export async function sendOrderMessage(userId: number, orderId: number, bodyValu
 export async function getNotifications(userId: number) {
   const notifications = await operationsRepository.listUserNotifications(userId)
   return { notifications, unreadCount: notifications.filter((notification) => !notification.readAt).length }
+}
+
+export async function exportPersonalData(userId: number) {
+  return customerRepository.exportCustomerData(userId)
+}
+
+export async function deletePersonalAccount(userId: number, confirmation: unknown) {
+  if (confirmation !== 'DELETE') {
+    throw new HttpError(400, 'Type DELETE to permanently close your account.')
+  }
+  const deleted = await customerRepository.anonymizeCustomerAccount(userId)
+  if (!deleted) throw new HttpError(404, 'Customer account was not found.')
+  return { deleted: true }
 }
 
 export async function readNotification(userId: number, notificationId: number) {

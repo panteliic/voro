@@ -168,6 +168,12 @@ export function OrderRouteMap({
           deliveryStatus: tracking.deliveryStatus,
         }
       })
+
+      if (tracking.deliveryStatus === 'on_the_way') {
+        void customerApi.getOrderRoute(orderId).then((route) => {
+          if (isMounted) setRouteData(route)
+        }).catch(() => undefined)
+      }
     }
 
     const loadFallbackTracking = () => {

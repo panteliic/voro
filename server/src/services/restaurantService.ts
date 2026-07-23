@@ -80,6 +80,22 @@ function normalizeOperations(payload: Record<string, unknown>) {
     deliveryRadiusKm: Math.round(deliveryRadiusKm * 10) / 10,
     openingHours,
     isAcceptingOrders: payload.isAcceptingOrders !== false,
+    preparationMinutes: (() => {
+      const value = Number(payload.preparationMinutes)
+      if (!Number.isInteger(value) || value < 5 || value > 180) {
+        throw new HttpError(400, 'Preparation time must be between 5 and 180 minutes.')
+      }
+      return value
+    })(),
+    busyUntil: (() => {
+      if (!payload.busyUntil) return null
+      const value = new Date(String(payload.busyUntil))
+      if (Number.isNaN(value.getTime()) || value <= new Date()) {
+        throw new HttpError(400, 'Busy-until time must be in the future.')
+      }
+      return value
+    })(),
+    autoAcceptOrders: payload.autoAcceptOrders === true,
   }
 }
 

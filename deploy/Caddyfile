@@ -1,0 +1,28 @@
+{
+	email {$CADDY_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy customer-app:80
+}
+
+restaurant.{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy restaurant-app:80
+}
+
+driver.{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy driver-app:80
+}
+
+admin.{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy admin-app:80
+}
+
+api.{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy backend:5000
+}

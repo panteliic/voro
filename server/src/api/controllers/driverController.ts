@@ -52,6 +52,7 @@ export async function updateDeliveryStatus(req: Request, res: Response) {
         auth(req).userId,
         numericParam(req.params.deliveryId),
         req.body?.status,
+        req.body || {},
       ),
     )
   } catch (error) {

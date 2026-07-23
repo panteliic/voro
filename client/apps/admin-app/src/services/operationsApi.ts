@@ -1,4 +1,4 @@
-import type { OperationsSnapshot, SupportIssue } from '../types/operations'
+import type { AdminOrderMessage, DispatchAlert, OperationsSnapshot, SupportIssue } from '../types/operations'
 import { apiRequest } from './apiClient'
 
 export function getOperations() {
@@ -17,4 +17,12 @@ export function updateIssue(issueId: number, payload: { status: 'in_review' | 'r
     method: 'PATCH',
     body: JSON.stringify(payload),
   })
+}
+
+export function acknowledgeDispatchAlert(alertId: number) {
+  return apiRequest<{ alert: DispatchAlert }>(`/admin/dispatch-alerts/${alertId}/acknowledge`, { method: 'PATCH', body: '{}' })
+}
+
+export function getOrderConversation(orderId: number) {
+  return apiRequest<{ messages: AdminOrderMessage[] }>(`/admin/orders/${orderId}/messages`)
 }

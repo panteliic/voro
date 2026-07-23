@@ -327,12 +327,27 @@ export async function recordActiveDeliveryLocation(
   latitude: number,
   longitude: number,
 ) {
-  const result = await pool.query<{ order_id: string; delivery_status: string }>(
+  const result = await pool.query<{
+    order_id: string
+    delivery_status: string
+    customer_user_id: string
+    customer_latitude: string | null
+    customer_longitude: string | null
+  }>(
     `
       WITH active_delivery AS (
-        SELECT delivery.id, delivery.order_id, delivery.courier_id, delivery_status.name AS delivery_status
+        SELECT
+          delivery.id,
+          delivery.order_id,
+          delivery.courier_id,
+          delivery_status.name AS delivery_status,
+          "order".user_id AS customer_user_id,
+          address.latitude AS customer_latitude,
+          address.longitude AS customer_longitude
         FROM delivery
         INNER JOIN delivery_status ON delivery_status.id = delivery.status_id
+        INNER JOIN "order" ON "order".id = delivery.order_id
+        LEFT JOIN address ON address.id = "order".address_id
         WHERE delivery.courier_id = $1
           AND delivery_status.name NOT IN ('delivered', 'failed', 'cancelled')
         ORDER BY delivery.updated_at DESC
@@ -343,14 +358,23 @@ export async function recordActiveDeliveryLocation(
       FROM active_delivery
       RETURNING
         (SELECT order_id FROM active_delivery) AS order_id,
-        (SELECT delivery_status FROM active_delivery) AS delivery_status
+        (SELECT delivery_status FROM active_delivery) AS delivery_status,
+        (SELECT customer_user_id FROM active_delivery) AS customer_user_id,
+        (SELECT customer_latitude FROM active_delivery) AS customer_latitude,
+        (SELECT customer_longitude FROM active_delivery) AS customer_longitude
     `,
     [courierId, latitude, longitude],
   )
 
   const row = result.rows[0]
   return row
-    ? { orderId: Number(row.order_id), deliveryStatus: row.delivery_status }
+    ? {
+        orderId: Number(row.order_id),
+        deliveryStatus: row.delivery_status,
+        customerUserId: Number(row.customer_user_id),
+        customerLatitude: row.customer_latitude === null ? null : Number(row.customer_latitude),
+        customerLongitude: row.customer_longitude === null ? null : Number(row.customer_longitude),
+      }
     : null
 }
 
@@ -529,6 +553,8 @@ export async function acceptDispatchOffer(courierId: number, offerId: number) {
               delivered_at = NULL,
               failure_reason = NULL,
               failed_at = NULL,
+              delivery_proof_note = NULL,
+              delivery_proof_photo_url = NULL,
               reassign_count = reassign_count + 1,
               updated_at = NOW()
             WHERE id = $1
@@ -576,6 +602,10 @@ export async function acceptDispatchOffer(courierId: number, offerId: number) {
         WHERE id = $1
       `,
       [offer.dispatch_job_id, courierId],
+    )
+    await client.query(
+      `UPDATE dispatch_alert SET status = 'resolved', updated_at = NOW() WHERE order_id = $1 AND status <> 'resolved'`,
+      [offer.order_id],
     )
     await client.query(
       `
@@ -632,12 +662,17 @@ export async function setDeliveryStatus(
   courierId: number,
   deliveryId: number,
   status: 'picked_up' | 'on_the_way' | 'delivered',
+  proof: { note: string },
 ) {
   const client = await pool.connect()
 
   try {
     await client.query('BEGIN')
-    const deliveryResult = await client.query<{ order_id: string; status: string; order_status: string }>(
+    const deliveryResult = await client.query<{
+      order_id: string
+      status: string
+      order_status: string
+    }>(
       `
         SELECT delivery.order_id, delivery_status.name AS status, order_status.name AS order_status
         FROM delivery
@@ -675,10 +710,11 @@ export async function setDeliveryStatus(
           status_id = (SELECT id FROM delivery_status WHERE name = $2),
           picked_up_at = CASE WHEN $2 = 'picked_up' THEN COALESCE(picked_up_at, NOW()) ELSE picked_up_at END,
           delivered_at = CASE WHEN $2 = 'delivered' THEN NOW() ELSE delivered_at END,
+          delivery_proof_note = CASE WHEN $2 = 'delivered' THEN NULLIF($3, '') ELSE delivery_proof_note END,
           updated_at = NOW()
         WHERE id = $1
       `,
-      [deliveryId, status],
+      [deliveryId, status, proof.note],
     )
 
     await client.query(
@@ -877,4 +913,12 @@ export async function listDeliveredTotals(courierId: number, from: Date) {
   )
 
   return result.rows.map((row) => ({ deliveredAt: row.delivered_at, total: Number(row.total) }))
+}
+
+export async function purgeExpiredDeliveryLocations(retentionDays = 30) {
+  const result = await pool.query(
+    `DELETE FROM delivery_location WHERE recorded_at < NOW() - ($1 * INTERVAL '1 day')`,
+    [Math.max(1, Math.min(365, retentionDays))],
+  )
+  return result.rowCount || 0
 }

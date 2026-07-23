@@ -146,6 +146,8 @@ export type CustomerOrder = {
   restaurantId: number
   restaurantName: string
   restaurantImageUrl: string
+  restaurantPreparationMinutes?: number
+  restaurantBusyUntil?: string | null
   status: CustomerOrderStatus
   driverName: string
   deliveryStatus: string
@@ -175,6 +177,16 @@ export type CustomerNotification = {
   data: Record<string, unknown>
   readAt: string | null
   createdAt: string
+}
+
+export type CustomerSession = {
+  id: number
+  deviceLabel: string
+  ipAddress: string
+  createdAt: string
+  lastActiveAt: string
+  expiresAt: string
+  isCurrent: boolean
 }
 
 export type CustomerOrderMessage = {

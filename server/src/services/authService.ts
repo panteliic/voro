@@ -4,6 +4,8 @@ import crypto from 'crypto'
 import { env } from '../config/env'
 import * as authRepository from '../repositories/authRepository'
 import type {
+  ActiveAuthSession,
+  AuthSessionMetadata,
   ChangePasswordPayload,
   LoginPayload,
   RefreshTokenPayload,
@@ -27,6 +29,7 @@ type RefreshTokenClaims = {
   email: string
   role?: string
   type: 'refresh'
+  sessionId?: string
 }
 
 type PasswordResetTokenClaims = {
@@ -81,13 +84,13 @@ function publicUser(user: {
   }
 }
 
-function signAccessToken(payload: { userId: number; email: string; role: string }) {
+function signAccessToken(payload: { userId: number; email: string; role: string; sessionId: string }) {
   return jwt.sign({ ...payload, type: 'access' }, env.jwtSecret, {
     expiresIn: env.accessTokenTtl as SignOptions['expiresIn'],
   })
 }
 
-function signRefreshToken(payload: { userId: number; email: string; role: string }) {
+function signRefreshToken(payload: { userId: number; email: string; role: string; sessionId: string }) {
   return jwt.sign({ ...payload, type: 'refresh' }, env.jwtSecret, {
     expiresIn: Math.floor(env.refreshTokenTtlMs / 1000),
     jwtid: crypto.randomUUID(),
@@ -101,6 +104,18 @@ function signPasswordResetToken(payload: { userId: number; email: string }) {
   })
 }
 
+function refreshTokenDigest(refreshToken: string) {
+  return crypto.createHash('sha256').update(refreshToken).digest('hex')
+}
+
+async function matchesStoredRefreshToken(refreshToken: string, tokenHash: string) {
+  if (await bcrypt.compare(refreshTokenDigest(refreshToken), tokenHash)) return true
+
+  // Tokens issued before device sessions used the raw JWT as bcrypt input.
+  // Keep them valid only until their next rotation, which upgrades the hash.
+  return bcrypt.compare(refreshToken, tokenHash)
+}
+
 function signAuth0State(payload: { provider: Auth0Provider; returnTo: string }) {
   return jwt.sign({ ...payload, type: 'auth0_state' }, env.jwtSecret, {
     expiresIn: '10m',
@@ -108,26 +123,72 @@ function signAuth0State(payload: { provider: Auth0Provider; returnTo: string }) 
   })
 }
 
-async function issueTokenPair(user: { id: number; email: string; roleName: string }) {
+function deviceLabel(userAgent: string) {
+  const browser = /Edg\//.test(userAgent)
+    ? 'Microsoft Edge'
+    : /Firefox\//.test(userAgent)
+      ? 'Firefox'
+      : /OPR\//.test(userAgent)
+        ? 'Opera'
+        : /Chrome\//.test(userAgent)
+          ? 'Chrome'
+          : /Safari\//.test(userAgent)
+            ? 'Safari'
+            : 'Unknown browser'
+  const platform = /Windows NT/.test(userAgent)
+    ? 'Windows'
+    : /Android/.test(userAgent)
+      ? 'Android'
+      : /iPhone|iPad|iPod/.test(userAgent)
+        ? 'iOS'
+        : /Mac OS X/.test(userAgent)
+          ? 'macOS'
+          : /Linux/.test(userAgent)
+            ? 'Linux'
+            : 'Unknown device'
+  return `${browser} on ${platform}`
+}
+
+function normalizedSessionMetadata(metadata: Partial<AuthSessionMetadata> = {}) {
+  const userAgent = String(metadata.userAgent || '').slice(0, 512)
+  return {
+    userAgent,
+    ipAddress: String(metadata.ipAddress || '').slice(0, 128),
+    deviceLabel: deviceLabel(userAgent),
+  }
+}
+
+async function issueTokenPair(
+  user: { id: number; email: string; roleName: string },
+  metadata: Partial<AuthSessionMetadata> = {},
+  sessionId: string = crypto.randomUUID(),
+) {
   const accessToken = signAccessToken({
     userId: user.id,
     email: user.email,
     role: user.roleName,
+    sessionId,
   })
   const refreshToken = signRefreshToken({
     userId: user.id,
     email: user.email,
     role: user.roleName,
+    sessionId,
   })
-  const refreshTokenHash = await bcrypt.hash(refreshToken, 10)
+  const refreshTokenHash = await bcrypt.hash(refreshTokenDigest(refreshToken), 10)
+  const session = normalizedSessionMetadata(metadata)
 
   const refreshTokenId = await authRepository.saveRefreshToken({
     userId: user.id,
     tokenHash: refreshTokenHash,
     expiresAt: new Date(Date.now() + env.refreshTokenTtlMs),
+    sessionId,
+    deviceLabel: session.deviceLabel,
+    userAgent: session.userAgent,
+    ipAddress: session.ipAddress,
   })
 
-  return { accessToken, refreshToken, refreshTokenId }
+  return { accessToken, refreshToken, refreshTokenId, sessionId }
 }
 
 function verifyRefreshToken(refreshToken: string) {
@@ -293,7 +354,10 @@ export async function verifyEmail(payload: VerifyEmailPayload) {
   return { message: 'Email verified. Account created.', email: verifiedUser.email }
 }
 
-export async function login(payload: LoginPayload) {
+export async function login(
+  payload: LoginPayload,
+  metadata: AuthSessionMetadata = { userAgent: '', ipAddress: '' },
+) {
   const { email, password } = payload
 
   if (!email || !password) {
@@ -320,7 +384,7 @@ export async function login(payload: LoginPayload) {
     throw new HttpError(401, 'Invalid email or password.')
   }
 
-  const tokenPair = await issueTokenPair(user)
+  const tokenPair = await issueTokenPair(user, metadata)
 
   return {
     message: 'Signed in.',
@@ -354,7 +418,7 @@ export async function auth0Callback(payload: {
   state?: string
   error?: string
   errorDescription?: string
-}) {
+}, metadata: AuthSessionMetadata = { userAgent: '', ipAddress: '' }) {
   if (payload.error) {
     throw new HttpError(401, payload.errorDescription || payload.error)
   }
@@ -416,7 +480,7 @@ export async function auth0Callback(payload: {
     throw new HttpError(403, 'This account has been blocked.')
   }
 
-  const tokenPair = await issueTokenPair(user)
+  const tokenPair = await issueTokenPair(user, metadata)
 
   return {
     returnTo: state.returnTo,
@@ -427,7 +491,10 @@ export async function auth0Callback(payload: {
   }
 }
 
-export async function refresh(payload: RefreshTokenPayload) {
+export async function refresh(
+  payload: RefreshTokenPayload,
+  metadata: AuthSessionMetadata = { userAgent: '', ipAddress: '' },
+) {
   const { refreshToken } = payload
 
   if (!refreshToken) {
@@ -442,21 +509,28 @@ export async function refresh(payload: RefreshTokenPayload) {
   }
 
   const activeTokens = await authRepository.findActiveRefreshTokens(user.id)
-  let matchedTokenId: number | null = null
+  let matchedToken: Awaited<ReturnType<typeof authRepository.findActiveRefreshTokens>>[number] | null = null
 
   for (const activeToken of activeTokens) {
-    if (await bcrypt.compare(refreshToken, activeToken.tokenHash)) {
-      matchedTokenId = activeToken.id
+    if (await matchesStoredRefreshToken(refreshToken, activeToken.tokenHash)) {
+      matchedToken = activeToken
       break
     }
   }
 
-  if (!matchedTokenId) {
+  if (!matchedToken) {
     throw new HttpError(401, 'Invalid refresh token.')
   }
 
-  const tokenPair = await issueTokenPair(user)
-  await authRepository.revokeRefreshToken(matchedTokenId, tokenPair.refreshTokenId)
+  const tokenPair = await issueTokenPair(
+    user,
+    {
+      userAgent: metadata.userAgent || matchedToken.userAgent,
+      ipAddress: metadata.ipAddress || matchedToken.ipAddress,
+    },
+    matchedToken.sessionId || crypto.randomUUID(),
+  )
+  await authRepository.revokeRefreshToken(matchedToken.id, tokenPair.refreshTokenId)
 
   return {
     message: 'Token refreshed.',
@@ -477,13 +551,66 @@ export async function logout(payload: RefreshTokenPayload) {
   const activeTokens = await authRepository.findActiveRefreshTokens(decoded.userId)
 
   for (const activeToken of activeTokens) {
-    if (await bcrypt.compare(refreshToken, activeToken.tokenHash)) {
+    if (await matchesStoredRefreshToken(refreshToken, activeToken.tokenHash)) {
       await authRepository.revokeRefreshToken(activeToken.id)
       break
     }
   }
 
   return { message: 'Signed out.' }
+}
+
+async function requireCurrentRefreshToken(userId: number, refreshToken: string) {
+  if (!refreshToken) {
+    throw new HttpError(401, 'Current session could not be verified.')
+  }
+
+  const activeTokens = await authRepository.findActiveRefreshTokens(userId)
+  for (const token of activeTokens) {
+    if (await matchesStoredRefreshToken(refreshToken, token.tokenHash)) return token
+  }
+
+  throw new HttpError(401, 'Current session could not be verified.')
+}
+
+function toActiveAuthSession(
+  token: Awaited<ReturnType<typeof authRepository.findActiveRefreshTokens>>[number],
+  currentTokenId: number,
+): ActiveAuthSession {
+  return {
+    id: token.id,
+    deviceLabel: token.deviceLabel || deviceLabel(token.userAgent),
+    ipAddress: token.ipAddress,
+    createdAt: token.createdAt,
+    lastActiveAt: token.lastUsedAt,
+    expiresAt: token.expiresAt,
+    isCurrent: token.id === currentTokenId,
+  }
+}
+
+export async function listActiveSessions(userId: number, currentRefreshToken: string) {
+  const currentToken = await requireCurrentRefreshToken(userId, currentRefreshToken)
+  const sessions = await authRepository.findActiveRefreshTokens(userId)
+  return { sessions: sessions.map((session) => toActiveAuthSession(session, currentToken.id)) }
+}
+
+export async function revokeOtherSessions(userId: number, currentRefreshToken: string) {
+  const currentToken = await requireCurrentRefreshToken(userId, currentRefreshToken)
+  await authRepository.revokeOtherUserRefreshTokens(userId, currentToken.id)
+  return { revoked: true }
+}
+
+export async function revokeSession(userId: number, tokenId: number, currentRefreshToken: string) {
+  const currentToken = await requireCurrentRefreshToken(userId, currentRefreshToken)
+  if (tokenId === currentToken.id) {
+    throw new HttpError(400, 'Use the regular sign out action for this device.')
+  }
+
+  if (!(await authRepository.revokeUserRefreshToken(userId, tokenId))) {
+    throw new HttpError(404, 'Active session was not found.')
+  }
+
+  return { revoked: true }
 }
 
 export async function requestPasswordReset(payload: RequestPasswordResetPayload) {

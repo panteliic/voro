@@ -1,0 +1,149 @@
+name: voro
+
+# Google Cloud VM deployment. Caddy is the only public service; every other
+# container communicates on Docker's private network.
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env.gcp}
+      CADDY_EMAIL: ${CADDY_EMAIL:?Set CADDY_EMAIL in .env.gcp}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      customer-app:
+        condition: service_started
+      restaurant-app:
+        condition: service_started
+      driver-app:
+        condition: service_started
+      admin-app:
+        condition: service_started
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - voro-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  database:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-voro}
+      POSTGRES_USER: ${POSTGRES_USER:-voro}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.gcp}
+    volumes:
+      - voro-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  migrations:
+    build:
+      context: ./server
+    command: node dist/database/migrate.js
+    environment: &server-environment
+      NODE_ENV: production
+      PORT: 5000
+      API_URL: https://api.${DOMAIN}
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-voro}
+      DB_USER: ${POSTGRES_USER:-voro}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.gcp}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.gcp}
+      PAYMENT_CARD_ENCRYPTION_KEY: ${PAYMENT_CARD_ENCRYPTION_KEY:?Set PAYMENT_CARD_ENCRYPTION_KEY in .env.gcp}
+      CLIENT_URLS: https://${DOMAIN},https://restaurant.${DOMAIN},https://driver.${DOMAIN},https://admin.${DOMAIN}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    build:
+      context: ./server
+    environment: *server-environment
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5000/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+
+  customer-app:
+    build:
+      context: ./client
+      args:
+        APP_NAME: customer-app
+        VITE_API_URL: https://api.${DOMAIN}
+        VITE_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+    restart: unless-stopped
+
+  restaurant-app:
+    build:
+      context: ./client
+      args:
+        APP_NAME: restaurant-app
+        VITE_API_URL: https://api.${DOMAIN}
+    restart: unless-stopped
+
+  driver-app:
+    build:
+      context: ./client
+      args:
+        APP_NAME: driver-app
+        VITE_API_URL: https://api.${DOMAIN}
+        VITE_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+    restart: unless-stopped
+
+  admin-app:
+    build:
+      context: ./client
+      args:
+        APP_NAME: admin-app
+        VITE_API_URL: https://api.${DOMAIN}
+    restart: unless-stopped
+
+volumes:
+  caddy-data:
+  caddy-config:
+  voro-postgres-data:
+  voro-redis-data:
