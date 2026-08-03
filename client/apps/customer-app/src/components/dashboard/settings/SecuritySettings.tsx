@@ -350,6 +350,25 @@ export function SecuritySettings({ preferences, setProfile }: SecuritySettingsPr
           }
         />
       </div>
+      <div className="grid gap-4 rounded-voro-lg border border-line bg-background p-4">
+        <div>
+          <p className="text-sm font-bold text-content">{t('security.privacyControls')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('security.privacyControlsDesc')}</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Button onClick={() => void exportAccountData()} type="button" variant="outline">{t('security.exportData')}</Button>
+        </div>
+        <div className="grid gap-3 rounded-voro-md border border-destructive/30 bg-destructive/5 p-3 sm:grid-cols-[1fr_auto] sm:items-end">
+          <label className="grid gap-2 text-sm font-bold text-content">
+            {t('security.deleteConfirm')}
+            <Input onChange={(event) => setDeleteConfirmation(event.target.value)} placeholder="DELETE" value={deleteConfirmation} />
+          </label>
+          <Button disabled={deleteConfirmation !== 'DELETE' || isDeleting} onClick={() => void deleteAccount()} type="button" variant="destructive">
+            {isDeleting ? t('common.saving') : t('security.deleteAccount')}
+          </Button>
+        </div>
+        {privacyStatus ? <p className="text-sm font-medium text-muted-foreground">{privacyStatus}</p> : null}
+      </div>
     </SettingsSectionLayout>
   )
 }

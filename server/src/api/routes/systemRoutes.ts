@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { env } from '../../config/env'
 import { pool } from '../../database/pool'
 import { isRedisHealthy } from '../../services/redisService'
+import { prometheusMetrics } from '../../services/observability'
 
 export const systemRoutes = Router()
 
@@ -38,4 +39,8 @@ systemRoutes.get('/health', readiness)
 systemRoutes.get('/health/ready', readiness)
 systemRoutes.get('/health/live', (_req, res) => {
   res.json({ status: 'ok', port: env.port, uptimeSeconds: Math.round(process.uptime()) })
+})
+
+systemRoutes.get('/metrics', (_req, res) => {
+  res.type('text/plain; version=0.0.4').send(prometheusMetrics())
 })

@@ -19,6 +19,14 @@ export function getDashboardView(pathname: string): DashboardView {
     return 'checkout'
   }
 
+  if (pathname.startsWith('/cart')) {
+    return 'cart'
+  }
+
+  if (pathname.startsWith('/favorites')) {
+    return 'favorites'
+  }
+
   if (pathname.startsWith('/restaurants/')) {
     return 'restaurant'
   }

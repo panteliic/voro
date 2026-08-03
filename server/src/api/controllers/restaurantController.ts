@@ -32,6 +32,14 @@ export async function getDashboard(req: Request, res: Response) {
   }
 }
 
+export async function getCompletedOrders(req: Request, res: Response) {
+  try {
+    res.json(await restaurantService.getCompletedOrders(auth(req).restaurantId, req.query.month))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
 export async function updateOrderStatus(req: Request, res: Response) {
   try {
     res.json(

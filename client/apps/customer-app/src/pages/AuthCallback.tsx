@@ -52,7 +52,7 @@ function AuthCallback() {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
   const { t } = useI18n()
-  const result = useMemo(parseAuthCallback, [])
+  const result = useMemo(() => parseAuthCallback(), [])
 
   useEffect(() => {
     if (!result.ok) {

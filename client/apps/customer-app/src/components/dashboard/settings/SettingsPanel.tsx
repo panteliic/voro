@@ -11,6 +11,7 @@ import { NotificationSettings } from './NotificationSettings'
 import { PaymentSettings } from './PaymentSettings'
 import { SecuritySettings } from './SecuritySettings'
 import { ThemeSettings } from './ThemeSettings'
+import { SupportSettings } from './SupportSettings'
 
 type SettingsPanelProps = {
   activeSection: ActiveSettingsSection
@@ -26,7 +27,7 @@ const settingsGroups: Array<{
   {
     titleKey: 'settings.group.account.title',
     descriptionKey: 'settings.group.account.desc',
-    itemIds: ['account', 'security'],
+    itemIds: ['account', 'security', 'support'],
   },
   {
     titleKey: 'settings.group.ordering.title',
@@ -186,6 +187,7 @@ export function SettingsPanel({
           {activeSection === 'security' ? (
             <SecuritySettings preferences={profile.preferences} setProfile={setProfile} />
           ) : null}
+          {activeSection === 'support' ? <SupportSettings /> : null}
         </section>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, MapPin, Search, Sparkles, Star, X } from 'lucide-react'
+import { ArrowRight, Heart, MapPin, Search, Sparkles, Star, X } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { Button, Input } from '@voro/ui'
 import { useI18n } from '../../i18n/i18n'
@@ -8,6 +8,7 @@ import type { DiscoverableRestaurant, RestaurantCategory } from '../../types/cus
 
 type RestaurantDiscoveryPanelProps = {
   deliveryAddress?: string
+  favoritesOnly?: boolean
   showSearch?: boolean
   userName?: string
 }
@@ -46,6 +47,7 @@ function restaurantPresentation(restaurant: DiscoverableRestaurant) {
 
 export function RestaurantDiscoveryPanel({
   deliveryAddress,
+  favoritesOnly = false,
   showSearch = false,
   userName,
 }: RestaurantDiscoveryPanelProps) {
@@ -96,11 +98,11 @@ export function RestaurantDiscoveryPanel({
   const filteredRestaurants = useMemo(() => {
     const term = searchTerm.trim().toLowerCase()
 
-    if (!term) {
-      return restaurants
-    }
+    const candidates = favoritesOnly ? restaurants.filter((restaurant) => restaurant.isFavorite) : restaurants
 
-    return restaurants.filter((restaurant) =>
+    if (!term) return candidates
+
+    return candidates.filter((restaurant) =>
       [
         restaurant.name,
         restaurant.description,
@@ -111,7 +113,7 @@ export function RestaurantDiscoveryPanel({
         .toLowerCase()
         .includes(term),
     )
-  }, [restaurants, searchTerm])
+  }, [favoritesOnly, restaurants, searchTerm])
   const visibleCategories = areCategoriesExpanded
     ? categories
     : categories.slice(0, initialCategoryCount)
@@ -132,7 +134,16 @@ export function RestaurantDiscoveryPanel({
 
   return (
     <section className="grid min-w-0 gap-6">
-      {showSearch ? (
+      {favoritesOnly ? (
+        <header>
+          <p className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-[0.14em] text-action">
+            <Heart className="size-4 fill-action" />
+            {t('favorites.kicker')}
+          </p>
+          <h1 className="mt-2 text-2xl font-bold text-content sm:text-3xl">{t('favorites.title')}</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{t('favorites.description')}</p>
+        </header>
+      ) : showSearch ? (
         <header>
           <p className="text-sm font-bold uppercase tracking-[0.14em] text-action">Voro</p>
           <h1 className="mt-2 text-2xl font-bold text-content sm:text-3xl">{t('search.title')}</h1>
@@ -243,8 +254,8 @@ export function RestaurantDiscoveryPanel({
 
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-content">{selectedLabel}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{t('restaurants.resultsHelp')}</p>
+          <h2 className="text-xl font-bold text-content">{favoritesOnly ? t('favorites.restaurants') : selectedLabel}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{favoritesOnly ? t('favorites.resultsHelp') : t('restaurants.resultsHelp')}</p>
         </div>
         <span className="rounded-voro-md bg-muted px-2 py-1 text-xs font-bold text-muted-foreground">
           {t('restaurants.count', { count: filteredRestaurants.length })}
@@ -325,8 +336,8 @@ export function RestaurantDiscoveryPanel({
 
       {!isLoading && filteredRestaurants.length === 0 ? (
         <div className="rounded-voro-lg border border-dashed border-line bg-card p-8 text-center">
-          <p className="font-bold text-content">{t('restaurants.empty')}</p>
-          <p className="mt-2 text-sm text-muted-foreground">{t('restaurants.emptyHelp')}</p>
+          <p className="font-bold text-content">{favoritesOnly ? t('favorites.emptyTitle') : t('restaurants.empty')}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{favoritesOnly ? t('favorites.emptyDescription') : t('restaurants.emptyHelp')}</p>
         </div>
       ) : null}
     </section>

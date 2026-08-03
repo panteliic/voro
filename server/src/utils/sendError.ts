@@ -1,5 +1,6 @@
 import type { Response } from 'express'
 import { HttpError } from './httpError'
+import { trackError } from '../services/observability'
 
 type PgError = {
   code?: string
@@ -33,6 +34,6 @@ export function sendError(error: unknown, res: Response) {
     }
   }
 
-  console.error(error)
+  trackError('unhandled_request_error', error)
   res.status(500).json({ message: 'Unexpected server error.' })
 }

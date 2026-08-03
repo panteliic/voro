@@ -10,7 +10,7 @@ export function DriverNotificationsModal({ token, onClose, language }: { token: 
   const [error, setError] = useState('')
   useEffect(() => {
     let active = true
-    const load = () => void getDriverNotifications(token).then((result) => { if (active) { setNotifications(result.notifications); setError('') } }).catch((requestError: unknown) => { if (active) setError(requestError instanceof Error ? requestError.message : t('notifications.unavailable')) })
+    const load = () => void getDriverNotifications(token).then((result) => { if (active) { setNotifications(result.notifications); setError('') } }).catch((requestError: unknown) => { if (active) setError(requestError instanceof Error ? requestError.message : translate(language, 'notifications.unavailable')) })
     load()
     const interval = window.setInterval(load, 5_000)
     return () => { active = false; window.clearInterval(interval) }

@@ -2,12 +2,14 @@ import * as driverRepository from '../repositories/driverRepository'
 import * as redisService from './redisService'
 import * as routingService from './routingService'
 import * as dispatchService from './dispatchService'
+import * as geocodingService from './geocodingService'
 import * as operationsRepository from '../repositories/operationsRepository'
 import { publishOrderMessage, publishOrderTracking } from './realtimeService'
 import { notifyUser, notifyUserOnceCourierIsNearby } from './notificationService'
 import type { DriverAnalytics, DriverAnalyticsDay, DriverAnalyticsPeriod } from '../types/driver'
 import { HttpError } from '../utils/httpError'
 import { sanitizePlainText } from '../utils/securityInput'
+import { logEvent } from './observability'
 
 type WorkSession = { started_at: Date; ended_at: Date | null; updated_at: Date }
 type DeliveredTotal = { deliveredAt: Date; total: number }
@@ -194,6 +196,7 @@ export async function updatePresence(userId: number, payload: unknown) {
   }
 
   await redisService.syncDriverPresence(driver)
+  refreshDriverLocationAddress(driver)
 
   return { driver }
 }

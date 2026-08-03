@@ -16,6 +16,7 @@ import { driverRoutes } from './api/routes/driverRoutes'
 import { requestSecurity } from './api/middleware/requestSecurity'
 import { connectRedis, disconnectRedis } from './services/redisService'
 import { initializeRealtime } from './services/realtimeService'
+import { logEvent, observeHttpRequest, trackError } from './services/observability'
 
 const app = express()
 const server = http.createServer(app)
@@ -34,7 +35,7 @@ function startDispatchWorker() {
 
   dispatchWorker.on('exit', (code, signal) => {
     if (code !== 0 && signal !== 'SIGTERM') {
-      console.error(`Dispatch worker stopped unexpectedly (code ${code ?? 'none'}, signal ${signal ?? 'none'}).`)
+      logEvent('error', 'dispatch_worker_stopped', { code: code ?? 'none', signal: signal ?? 'none' })
     }
   })
 }
@@ -80,6 +81,7 @@ app.use(helmet({
 app.use(cors({ origin: allowOrigin }))
 app.use(express.json({ limit: '100kb', strict: true }))
 app.use(requestSecurity)
+app.use(observeHttpRequest)
 app.use(morgan('dev'))
 
 app.use('/', systemRoutes)
@@ -94,13 +96,13 @@ async function startServer() {
   await connectRedis()
 
   server.listen(env.port, () => {
-    console.log(`Server radi na http://localhost:${env.port}`)
+    logEvent('info', 'server_started', { port: env.port })
     startDispatchWorker()
   })
 }
 
 void startServer().catch((error) => {
-  console.error('Redis connection failed. Start Redis before starting the server.', error)
+  trackError('server_start_failed', error)
   process.exit(1)
 })
 
@@ -112,9 +114,14 @@ process.once('exit', stopDispatchWorker)
 
 server.on('error', (error: NodeJS.ErrnoException) => {
   if (error.code === 'EADDRINUSE') {
-    console.error(`Port ${env.port} je vec zauzet. Promeni PORT u .env fajlu.`)
+    logEvent('error', 'server_port_in_use', { port: env.port })
     process.exit(1)
   }
 
+  trackError('server_runtime_error', error)
   throw error
+})
+
+process.on('unhandledRejection', (reason) => {
+  trackError('unhandled_rejection', reason)
 })

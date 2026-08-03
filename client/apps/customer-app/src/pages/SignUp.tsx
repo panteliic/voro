@@ -108,6 +108,9 @@ function SignUp() {
           {t('auth.signup.signin')}
         </Link>
       </p>
+      <p className="mt-4 text-center text-xs leading-5 text-muted-foreground">
+        By creating an account you agree to the <Link className="text-action hover:underline" to="/legal/terms">Terms</Link> and acknowledge the <Link className="text-action hover:underline" to="/legal/privacy">Privacy notice</Link>.
+      </p>
     </AuthLayout>
   )
 }

@@ -1,11 +1,76 @@
 name: voro
 
+# One Compose stack for local use and the production server. Locally, the
+# values in .env.docker use http://*.localhost. On the server, replace those
+# addresses with real hostnames and set NODE_ENV=production.
 services:
+  caddy:
+    image: caddy:2.10-alpine
+    command:
+      - /bin/sh
+      - -ec
+      - "printf '%s\\n' \"$$CADDY_CONFIG\" | caddy run --config /dev/stdin --adapter caddyfile"
+    environment:
+      CADDY_EMAIL: ${CADDY_EMAIL:-local@localhost}
+      CUSTOMER_ADDRESS: ${CUSTOMER_ADDRESS:-http://localhost}
+      RESTAURANT_ADDRESS: ${RESTAURANT_ADDRESS:-http://restaurant.localhost}
+      DRIVER_ADDRESS: ${DRIVER_ADDRESS:-http://driver.localhost}
+      ADMIN_ADDRESS: ${ADMIN_ADDRESS:-http://admin.localhost}
+      API_ADDRESS: ${API_ADDRESS:-http://api.localhost}
+      CADDY_CONFIG: |
+        {
+          email {$$CADDY_EMAIL}
+        }
+
+        {$$CUSTOMER_ADDRESS} {
+          encode zstd gzip
+          reverse_proxy customer-app:80
+        }
+
+        {$$RESTAURANT_ADDRESS} {
+          encode zstd gzip
+          reverse_proxy restaurant-app:80
+        }
+
+        {$$DRIVER_ADDRESS} {
+          encode zstd gzip
+          reverse_proxy driver-app:80
+        }
+
+        {$$ADMIN_ADDRESS} {
+          encode zstd gzip
+          reverse_proxy admin-app:80
+        }
+
+        {$$API_ADDRESS} {
+          encode zstd gzip
+          reverse_proxy backend:5000
+        }
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      customer-app:
+        condition: service_started
+      restaurant-app:
+        condition: service_started
+      driver-app:
+        condition: service_started
+      admin-app:
+        condition: service_started
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     command: redis-server --appendonly yes
     ports:
-      - "6379:6379"
+      - "${REDIS_HOST_BIND:-127.0.0.1}:${REDIS_HOST_PORT:-6379}:6379"
     volumes:
       - voro-redis-data:/data
     healthcheck:
@@ -20,9 +85,9 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-voro}
       POSTGRES_USER: ${POSTGRES_USER:-voro}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-voro_local_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
     ports:
-      - "5433:5432"
+      - "${DATABASE_HOST_BIND:-127.0.0.1}:${DATABASE_HOST_PORT:-5433}:5432"
     volumes:
       - voro-postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -33,6 +98,34 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  database-backup:
+    image: postgres:16-alpine
+    profiles: ["ops"]
+    environment:
+      PGHOST: database
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-voro}
+      PGUSER: ${POSTGRES_USER:-voro}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        mkdir -p /backups
+        while true; do
+          pg_dump --format=custom --file "/backups/voro-$$(date +%Y%m%dT%H%M%SZ).dump"
+          find /backups -type f -mtime +"$$BACKUP_RETENTION_DAYS" -delete
+          sleep "$$BACKUP_INTERVAL_SECONDS"
+        done
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: unless-stopped
+
   migrations:
     build:
       context: ./server
@@ -40,22 +133,27 @@ services:
     environment: &server-environment
       NODE_ENV: ${NODE_ENV:-development}
       PORT: 5000
-      API_URL: http://localhost:5000
+      API_URL: ${API_URL:-http://api.localhost}
       DB_HOST: database
       DB_PORT: 5432
       DB_NAME: ${POSTGRES_DB:-voro}
       DB_USER: ${POSTGRES_USER:-voro}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-voro_local_password}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-change-this-local-jwt-secret}
-      PAYMENT_CARD_ENCRYPTION_KEY: ${PAYMENT_CARD_ENCRYPTION_KEY:-c1b8b42e94d6e1a70cc7ab79e0265ab3e124a36647bc67194249c166d55a2f0e}
-      CLIENT_URLS: http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.docker}
+      PAYMENT_CARD_ENCRYPTION_KEY: ${PAYMENT_CARD_ENCRYPTION_KEY:?Set PAYMENT_CARD_ENCRYPTION_KEY in .env.docker}
+      CLIENT_URLS: ${CLIENT_URLS:-http://localhost,http://restaurant.localhost,http://driver.localhost,http://admin.localhost}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
+      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:-}
+      AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET:-}
+      AUTH0_CALLBACK_URL: ${AUTH0_CALLBACK_URL:-}
+      AUTH0_CLIENT_REDIRECT_URL: ${AUTH0_CLIENT_REDIRECT_URL:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
@@ -71,8 +169,6 @@ services:
     build:
       context: ./server
     environment: *server-environment
-    ports:
-      - "5000:5000"
     depends_on:
       migrations:
         condition: service_completed_successfully
@@ -91,13 +187,8 @@ services:
       context: ./client
       args:
         APP_NAME: customer-app
-        VITE_API_URL: http://localhost:5000
+        VITE_API_URL: ${VITE_API_URL:-http://api.localhost}
         VITE_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
-    ports:
-      - "5173:80"
-    depends_on:
-      backend:
-        condition: service_healthy
     restart: unless-stopped
 
   restaurant-app:
@@ -105,12 +196,7 @@ services:
       context: ./client
       args:
         APP_NAME: restaurant-app
-        VITE_API_URL: http://localhost:5000
-    ports:
-      - "5174:80"
-    depends_on:
-      backend:
-        condition: service_healthy
+        VITE_API_URL: ${VITE_API_URL:-http://api.localhost}
     restart: unless-stopped
 
   driver-app:
@@ -118,13 +204,8 @@ services:
       context: ./client
       args:
         APP_NAME: driver-app
-        VITE_API_URL: http://localhost:5000
+        VITE_API_URL: ${VITE_API_URL:-http://api.localhost}
         VITE_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
-    ports:
-      - "5175:80"
-    depends_on:
-      backend:
-        condition: service_healthy
     restart: unless-stopped
 
   admin-app:
@@ -132,14 +213,11 @@ services:
       context: ./client
       args:
         APP_NAME: admin-app
-        VITE_API_URL: http://localhost:5000
-    ports:
-      - "5176:80"
-    depends_on:
-      backend:
-        condition: service_healthy
+        VITE_API_URL: ${VITE_API_URL:-http://api.localhost}
     restart: unless-stopped
 
 volumes:
+  caddy-data:
+  caddy-config:
   voro-postgres-data:
   voro-redis-data:

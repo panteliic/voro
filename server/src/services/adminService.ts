@@ -6,17 +6,24 @@ import * as driverRepository from '../repositories/driverRepository'
 import * as geocodingService from './geocodingService'
 import * as redisService from './redisService'
 import * as operationsRepository from '../repositories/operationsRepository'
+import * as commerceRepository from '../repositories/commerceRepository'
 import { notifyUser } from './notificationService'
 import * as restaurantAuthRepository from '../repositories/restaurantAuthRepository'
 import * as restaurantRepository from '../repositories/restaurantRepository'
 import * as restaurantAuthService from './restaurantAuthService'
 import type {
+  AdminCourier,
   AdminRestaurantUpdatePayload,
   CreateCourierPayload,
 } from '../types/admin'
 import type { CreateRestaurantPayload } from '../types/restaurant'
 import { HttpError } from '../utils/httpError'
 import { generateOtp } from '../utils/otp'
+import { sanitizePlainText } from '../utils/securityInput'
+
+const pendingCourierAddressBackfills: AdminCourier[] = []
+const queuedCourierAddressIds = new Set<number>()
+let isProcessingCourierAddressBackfills = false
 
 function validateNameEmail(name: string, email: string) {
   if (!name || !email) {
@@ -32,6 +39,55 @@ function assertId(id: number, message: string) {
   if (!id) {
     throw new HttpError(400, message)
   }
+}
+
+function optionalDate(value: unknown, field: string) {
+  if (!value) return null
+  const date = new Date(String(value))
+  if (Number.isNaN(date.getTime())) throw new HttpError(400, `${field} must be a valid date.`)
+  return date
+}
+
+export function listPromotions() {
+  return commerceRepository.listPromotions()
+}
+
+export async function createPromotion(payload: Record<string, unknown>) {
+  const code = sanitizePlainText(String(payload.code || ''), 40).toUpperCase()
+  const description = sanitizePlainText(String(payload.description || ''), 500)
+  const restaurantId = payload.restaurantId === null || payload.restaurantId === undefined || payload.restaurantId === ''
+    ? null
+    : Number(payload.restaurantId)
+  const discountType = payload.discountType === 'percentage' ? 'percentage' : payload.discountType === 'fixed' ? 'fixed' : null
+  const discountValue = Number(payload.discountValue)
+  const minimumOrder = payload.minimumOrder === undefined || payload.minimumOrder === '' ? 0 : Number(payload.minimumOrder)
+  const maxRedemptions = payload.maxRedemptions === null || payload.maxRedemptions === undefined || payload.maxRedemptions === ''
+    ? null
+    : Number(payload.maxRedemptions)
+  const startsAt = optionalDate(payload.startsAt, 'startsAt')
+  const endsAt = optionalDate(payload.endsAt, 'endsAt')
+
+  if (!/^[A-Z0-9-]{3,40}$/.test(code)) throw new HttpError(400, 'Promo code must use 3 to 40 letters, numbers, or hyphens.')
+  if (!discountType || !Number.isFinite(discountValue) || discountValue <= 0) throw new HttpError(400, 'Enter a valid promo discount.')
+  if (discountType === 'percentage' && discountValue > 100) throw new HttpError(400, 'Percentage discounts cannot exceed 100%.')
+  if (!Number.isFinite(minimumOrder) || minimumOrder < 0) throw new HttpError(400, 'Minimum order must be zero or greater.')
+  if (restaurantId !== null && (!Number.isInteger(restaurantId) || restaurantId <= 0 || !(await restaurantRepository.findRestaurantById(restaurantId)))) {
+    throw new HttpError(400, 'Choose a valid restaurant or leave the promotion platform-wide.')
+  }
+  if (maxRedemptions !== null && (!Number.isInteger(maxRedemptions) || maxRedemptions <= 0)) throw new HttpError(400, 'Redemption limit must be a positive whole number.')
+  if (startsAt && endsAt && endsAt <= startsAt) throw new HttpError(400, 'Promotion end must be after its start.')
+
+  return commerceRepository.createPromotion({
+    restaurantId,
+    code,
+    description,
+    discountType,
+    discountValue: Math.round(discountValue * 100) / 100,
+    minimumOrder: Math.round(minimumOrder * 100) / 100,
+    maxRedemptions,
+    startsAt,
+    endsAt,
+  })
 }
 
 async function issuePasswordSetupCode(userId: number) {
@@ -230,8 +286,62 @@ export async function resetRestaurantAccess(restaurantId: number) {
   }
 }
 
-export function listCouriers() {
-  return adminRepository.listCouriers()
+function withCourierLocationState(courier: AdminCourier) {
+  const isLocationLive = courier.isOnline && courier.lastLocationAt !== null && Date.now() - courier.lastLocationAt.getTime() < 70_000
+  return { ...courier, isLocationLive }
+}
+
+function scheduleCourierAddressBackfill(courier: AdminCourier) {
+  if (
+    courier.isOnline ||
+    courier.locationAddress ||
+    courier.currentLatitude === null ||
+    courier.currentLongitude === null ||
+    queuedCourierAddressIds.has(courier.id)
+  ) {
+    return
+  }
+
+  queuedCourierAddressIds.add(courier.id)
+  pendingCourierAddressBackfills.push(courier)
+  if (!isProcessingCourierAddressBackfills) void processCourierAddressBackfills()
+}
+
+async function processCourierAddressBackfills() {
+  isProcessingCourierAddressBackfills = true
+
+  try {
+    while (pendingCourierAddressBackfills.length > 0) {
+      const courier = pendingCourierAddressBackfills.shift()!
+      try {
+        const location = await geocodingService.reverseGeocodeAddress(
+          courier.currentLatitude as number,
+          courier.currentLongitude as number,
+        )
+        await driverRepository.updateDriverLocationAddress(courier.id, {
+          latitude: courier.currentLatitude as number,
+          longitude: courier.currentLongitude as number,
+          address: location.displayName,
+        })
+      } catch {
+        // The next list refresh can retry a temporarily unavailable map provider.
+      } finally {
+        queuedCourierAddressIds.delete(courier.id)
+      }
+
+      if (pendingCourierAddressBackfills.length > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 1_100))
+      }
+    }
+  } finally {
+    isProcessingCourierAddressBackfills = false
+  }
+}
+
+export async function listCouriers() {
+  const couriers = await adminRepository.listCouriers()
+  couriers.forEach(scheduleCourierAddressBackfill)
+  return couriers.map((courier) => withCourierLocationState(courier)!)
 }
 
 export async function getCourier(courierId: number) {
@@ -242,7 +352,8 @@ export async function getCourier(courierId: number) {
     throw new HttpError(404, 'Courier not found.')
   }
 
-  return courier
+  scheduleCourierAddressBackfill(courier)
+  return withCourierLocationState(courier)
 }
 
 export async function getCourierAnalytics(courierId: number) {

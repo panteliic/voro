@@ -51,6 +51,10 @@ export type CustomerProfile = {
   preferences: CustomerPreferences
   addresses: CustomerAddress[]
   paymentMethods: CustomerPaymentMethod[]
+  referral: {
+    code: string
+    completedReferrals: number
+  }
 }
 
 export type RestaurantCategory = {
@@ -127,6 +131,10 @@ export type CreatedCustomerOrder = {
   status: CustomerOrderStatus
   subtotal: number
   deliveryFee: number
+  discountAmount: number
+  tipAmount: number
+  promotionCode: string | null
+  referralCode: string | null
   total: number
   paymentMethod: CustomerOrderPaymentMethod
   cashTendered: number | null
@@ -153,6 +161,8 @@ export type CustomerOrder = {
   deliveryStatus: string
   subtotal: number
   deliveryFee: number
+  discountAmount: number
+  tipAmount: number
   total: number
   note: string
   address: string

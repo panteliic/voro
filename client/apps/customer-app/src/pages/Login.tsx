@@ -91,6 +91,10 @@ function Login() {
           {t('auth.login.signup')}
         </Link>
       </p>
+      <p className="mt-4 text-center text-xs text-muted-foreground">
+        <Link className="text-action hover:underline" to="/legal/privacy">Privacy</Link>{' · '}
+        <Link className="text-action hover:underline" to="/legal/refunds">Cancellations & refunds</Link>
+      </p>
     </AuthLayout>
   )
 }

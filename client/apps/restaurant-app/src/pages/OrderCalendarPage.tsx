@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { demoOrders } from '../data/demoOrders'
 import { useI18n } from '../i18n/i18n'
+import { getCompletedRestaurantOrders } from '../services/restaurantApi'
+import type { RestaurantOrder } from '../types/restaurant'
 
-const historyOrders = demoOrders.filter((order) => order.completedAt)
 const weekDays: Record<'en' | 'sr', string[]> = {
   en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
   sr: ['Pon', 'Uto', 'Sre', 'Čet', 'Pet', 'Sub', 'Ned'],
@@ -42,23 +42,46 @@ function getMonthDays(month: Date) {
   return [...leadingBlanks, ...days]
 }
 
-export function OrderCalendarPage() {
+function monthKey(month: Date) {
+  return `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`
+}
+
+export function OrderCalendarPage({ token }: { token: string }) {
   const { language, locale, t } = useI18n()
-  const latestOrderDay = historyOrders[0]
-    ? toDayKey(historyOrders[0].completedAt || historyOrders[0].createdAt)
-    : toDayKey(new Date().toISOString())
-  const [visibleMonth, setVisibleMonth] = useState(() => {
-    const [year, month] = latestOrderDay.split('-').map(Number)
-    return new Date(year, month - 1, 1)
-  })
+  const [visibleMonth, setVisibleMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1))
+  const [orders, setOrders] = useState<RestaurantOrder[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState('')
   const monthDays = useMemo(() => getMonthDays(visibleMonth), [visibleMonth])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setIsLoading(true)
+    setError('')
+    void getCompletedRestaurantOrders(token, monthKey(visibleMonth))
+      .then((result) => {
+        if (!controller.signal.aborted) setOrders(result.orders)
+      })
+      .catch((requestError: unknown) => {
+        if (!controller.signal.aborted) {
+          setOrders([])
+          setError(requestError instanceof Error ? requestError.message : t('calendar.loadError'))
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [token, visibleMonth, t])
+
   const orderCountByDay = useMemo(() => {
-    return historyOrders.reduce<Record<string, number>>((counts, order) => {
-      const day = toDayKey(order.completedAt || order.createdAt)
+    return orders.reduce<Record<string, number>>((counts, order) => {
+      const day = toDayKey(order.completedAt || order.updatedAt)
       counts[day] = (counts[day] || 0) + 1
       return counts
     }, {})
-  }, [])
+  }, [orders])
 
   function changeMonth(direction: -1 | 1) {
     setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + direction, 1))
@@ -97,6 +120,8 @@ export function OrderCalendarPage() {
         </div>
       </div>
 
+      {error ? <p className="rounded-voro-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p> : null}
+
       <section className="rounded-voro-lg border border-line bg-card p-1.5 sm:p-3">
         <div className="grid grid-cols-7 gap-1 px-0.5 pb-1.5 text-center text-[0.65rem] font-bold text-muted-foreground sm:gap-2 sm:px-1 sm:pb-2 sm:text-xs md:text-sm">
           {weekDays[language].map((day) => (
@@ -114,7 +139,8 @@ export function OrderCalendarPage() {
                 to={`/calendar/${day}`}
               >
                 <span className="text-sm font-bold sm:text-lg">{Number(day.slice(-2))}</span>
-                {orderCountByDay[day] ? (
+                {isLoading ? <span className="mt-auto h-4 w-8 animate-pulse rounded bg-muted" /> : null}
+                {!isLoading && orderCountByDay[day] ? (
                   <span className="mt-auto justify-self-start rounded-voro-sm bg-action px-1 py-0.5 text-[0.55rem] font-bold text-white sm:rounded-voro-md sm:px-2 sm:py-1 sm:text-xs">
                     <span className="sm:hidden">{orderCountByDay[day]}</span>
                     <span className="hidden sm:inline">{t('calendar.orderCount', { count: orderCountByDay[day] })}</span>

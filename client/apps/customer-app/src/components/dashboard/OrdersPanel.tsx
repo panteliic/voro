@@ -131,7 +131,9 @@ export function OrdersPanel() {
     try {
       const result = await customerApi.getOrders()
       setOrders(result.orders)
-    } catch {}
+    } catch {
+      // Initial refresh errors are handled by the loading request below.
+    }
   }
 
   async function cancelOrder(order: CustomerOrder) {

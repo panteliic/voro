@@ -58,6 +58,30 @@ export async function createOrder(req: Request, res: Response) {
   }
 }
 
+export async function exportData(req: Request, res: Response) {
+  try {
+    res.set('Content-Disposition', 'attachment; filename="voro-account-data.json"').json(await customerService.exportCustomerData(auth(req).userId))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function deleteAccount(req: Request, res: Response) {
+  try {
+    res.json(await customerService.deleteCustomerAccount(auth(req).userId, auth(req).role, req.body?.confirmation))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function createSupportTicket(req: Request, res: Response) {
+  try {
+    res.status(201).json(await customerService.createSupportTicket(auth(req).userId, req.body || {}))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
 export async function getOrders(req: Request, res: Response) {
   try {
     res.json(await customerService.getOrders(auth(req).userId))

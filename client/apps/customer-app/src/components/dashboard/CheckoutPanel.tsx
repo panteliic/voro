@@ -37,6 +37,9 @@ export function CheckoutPanel({ profile }: CheckoutPanelProps) {
   const [note, setNote] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<CustomerOrderPaymentMethod>('card')
   const [cashTenderedInput, setCashTenderedInput] = useState('')
+  const [promoCode, setPromoCode] = useState('')
+  const [referralCode, setReferralCode] = useState('')
+  const [tipInput, setTipInput] = useState('')
   const [error, setError] = useState('')
   const [isOrdering, setIsOrdering] = useState(false)
   const money = useMemo(
@@ -59,7 +62,8 @@ export function CheckoutPanel({ profile }: CheckoutPanelProps) {
   }, [profile, selectedAddressId])
 
   const subtotal = draft?.items.reduce((sum, item) => sum + item.price * item.quantity, 0) || 0
-  const total = subtotal + deliveryFee
+  const tipAmount = cashValue(tipInput) || 0
+  const total = subtotal + deliveryFee + tipAmount
   const cashTendered = cashValue(cashTenderedInput)
   const changeDue = paymentMethod === 'cash' && cashTendered !== null ? Math.max(0, cashTendered - total) : 0
   const cashIsEnough = paymentMethod !== 'cash' || (cashTendered !== null && cashTendered >= total)
@@ -96,6 +100,9 @@ export function CheckoutPanel({ profile }: CheckoutPanelProps) {
         note,
         paymentMethod,
         cashTendered: paymentMethod === 'cash' ? cashTendered : null,
+        promoCode,
+        referralCode,
+        tipAmount,
         items: draft.items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
       })
       clearCheckoutDraft()
@@ -286,6 +293,48 @@ export function CheckoutPanel({ profile }: CheckoutPanelProps) {
             )}
           </section>
 
+          <section className="rounded-voro-xl border border-line bg-card p-4 sm:p-5">
+            <h2 className="font-bold text-content">{t('checkout.savingsAndTip')}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{t('checkout.codeHint')}</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-2 text-sm font-bold text-content">
+                {t('checkout.promoCode')}
+                <Input
+                  disabled={Boolean(referralCode)}
+                  maxLength={40}
+                  onChange={(event) => setPromoCode(event.target.value.toUpperCase())}
+                  placeholder="WELCOME10"
+                  value={promoCode}
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-bold text-content">
+                {t('checkout.referralCode')}
+                <Input
+                  disabled={Boolean(promoCode)}
+                  maxLength={40}
+                  onChange={(event) => setReferralCode(event.target.value.toUpperCase())}
+                  placeholder="VORO-AB12"
+                  value={referralCode}
+                />
+              </label>
+            </div>
+            <label className="mt-4 grid max-w-xs gap-2 text-sm font-bold text-content">
+              {t('checkout.tip')}
+              <div className="relative">
+                <Input
+                  inputMode="decimal"
+                  max="5000"
+                  min="0"
+                  onChange={(event) => setTipInput(event.target.value)}
+                  placeholder="0"
+                  type="number"
+                  value={tipInput}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">RSD</span>
+              </div>
+            </label>
+          </section>
+
           <label className="grid gap-2 rounded-voro-xl border border-line bg-card p-4 text-sm font-bold text-content sm:p-5">
             {t('menu.orderNote')}
             <Textarea
@@ -312,6 +361,12 @@ export function CheckoutPanel({ profile }: CheckoutPanelProps) {
                 <span>{t('menu.deliveryFee')}</span>
                 <span>{money.format(deliveryFee)} RSD</span>
               </div>
+              {tipAmount > 0 ? (
+                <div className="flex justify-between gap-3 text-muted-foreground">
+                  <span>{t('checkout.tip')}</span>
+                  <span>{money.format(tipAmount)} RSD</span>
+                </div>
+              ) : null}
               {paymentMethod === 'cash' && cashTendered !== null && cashTendered >= total ? (
                 <div className="flex justify-between gap-3 text-muted-foreground">
                   <span>{t('checkout.changeDue')}</span>

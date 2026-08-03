@@ -12,6 +12,8 @@ adminRoutes.use(authenticate, requireRole('admin'))
 adminRoutes.get('/me', adminController.getMe)
 adminRoutes.get('/overview', adminController.getOverview)
 adminRoutes.get('/dashboard/stats', adminController.getDashboardStats)
+adminRoutes.get('/promotions', adminController.listPromotions)
+adminRoutes.post('/promotions', adminController.createPromotion)
 
 adminRoutes.get('/users', adminController.listUsers)
 adminRoutes.get('/users/:userId', adminController.getUser)

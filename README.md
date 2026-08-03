@@ -120,6 +120,52 @@ docker compose --env-file .env.docker up --build -d
 
 The local Docker setup uses demo data by default (`SEED_DEMO_DATA=true`).
 
+It exposes Redis on `127.0.0.1:6379` and PostgreSQL on `127.0.0.1:5433`, so
+the native API can use the same local infrastructure. Neither service is
+reachable from other machines.
+
+### Backups and metrics
+
+Run the optional backup worker with the `ops` profile. It writes daily PostgreSQL
+snapshots to the ignored `backups/` folder and removes files older than the
+configured retention period:
+
+```powershell
+docker compose --env-file .env.docker --profile ops up -d database-backup
+```
+
+The API exposes Prometheus-compatible request metrics at `/metrics`. Keep this
+endpoint private or behind your infrastructure's authentication in production.
+Structured JSON request/error logs are emitted when `NODE_ENV=production`.
+Unhandled errors are also counted in the metrics endpoint. Load
+[`monitoring/voro-alert-rules.yml`](./monitoring/voro-alert-rules.yml) in
+Prometheus (with the scrape job named `voro-api`) to alert on downtime, a high
+5xx rate, and repeated application errors.
+
+### Promotions, referrals, and support
+
+Customers can enter one promo or referral code at checkout and choose a tip.
+Each customer profile receives a shareable referral code automatically. Create
+and inspect promotions through the authenticated `POST`/`GET /admin/promotions`
+API; it validates restaurant scope, amounts, dates, and
+redemption limits. Customer support tickets, data export, and account deletion
+are available from Customer app Settings.
+
+### Google sign-in (Auth0)
+
+Google sign-in is implemented through Auth0. In `.env.docker`, set
+`AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, and `AUTH0_CLIENT_SECRET`, enable the Google
+social connection for the Auth0 application, and add this exact callback URL
+to Auth0's **Allowed Callback URLs**:
+
+```text
+http://api.localhost/auth/auth0/callback
+```
+
+For a deployed app, replace both `AUTH0_CALLBACK_URL` and
+`AUTH0_CLIENT_REDIRECT_URL` with the public API and customer-app URLs, and add
+the public callback URL to Auth0 as well.
+
 ### Inspect or stop services
 
 ```powershell

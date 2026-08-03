@@ -10,6 +10,10 @@ export type DriverProfile = {
   currentLatitude: number | null
   currentLongitude: number | null
   lastLocationAt: Date | null
+  lastLocationAddress: string
+  lastLocationAddressLatitude: number | null
+  lastLocationAddressLongitude: number | null
+  lastLocationAddressAt: Date | null
   createdAt: Date
   updatedAt: Date
 }

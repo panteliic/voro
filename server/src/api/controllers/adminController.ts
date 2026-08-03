@@ -89,6 +89,22 @@ export async function getDashboardStats(_req: Request, res: Response) {
   }
 }
 
+export async function listPromotions(_req: Request, res: Response) {
+  try {
+    res.json({ promotions: await adminService.listPromotions() })
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function createPromotion(req: Request, res: Response) {
+  try {
+    res.status(201).json({ promotion: await adminService.createPromotion(req.body || {}) })
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
 export async function listUsers(_req: Request, res: Response) {
   try {
     res.json({ users: await adminService.listUsers() })

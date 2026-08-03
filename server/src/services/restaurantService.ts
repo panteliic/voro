@@ -31,6 +31,19 @@ const allowedNextStatuses: Record<RestaurantOrderStatus, RestaurantOrderStatus[]
 
 const weekdays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 
+function calendarMonthRange(value: unknown) {
+  const month = String(value || '')
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+    throw new HttpError(400, 'Month must use YYYY-MM format.')
+  }
+
+  const [year, monthNumber] = month.split('-').map(Number)
+  return {
+    from: new Date(Date.UTC(year, monthNumber - 1, 1)),
+    to: new Date(Date.UTC(year, monthNumber, 1)),
+  }
+}
+
 function normalizedProductPayload(payload: UpsertProductPayload): UpsertProductPayload {
   const imageUrl = sanitizePlainText(payload.imageUrl, 2_000)
   if (imageUrl && !/^https?:\/\//i.test(imageUrl)) {
@@ -126,6 +139,13 @@ export async function getDashboard(restaurantId: number) {
     notifications,
     unreadNotifications: notifications.filter((notification) => !notification.readAt).length,
   }
+}
+
+export async function getCompletedOrders(restaurantId: number, month: unknown) {
+  const restaurant = await getRestaurantScope(restaurantId)
+  const { from, to } = calendarMonthRange(month)
+  const orders = await restaurantRepository.listRestaurantCompletedOrders(restaurant.id, from, to)
+  return { orders }
 }
 
 export async function updateOrderStatus(restaurantId: number, orderId: number, nextStatus: string) {

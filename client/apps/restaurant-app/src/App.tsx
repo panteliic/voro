@@ -86,6 +86,8 @@ function App() {
     const refreshInterval = window.setInterval(() => void loadDashboard(token, true), 3_000)
 
     return () => window.clearInterval(refreshInterval)
+    // loadDashboard intentionally stays local so request errors use the latest session handlers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
   async function handleLogin(payload: LoginPayload) {
@@ -230,6 +232,7 @@ function App() {
         onSaveOperations={handleSaveOperations}
         onUpdateOrderStatus={handleUpdateOrderStatus}
         status={status}
+        token={token}
         user={user}
       />
     </BrowserRouter>

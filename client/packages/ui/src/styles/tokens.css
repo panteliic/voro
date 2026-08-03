@@ -214,6 +214,152 @@
 }
 
 @layer components {
+  .voro-loading-screen {
+    position: fixed;
+    z-index: 9999;
+    inset: 0;
+    display: grid;
+    min-height: 100dvh;
+    place-items: center;
+    overflow: hidden;
+    isolation: isolate;
+    background:
+      radial-gradient(circle at 18% 14%, rgb(233 77 41 / 0.24), transparent 30%),
+      radial-gradient(circle at 82% 88%, rgb(233 77 41 / 0.16), transparent 34%),
+      #111211;
+  }
+
+  .voro-loading-screen::before,
+  .voro-loading-screen::after {
+    position: absolute;
+    z-index: -1;
+    content: '';
+    border-radius: 9999px;
+  }
+
+  .voro-loading-screen::before {
+    top: 28%;
+    left: -7rem;
+    width: 16rem;
+    height: 16rem;
+    border: 1.5rem solid rgb(255 255 255 / 0.06);
+  }
+
+  .voro-loading-screen::after {
+    right: -5rem;
+    bottom: 4rem;
+    width: 14rem;
+    height: 14rem;
+    background: rgb(233 77 41 / 0.14);
+    filter: blur(3rem);
+  }
+
+  .voro-loading-screen__content {
+    display: grid;
+    width: 100%;
+    max-width: 24rem;
+    place-items: center;
+  }
+
+  .voro-loading-screen__mark {
+    position: relative;
+    display: grid;
+    width: 7rem;
+    height: 7rem;
+    place-items: center;
+  }
+
+  .voro-loading-screen__pulse,
+  .voro-loading-screen__ring,
+  .voro-loading-screen__logo,
+  .voro-loading-screen__dots {
+    position: absolute;
+  }
+
+  .voro-loading-screen__pulse {
+    inset: 0;
+    border-radius: 2rem;
+    background: rgb(233 77 41 / 0.24);
+    animation: voro-loading-pulse 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+
+  .voro-loading-screen__ring {
+    inset: 0.5rem;
+    border: 1px solid rgb(255 255 255 / 0.24);
+    border-radius: 1.65rem;
+  }
+
+  .voro-loading-screen__logo {
+    display: grid;
+    width: 5rem;
+    height: 5rem;
+    place-items: center;
+    border: 1px solid rgb(255 255 255 / 0.16);
+    border-radius: 1.35rem;
+    background: #181a18;
+    box-shadow: 0 16px 40px rgb(0 0 0 / 0.38);
+  }
+
+  .voro-loading-screen__logo img {
+    width: 3.1rem;
+    height: 3.1rem;
+    object-fit: contain;
+  }
+
+  .voro-loading-screen__dots {
+    bottom: -0.25rem;
+    display: flex;
+    gap: 0.38rem;
+    padding: 0.38rem 0.62rem;
+    border: 1px solid rgb(255 255 255 / 0.16);
+    border-radius: 9999px;
+    background: #181a18;
+    box-shadow: 0 8px 20px rgb(0 0 0 / 0.28);
+  }
+
+  .voro-loading-screen__dots i {
+    display: block;
+    width: 0.38rem;
+    height: 0.38rem;
+    border-radius: 9999px;
+    background: #e94d29;
+    animation: voro-loading-dot 1s ease-in-out infinite;
+  }
+
+  .voro-loading-screen__dots i:nth-child(2) {
+    animation-delay: 150ms;
+  }
+
+  .voro-loading-screen__dots i:nth-child(3) {
+    animation-delay: 300ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .voro-loading-screen__pulse,
+    .voro-loading-screen__dots i {
+      animation: none;
+    }
+  }
+
+  @keyframes voro-loading-pulse {
+    75%,
+    to {
+      opacity: 0;
+      transform: scale(1.85);
+    }
+  }
+
+  @keyframes voro-loading-dot {
+    0%,
+    to {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-0.22rem);
+    }
+  }
+
   .voro-card {
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);

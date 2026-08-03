@@ -114,7 +114,7 @@ export function ActiveDeliveryMap({
         })
         .catch((requestError: unknown) => {
           if (active) {
-            setError(requestError instanceof Error ? requestError.message : t('delivery.routeUnavailable'))
+            setError(requestError instanceof Error ? requestError.message : translate(language, 'delivery.routeUnavailable'))
           }
         })
     }

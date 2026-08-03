@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 
-export type DashboardView = 'overview' | 'search' | 'orders' | 'notifications' | 'settings' | 'restaurant' | 'checkout'
+export type DashboardView = 'overview' | 'search' | 'cart' | 'favorites' | 'orders' | 'notifications' | 'settings' | 'restaurant' | 'checkout'
 export type ActiveSettingsSection = SettingsSection | null
 export type SettingsSection =
   | 'account'
@@ -9,6 +9,7 @@ export type SettingsSection =
   | 'payments'
   | 'notifications'
   | 'security'
+  | 'support'
 
 export type DashboardNavItem = {
   id: DashboardView

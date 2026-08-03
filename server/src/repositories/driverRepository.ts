@@ -18,6 +18,10 @@ type DriverProfileRow = {
   current_latitude: string | null
   current_longitude: string | null
   last_location_at: Date | null
+  last_location_address: string | null
+  last_location_address_latitude: string | null
+  last_location_address_longitude: string | null
+  last_location_address_at: Date | null
   created_at: Date
   updated_at: Date
 }
@@ -97,6 +101,10 @@ function toDriverProfile(row: DriverProfileRow): DriverProfile {
     currentLatitude: row.current_latitude === null ? null : Number(row.current_latitude),
     currentLongitude: row.current_longitude === null ? null : Number(row.current_longitude),
     lastLocationAt: row.last_location_at,
+    lastLocationAddress: row.last_location_address || '',
+    lastLocationAddressLatitude: row.last_location_address_latitude === null ? null : Number(row.last_location_address_latitude),
+    lastLocationAddressLongitude: row.last_location_address_longitude === null ? null : Number(row.last_location_address_longitude),
+    lastLocationAddressAt: row.last_location_address_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -283,6 +291,27 @@ export async function updateDriverPresence(
   } finally {
     client.release()
   }
+}
+
+export async function updateDriverLocationAddress(
+  courierId: number,
+  payload: { latitude: number; longitude: number; address: string },
+) {
+  await pool.query(
+    `
+      UPDATE courier
+      SET
+        last_location_address = $2,
+        last_location_address_latitude = $3,
+        last_location_address_longitude = $4,
+        last_location_address_at = NOW(),
+        updated_at = NOW()
+      WHERE id = $1
+        AND current_latitude = $3
+        AND current_longitude = $4
+    `,
+    [courierId, payload.address, payload.latitude, payload.longitude],
+  )
 }
 
 export async function expireStaleDriverPresence() {

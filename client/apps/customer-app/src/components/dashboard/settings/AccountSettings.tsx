@@ -22,6 +22,15 @@ export function AccountSettings({ profile, setProfile }: AccountSettingsProps) {
   const [status, setStatus] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
+  async function copyReferralCode() {
+    try {
+      await navigator.clipboard.writeText(profile.referral.code)
+      setStatus(t('account.referralCopied'))
+    } catch {
+      setStatus(t('account.referralCopyError'))
+    }
+  }
+
   async function handleSave() {
     setIsSaving(true)
     setStatus('')
@@ -80,6 +89,11 @@ export function AccountSettings({ profile, setProfile }: AccountSettingsProps) {
         }
         label={t('account.language')}
         value={language === 'sr' ? t('common.serbian') : t('common.english')}
+      />
+      <SettingRow
+        action={<Button onClick={() => void copyReferralCode()} size="sm" type="button">{t('account.copyCode')}</Button>}
+        label={t('account.referralCode')}
+        value={`${profile.referral.code} · ${t('account.referralCount', { count: profile.referral.completedReferrals })}`}
       />
     </SettingsSectionLayout>
   )

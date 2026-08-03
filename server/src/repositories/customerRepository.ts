@@ -1,5 +1,6 @@
 import { pool } from '../database/pool'
 import { HttpError } from '../utils/httpError'
+import * as commerceRepository from './commerceRepository'
 import type {
   CustomerAddressPayload,
   CreateCustomerOrderPayload,
@@ -82,7 +83,11 @@ type CreatedOrderRow = {
   id: string
   subtotal: string
   delivery_fee: string
+  discount_amount: string
+  tip_amount: string
   total: string
+  promotion_code: string | null
+  referral_code: string | null
   created_at: Date
 }
 
@@ -98,6 +103,8 @@ type CustomerOrderRow = {
   delivery_status: string | null
   subtotal: string
   delivery_fee: string
+  discount_amount: string
+  tip_amount: string
   total: string
   note: string | null
   address: string | null
@@ -213,6 +220,8 @@ function toCustomerOrder(row: CustomerOrderRow) {
     deliveryStatus: row.delivery_status || '',
     subtotal: Number(row.subtotal),
     deliveryFee: Number(row.delivery_fee),
+    discountAmount: Number(row.discount_amount),
+    tipAmount: Number(row.tip_amount),
     total: Number(row.total),
     note: row.note || '',
     address: row.address || '',
@@ -237,6 +246,34 @@ export async function getUserProfile(userId: number) {
   )
 
   return result.rows[0] ? toUserProfile(result.rows[0]) : null
+}
+
+export async function deactivateCustomerAccount(userId: number) {
+  const deletedEmail = `deleted-customer-${userId}-${Date.now()}@deleted.voro.local`
+  const client = await pool.connect()
+
+  try {
+    await client.query('BEGIN')
+    await client.query('DELETE FROM payment_method WHERE user_id = $1', [userId])
+    await client.query('DELETE FROM address WHERE user_id = $1', [userId])
+    await client.query('DELETE FROM push_subscription WHERE user_id = $1', [userId])
+    const result = await client.query<{ id: string }>(
+      `
+        UPDATE "user"
+        SET name = 'Deleted customer', email = $2, password = 'account-deactivated', is_active = FALSE, updated_at = NOW()
+        WHERE id = $1
+        RETURNING id
+      `,
+      [userId, deletedEmail],
+    )
+    if (!result.rows[0]) throw new HttpError(404, 'User not found.')
+    await client.query('COMMIT')
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 export async function updateUserProfile(userId: number, payload: CustomerProfilePayload) {
@@ -634,6 +671,8 @@ export async function listCustomerOrders(userId: number, limit = 50) {
         delivery_status.name AS delivery_status,
         o.subtotal,
         o.delivery_fee,
+        o.discount_amount,
+        o.tip_amount,
         o.total,
         o.note,
         NULLIF(CONCAT_WS(', ', address.label, address.street, address.city), '') AS address,
@@ -911,7 +950,14 @@ export async function createCustomerOrder(
       }
     })
     const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0)
-    const total = subtotal + deliveryFee
+    const discount = await commerceRepository.resolveCheckoutDiscount(client, {
+      userId,
+      restaurantId: payload.restaurantId,
+      subtotal,
+      promotionCode: payload.promoCode,
+      referralCode: payload.referralCode,
+    })
+    const total = Math.max(0, Math.round((subtotal + deliveryFee - discount.amount + payload.tipAmount) * 100) / 100)
 
     if (payload.paymentMethod === 'cash' && (payload.cashTendered === null || payload.cashTendered < total)) {
       throw new HttpError(400, 'Cash amount must cover the full order total.')
@@ -922,9 +968,9 @@ export async function createCustomerOrder(
       : 0
     const orderResult = await client.query<CreatedOrderRow>(
       `
-        INSERT INTO "order" (user_id, restaurant_id, address_id, subtotal, delivery_fee, total, note)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id, subtotal, delivery_fee, total, created_at
+        INSERT INTO "order" (user_id, restaurant_id, address_id, subtotal, delivery_fee, discount_amount, tip_amount, promotion_code, referral_code, total, note)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        RETURNING id, subtotal, delivery_fee, discount_amount, tip_amount, promotion_code, referral_code, total, created_at
       `,
       [
         userId,
@@ -932,11 +978,21 @@ export async function createCustomerOrder(
         payload.addressId,
         subtotal,
         deliveryFee,
+        discount.amount,
+        payload.tipAmount,
+        discount.promotionCode,
+        discount.referralCode,
         total,
         payload.note || null,
       ],
     )
     const order = orderResult.rows[0]
+
+    await commerceRepository.recordCheckoutDiscount(client, {
+      ...discount,
+      userId,
+      orderId: Number(order.id),
+    })
 
     await client.query(
       `
@@ -970,6 +1026,10 @@ export async function createCustomerOrder(
       status: 'pending',
       subtotal: Number(order.subtotal),
       deliveryFee: Number(order.delivery_fee),
+      discountAmount: Number(order.discount_amount),
+      tipAmount: Number(order.tip_amount),
+      promotionCode: order.promotion_code,
+      referralCode: order.referral_code,
       total: Number(order.total),
       paymentMethod: payload.paymentMethod,
       cashTendered: payload.cashTendered,

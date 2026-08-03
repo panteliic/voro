@@ -179,3 +179,48 @@ export async function geocodeAddress(address: string): Promise<GeocodedLocation>
     displayName: result.display_name || query,
   }
 }
+
+export async function reverseGeocodeAddress(latitude: number, longitude: number): Promise<GeocodedLocation> {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    throw new HttpError(400, 'Location coordinates are invalid.')
+  }
+
+  const cacheKey = `geocode:reverse:${latitude.toFixed(4)}:${longitude.toFixed(4)}`
+  return redisService.getOrSetCachedJson(cacheKey, 7 * 24 * 60 * 60, async () => {
+    const url = new URL('https://nominatim.openstreetmap.org/reverse')
+    url.searchParams.set('lat', String(latitude))
+    url.searchParams.set('lon', String(longitude))
+    url.searchParams.set('format', 'jsonv2')
+    url.searchParams.set('addressdetails', '1')
+    url.searchParams.set('zoom', '18')
+
+    let response: Response
+    try {
+      response = await fetch(url, {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Voro Delivery/1.0 (courier location lookup)',
+        },
+        signal: AbortSignal.timeout(8_000),
+      })
+    } catch {
+      throw new HttpError(502, 'Could not reach the location service.')
+    }
+
+    if (!response.ok) {
+      throw new HttpError(502, 'Could not resolve the courier location.')
+    }
+
+    const result = (await response.json()) as GeocodingResult
+    const address = result.address
+    const street = [address?.road, address?.house_number].filter(Boolean).join(' ')
+    const city = address?.city || address?.town || address?.village || address?.municipality || address?.city_district || address?.state || ''
+    const displayName = [street, city, address?.postcode, address?.country].filter(Boolean).join(', ') || result.display_name
+
+    if (!displayName) {
+      throw new HttpError(404, 'No address was found for this courier location.')
+    }
+
+    return { latitude, longitude, displayName }
+  })
+}
