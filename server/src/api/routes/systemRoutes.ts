@@ -15,7 +15,7 @@ systemRoutes.get('/', (_req, res) => {
   })
 })
 
-systemRoutes.get('/health', async (_req, res) => {
+async function readiness(_req: import('express').Request, res: import('express').Response) {
   try {
     await Promise.all([pool.query('SELECT 1'), isRedisHealthy()])
     res.json({
@@ -33,6 +33,12 @@ systemRoutes.get('/health', async (_req, res) => {
       message: error instanceof Error ? error.message : 'Database connection failed.',
     })
   }
+}
+
+systemRoutes.get('/health', readiness)
+systemRoutes.get('/health/ready', readiness)
+systemRoutes.get('/health/live', (_req, res) => {
+  res.json({ status: 'ok', port: env.port, uptimeSeconds: Math.round(process.uptime()) })
 })
 
 systemRoutes.get('/metrics', (_req, res) => {

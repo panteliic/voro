@@ -9,6 +9,7 @@ const workerPollIntervalMs = 1_500
 const defaultMatchingRadiusMeters = 7_500
 const maximumOffersPerRound = 3
 const databaseSweepIntervalMs = 20_000
+const locationRetentionSweepIntervalMs = 24 * 60 * 60 * 1_000
 
 function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
   const earthRadius = 6_371_000
@@ -58,7 +59,7 @@ async function processDispatch(orderId: number) {
       return
     }
 
-    await dispatchRepository.markDispatchMatching(orderId)
+    const attempts = await dispatchRepository.markDispatchMatching(orderId)
     const matchingRadiusMeters = Math.max(
       4_000,
       Math.min(12_000, Math.round(order.deliveryRadiusKm * 1_000) || defaultMatchingRadiusMeters),
@@ -81,11 +82,11 @@ async function processDispatch(orderId: number) {
     const nearby = nearbyCandidates(order, couriers, matchingRadiusMeters, activeLoads)
 
     if (nearby.length === 0) {
-      await dispatchRepository.markDispatchWaiting(
-        orderId,
-        'No available courier is currently within the delivery radius.',
-        retryDelayMs,
-      )
+      const reason = 'No available courier is currently within the delivery radius.'
+      await dispatchRepository.markDispatchWaiting(orderId, reason, retryDelayMs)
+      if (attempts >= 4) {
+        await dispatchRepository.upsertDispatchAlert(orderId, attempts >= 8 ? 'critical' : 'warning', reason)
+      }
       return
     }
 
@@ -94,11 +95,11 @@ async function processDispatch(orderId: number) {
       nearby.slice(0, maximumOffersPerRound).map(({ courier }) => courier.id),
       offerWindowMs,
     )
-    await dispatchRepository.markDispatchWaiting(
-      orderId,
-      `Offer sent to ${offerCount} nearby courier${offerCount === 1 ? '' : 's'}.`,
-      offerWindowMs,
-    )
+    const reason = `Offer sent to ${offerCount} nearby courier${offerCount === 1 ? '' : 's'}.`
+    await dispatchRepository.markDispatchWaiting(orderId, reason, offerWindowMs)
+    if (offerCount === 0 && attempts >= 4) {
+      await dispatchRepository.upsertDispatchAlert(orderId, attempts >= 8 ? 'critical' : 'warning', 'No courier accepted the delivery offers.')
+    }
     console.info(`Dispatch offered order #${orderId} to ${offerCount} nearby couriers.`)
   } catch (error) {
     console.error(`Dispatch failed for order #${orderId}.`, error)
@@ -117,6 +118,7 @@ export function enqueueDispatch(orderId: number) {
 
 let isDispatchCycleRunning = false
 let lastDatabaseSweepAt = 0
+let lastLocationRetentionSweepAt = 0
 
 export async function runDispatchCycle() {
   if (isDispatchCycleRunning) {
@@ -136,6 +138,12 @@ export async function runDispatchCycle() {
       : []
     if (pendingOrderIds.length > 0 || now - lastDatabaseSweepAt >= databaseSweepIntervalMs) {
       lastDatabaseSweepAt = now
+    }
+    if (now - lastLocationRetentionSweepAt >= locationRetentionSweepIntervalMs) {
+      lastLocationRetentionSweepAt = now
+      await driverRepository.purgeExpiredDeliveryLocations().catch((error) => {
+        console.error('Could not purge expired delivery locations.', error)
+      })
     }
     const orderIds = [...new Set([...queuedOrderIds, ...pendingOrderIds])]
 

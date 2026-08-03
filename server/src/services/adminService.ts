@@ -422,13 +422,28 @@ export async function getOrder(orderId: number) {
   return order
 }
 
+export async function getOrderConversation(orderId: number) {
+  assertId(orderId, 'Order id is required.')
+  const order = await adminRepository.findOrderById(orderId)
+  if (!order) throw new HttpError(404, 'Order not found.')
+  return { messages: await operationsRepository.listOrderMessagesForAdmin(orderId) }
+}
+
 export async function getOperations() {
-  const [orders, issues, couriers] = await Promise.all([
+  const [orders, issues, couriers, dispatchAlerts] = await Promise.all([
     operationsRepository.listActiveOperations(),
     operationsRepository.listOpenIssues(),
     adminRepository.listCouriers(),
+    operationsRepository.listOpenDispatchAlerts(),
   ])
-  return { orders, issues, couriers }
+  return { orders, issues, couriers, dispatchAlerts }
+}
+
+export async function acknowledgeDispatchAlert(alertId: number, adminUserId: number) {
+  assertId(alertId, 'Dispatch alert not found.')
+  const alert = await operationsRepository.acknowledgeDispatchAlert(alertId, adminUserId)
+  if (!alert) throw new HttpError(404, 'Dispatch alert not found or already handled.')
+  return { alert }
 }
 
 export async function reassignOrder(orderId: number, courierId: number) {

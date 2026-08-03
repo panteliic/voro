@@ -24,6 +24,9 @@ type RestaurantRow = {
   delivery_radius_km: string
   opening_hours: Record<string, unknown>
   is_accepting_orders: boolean
+  preparation_minutes: number
+  busy_until: Date | null
+  auto_accept_orders: boolean
   rating: string
   review_count: string
   created_at: Date
@@ -98,6 +101,9 @@ function toRestaurant(row: RestaurantRow) {
     deliveryRadiusKm: Number(row.delivery_radius_km || 8),
     openingHours: row.opening_hours || {},
     isAcceptingOrders: row.is_accepting_orders,
+    preparationMinutes: row.preparation_minutes || 20,
+    busyUntil: row.busy_until,
+    autoAcceptOrders: row.auto_accept_orders,
     rating: Number(row.rating || 0),
     reviewCount: Number(row.review_count || 0),
     createdAt: row.created_at,

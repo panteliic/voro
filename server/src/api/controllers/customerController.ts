@@ -182,6 +182,22 @@ export async function getNotifications(req: Request, res: Response) {
   }
 }
 
+export async function exportPersonalData(req: Request, res: Response) {
+  try {
+    res.set('Cache-Control', 'no-store').json(await customerService.exportPersonalData(auth(req).userId))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function deletePersonalAccount(req: Request, res: Response) {
+  try {
+    res.json(await customerService.deletePersonalAccount(auth(req).userId, req.body?.confirmation))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
 export async function readNotification(req: Request, res: Response) {
   try {
     res.json(await customerService.readNotification(auth(req).userId, numericParam(req.params.notificationId)))

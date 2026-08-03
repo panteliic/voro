@@ -85,7 +85,7 @@ export function ActiveDeliveryMap({
   locationKey: string
   isUpdating: boolean
   onOpenChat: () => void
-  onUpdateStatus: (status: 'picked_up' | 'on_the_way' | 'delivered') => void
+  onUpdateStatus: (status: 'picked_up' | 'on_the_way' | 'delivered', proof?: { proofNote: string }) => void
   onWithdraw: () => void
 }) {
   const t = (key: string, values?: Record<string, string | number>) => translate(language, key, values)
@@ -93,6 +93,7 @@ export function ActiveDeliveryMap({
   const [error, setError] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
   const [isShowingPickupCode, setIsShowingPickupCode] = useState(false)
+  const [deliveryProofNote, setDeliveryProofNote] = useState('')
   const copy = deliveryCopy(delivery, language)
   const shouldShowRoute = delivery.status !== 'picked_up'
 
@@ -206,19 +207,21 @@ export function ActiveDeliveryMap({
           <p className="flex items-center gap-2 font-bold"><Store className="size-4 text-action" />{targetIsRestaurant ? delivery.restaurantName : delivery.customerName}</p>
           <p className="mt-1 truncate text-muted-foreground">{targetIsRestaurant ? delivery.restaurantAddress : delivery.customerAddress}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <a className="rounded-voro-md border border-line px-4 py-3 text-sm font-bold text-action hover:bg-accent" href={`https://www.google.com/maps/dir/?api=1&destination=${targetIsRestaurant ? delivery.restaurantLatitude : delivery.customerLatitude},${targetIsRestaurant ? delivery.restaurantLongitude : delivery.customerLongitude}`} rel="noreferrer" target="_blank"><Navigation className="mr-2 inline size-4" />{t('delivery.navigate')}</a>
           {canWithdraw ? <button className="rounded-voro-md border border-destructive/40 px-4 py-3 text-sm font-bold text-destructive hover:bg-destructive/10 disabled:opacity-60" disabled={isUpdating} onClick={onWithdraw} type="button">{t('delivery.withdraw')}</button> : null}
           {canShowPickupCode ? <button className="rounded-voro-md border border-action bg-accent px-4 py-3 text-sm font-bold text-action" onClick={() => setIsShowingPickupCode(true)} type="button"><KeyRound className="mr-2 inline size-4" />{t('delivery.showCode')}</button> : null}
           <button
             className="rounded-voro-md bg-action px-5 py-3 text-sm font-bold text-action-text transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isUpdating}
-            onClick={() => onUpdateStatus(copy.nextStatus)}
+            onClick={() => onUpdateStatus(copy.nextStatus, { proofNote: deliveryProofNote })}
             type="button"
           >
             {isUpdating ? t('delivery.updating') : copy.action}
           </button>
         </div>
       </div>
+      {copy.nextStatus === 'delivered' ? <div className="border-t border-line bg-background px-4 py-4"><label className="grid gap-1 text-sm font-bold">{t('delivery.proofNote')}<input className="rounded-voro-md border border-line bg-card px-3 py-2" maxLength={500} onChange={(event) => setDeliveryProofNote(event.target.value)} placeholder={t('delivery.proofNotePlaceholder')} value={deliveryProofNote} /></label></div> : null}
       {isShowingPickupCode ? <div className="fixed inset-0 z-[600] grid place-items-center bg-content/75 p-6" role="dialog" aria-modal="true" aria-label={t('delivery.codeDialog')}>
         <div className="w-full max-w-sm rounded-voro-xl bg-card p-6 text-center shadow-2xl">
           <KeyRound className="mx-auto size-8 text-action" />

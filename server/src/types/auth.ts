@@ -27,6 +27,21 @@ export type RefreshTokenPayload = {
   refreshToken: string
 }
 
+export type AuthSessionMetadata = {
+  ipAddress: string
+  userAgent: string
+}
+
+export type ActiveAuthSession = {
+  id: number
+  deviceLabel: string
+  ipAddress: string
+  createdAt: Date
+  lastActiveAt: Date
+  expiresAt: Date
+  isCurrent: boolean
+}
+
 export type RequestPasswordResetPayload = {
   email: string
 }

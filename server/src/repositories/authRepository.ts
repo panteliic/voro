@@ -315,14 +315,26 @@ export async function saveRefreshToken(payload: {
   userId: number;
   tokenHash: string;
   expiresAt: Date;
+  sessionId: string;
+  deviceLabel: string;
+  userAgent: string;
+  ipAddress: string;
 }) {
   const result = await pool.query<{ id: string }>(
     `
-      INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-      VALUES ($1, $2, $3)
+      INSERT INTO refresh_tokens (user_id, token_hash, expires_at, session_id, device_label, user_agent, ip_address, last_used_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
       RETURNING id
     `,
-    [payload.userId, payload.tokenHash, payload.expiresAt],
+    [
+      payload.userId,
+      payload.tokenHash,
+      payload.expiresAt,
+      payload.sessionId,
+      payload.deviceLabel,
+      payload.userAgent,
+      payload.ipAddress,
+    ],
   );
 
   return Number(result.rows[0].id);
@@ -333,14 +345,20 @@ export async function findActiveRefreshTokens(userId: number) {
     id: string;
     token_hash: string;
     expires_at: Date;
+    session_id: string | null;
+    device_label: string | null;
+    user_agent: string | null;
+    ip_address: string | null;
+    created_at: Date;
+    last_used_at: Date | null;
   }>(
     `
-      SELECT id, token_hash, expires_at
+      SELECT id, token_hash, expires_at, session_id, device_label, user_agent, ip_address, created_at, last_used_at
       FROM refresh_tokens
       WHERE user_id = $1
         AND revoked_at IS NULL
         AND expires_at > NOW()
-      ORDER BY created_at DESC
+      ORDER BY last_used_at DESC NULLS LAST, created_at DESC
     `,
     [userId],
   );
@@ -349,6 +367,12 @@ export async function findActiveRefreshTokens(userId: number) {
     id: Number(row.id),
     tokenHash: row.token_hash,
     expiresAt: row.expires_at,
+    sessionId: row.session_id,
+    deviceLabel: row.device_label || '',
+    userAgent: row.user_agent || '',
+    ipAddress: row.ip_address || '',
+    createdAt: row.created_at,
+    lastUsedAt: row.last_used_at || row.created_at,
   }));
 }
 
@@ -375,4 +399,43 @@ export async function revokeAllUserRefreshTokens(userId: number) {
     `,
     [userId],
   );
+}
+
+export async function revokeOtherUserRefreshTokens(userId: number, currentTokenId: number) {
+  await pool.query(
+    `
+      UPDATE refresh_tokens
+      SET revoked_at = NOW()
+      WHERE user_id = $1 AND id <> $2 AND revoked_at IS NULL
+    `,
+    [userId, currentTokenId],
+  )
+}
+
+export async function revokeUserRefreshToken(userId: number, tokenId: number) {
+  const result = await pool.query(
+    `
+      UPDATE refresh_tokens
+      SET revoked_at = NOW()
+      WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+    `,
+    [tokenId, userId],
+  )
+  return (result.rowCount ?? 0) > 0
+}
+
+export async function isRefreshSessionActive(userId: number, sessionId: string) {
+  const result = await pool.query(
+    `
+      SELECT 1
+      FROM refresh_tokens
+      WHERE user_id = $1
+        AND session_id = $2::UUID
+        AND revoked_at IS NULL
+        AND expires_at > NOW()
+      LIMIT 1
+    `,
+    [userId, sessionId],
+  )
+  return Boolean(result.rows[0])
 }

@@ -81,7 +81,7 @@ function Home() {
       if (typeof notification.data.orderId === 'number') {
         window.dispatchEvent(new CustomEvent('voro:customer-order-change', { detail: notification.data.orderId }))
       }
-      if (notification.type !== 'new_message') return
+      if (notification.type !== 'new_message' && notification.type !== 'courier_nearby') return
       setMessageNotification(notification)
       const text = customerNotificationText(notification, t)
 

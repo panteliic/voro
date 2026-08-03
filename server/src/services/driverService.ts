@@ -5,7 +5,7 @@ import * as dispatchService from './dispatchService'
 import * as geocodingService from './geocodingService'
 import * as operationsRepository from '../repositories/operationsRepository'
 import { publishOrderMessage, publishOrderTracking } from './realtimeService'
-import { notifyUser } from './notificationService'
+import { notifyUser, notifyUserOnceCourierIsNearby } from './notificationService'
 import type { DriverAnalytics, DriverAnalyticsDay, DriverAnalyticsPeriod } from '../types/driver'
 import { HttpError } from '../utils/httpError'
 import { sanitizePlainText } from '../utils/securityInput'
@@ -13,48 +13,15 @@ import { logEvent } from './observability'
 
 type WorkSession = { started_at: Date; ended_at: Date | null; updated_at: Date }
 type DeliveredTotal = { deliveredAt: Date; total: number }
-const locationAddressLookups = new Set<number>()
+const customerNearbyDistanceMeters = 250
 
-function locationAddressNeedsRefresh(driver: Awaited<ReturnType<typeof driverRepository.findDriverByUserId>>) {
-  if (
-    !driver ||
-    driver.currentLatitude === null ||
-    driver.currentLongitude === null ||
-    !driver.lastLocationAddress ||
-    driver.lastLocationAddressLatitude === null ||
-    driver.lastLocationAddressLongitude === null
-  ) {
-    return true
-  }
-
-  const latitudeMeters = (driver.currentLatitude - driver.lastLocationAddressLatitude) * 111_000
-  const longitudeMeters = (driver.currentLongitude - driver.lastLocationAddressLongitude) * 111_000 * Math.cos((driver.currentLatitude * Math.PI) / 180)
-  return Math.hypot(latitudeMeters, longitudeMeters) > 120
-}
-
-function refreshDriverLocationAddress(driver: NonNullable<Awaited<ReturnType<typeof driverRepository.findDriverByUserId>>>) {
-  if (!driver.isOnline || !locationAddressNeedsRefresh(driver) || locationAddressLookups.has(driver.id)) {
-    return
-  }
-
-  const latitude = driver.currentLatitude
-  const longitude = driver.currentLongitude
-  if (latitude === null || longitude === null) return
-
-  locationAddressLookups.add(driver.id)
-  void geocodingService.reverseGeocodeAddress(latitude, longitude)
-    .then((location) => driverRepository.updateDriverLocationAddress(driver.id, {
-      latitude,
-      longitude,
-      address: location.displayName,
-    }))
-    .catch((error: unknown) => {
-      logEvent('warn', 'courier_location_address_lookup_failed', {
-        courierId: driver.id,
-        message: error instanceof Error ? error.message : String(error),
-      })
-    })
-    .finally(() => locationAddressLookups.delete(driver.id))
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const earthRadius = 6_371_000
+  const latitudeDelta = ((lat2 - lat1) * Math.PI) / 180
+  const longitudeDelta = ((lon2 - lon1) * Math.PI) / 180
+  const a = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(longitudeDelta / 2) ** 2
+  return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
 async function getOwnedDriver(userId: number) {
@@ -209,6 +176,22 @@ export async function updatePresence(userId: number, payload: unknown) {
         courier: { name: driver.name, latitude: nextLatitude, longitude: nextLongitude },
         deliveryStatus: activeDelivery.deliveryStatus,
       })
+
+      if (
+        activeDelivery.deliveryStatus === 'on_the_way' &&
+        activeDelivery.customerLatitude !== null &&
+        activeDelivery.customerLongitude !== null
+      ) {
+        const distanceMeters = Math.round(haversineMeters(
+          nextLatitude,
+          nextLongitude,
+          activeDelivery.customerLatitude,
+          activeDelivery.customerLongitude,
+        ))
+        if (distanceMeters <= customerNearbyDistanceMeters) {
+          await notifyUserOnceCourierIsNearby(activeDelivery.customerUserId, activeDelivery.orderId, distanceMeters)
+        }
+      }
     }
   }
 
@@ -284,7 +267,12 @@ export async function declineOffer(userId: number, offerId: number) {
   return { declined: true }
 }
 
-export async function updateDeliveryStatus(userId: number, deliveryId: number, status: unknown) {
+export async function updateDeliveryStatus(
+  userId: number,
+  deliveryId: number,
+  status: unknown,
+  proofPayload: Record<string, unknown> = {},
+) {
   if (!Number.isInteger(deliveryId) || deliveryId <= 0) {
     throw new HttpError(400, 'Delivery was not found.')
   }
@@ -298,10 +286,14 @@ export async function updateDeliveryStatus(userId: number, deliveryId: number, s
   if (!activeDelivery) {
     throw new HttpError(404, 'Active delivery was not found.')
   }
-  const updated = await driverRepository.setDeliveryStatus(driver.id, deliveryId, status)
+  const note = sanitizePlainText(proofPayload.proofNote, 500)
+  const updated = await driverRepository.setDeliveryStatus(driver.id, deliveryId, status, { note })
 
   if (!updated) {
-    throw new HttpError(400, 'This delivery cannot move to that status.')
+    throw new HttpError(
+      400,
+      'This delivery cannot move to that status.',
+    )
   }
 
   await redisService.syncDriverPresence(await getOwnedDriver(userId))

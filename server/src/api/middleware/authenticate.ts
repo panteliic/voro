@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express'
 import jwt from 'jsonwebtoken'
 import { env } from '../../config/env'
+import * as authRepository from '../../repositories/authRepository'
 import { HttpError } from '../../utils/httpError'
 import { sendError } from '../../utils/sendError'
 import type { RestaurantAccessClaims } from '../../services/restaurantAuthService'
@@ -10,6 +11,7 @@ type AccessTokenClaims = {
   email: string
   role?: string
   type: 'access'
+  sessionId?: string
 }
 
 export type AuthenticatedRequest = Request & {
@@ -17,6 +19,7 @@ export type AuthenticatedRequest = Request & {
     userId: number
     email: string
     role: string
+    sessionId?: string
   }
 }
 
@@ -29,7 +32,7 @@ export type RestaurantAuthenticatedRequest = Request & {
   }
 }
 
-export function authenticate(req: Request, res: Response, next: NextFunction) {
+export async function authenticate(req: Request, res: Response, next: NextFunction) {
   try {
     const header = req.headers.authorization
     const token = header?.startsWith('Bearer ') ? header.slice('Bearer '.length) : ''
@@ -44,10 +47,15 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
       throw new HttpError(401, 'Invalid access token.')
     }
 
+    if (decoded.sessionId && !(await authRepository.isRefreshSessionActive(decoded.userId, decoded.sessionId))) {
+      throw new HttpError(401, 'This session has been signed out.')
+    }
+
     ;(req as AuthenticatedRequest).auth = {
       userId: decoded.userId,
       email: decoded.email,
       role: decoded.role || 'customer',
+      sessionId: decoded.sessionId,
     }
     next()
   } catch (error) {

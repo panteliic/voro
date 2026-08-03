@@ -10,6 +10,9 @@ export type Restaurant = {
   deliveryRadiusKm: number
   openingHours: Record<string, { enabled: boolean; open: string; close: string }>
   isAcceptingOrders: boolean
+  preparationMinutes: number
+  busyUntil: string | null
+  autoAcceptOrders: boolean
 }
 
 export type ProductCategory = {
@@ -48,7 +51,7 @@ export type RestaurantNotification = {
   createdAt: string
 }
 
-export type RestaurantOperations = Pick<Restaurant, 'deliveryRadiusKm' | 'openingHours' | 'isAcceptingOrders'>
+export type RestaurantOperations = Pick<Restaurant, 'deliveryRadiusKm' | 'openingHours' | 'isAcceptingOrders' | 'preparationMinutes' | 'busyUntil' | 'autoAcceptOrders'>
 
 export type OrderStatus =
   | 'pending'

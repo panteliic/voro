@@ -17,6 +17,15 @@ export type DispatchCandidate = {
   longitude: number
 }
 
+export type DispatchAlert = {
+  id: number
+  orderId: number
+  severity: 'warning' | 'critical'
+  reason: string
+  status: 'open' | 'acknowledged' | 'resolved'
+  createdAt: Date
+}
+
 type DispatchOrderRow = {
   id: string
   restaurant_latitude: string | null
@@ -141,14 +150,16 @@ export async function listAvailableOnlineCouriers() {
 }
 
 export async function markDispatchMatching(orderId: number) {
-  await pool.query(
+  const result = await pool.query<{ attempts: number }>(
     `
       UPDATE delivery_dispatch_job
       SET status = 'matching', attempts = attempts + 1, last_error = NULL, updated_at = NOW()
       WHERE order_id = $1
+      RETURNING attempts
     `,
     [orderId],
   )
+  return result.rows[0]?.attempts || 0
 }
 
 export async function createDispatchOffers(orderId: number, courierIds: number[], expiresInMs: number) {
@@ -212,6 +223,33 @@ export async function markDispatchFailed(orderId: number, reason: string) {
       WHERE order_id = $1
     `,
     [orderId, reason],
+  )
+}
+
+export async function upsertDispatchAlert(
+  orderId: number,
+  severity: DispatchAlert['severity'],
+  reason: string,
+) {
+  await pool.query(
+    `
+      INSERT INTO dispatch_alert (order_id, severity, reason)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (order_id) DO UPDATE
+      SET
+        severity = EXCLUDED.severity,
+        reason = EXCLUDED.reason,
+        status = CASE WHEN dispatch_alert.status = 'resolved' THEN 'open' ELSE dispatch_alert.status END,
+        updated_at = NOW()
+    `,
+    [orderId, severity, reason],
+  )
+}
+
+export async function resolveDispatchAlert(orderId: number) {
+  await pool.query(
+    `UPDATE dispatch_alert SET status = 'resolved', updated_at = NOW() WHERE order_id = $1 AND status <> 'resolved'`,
+    [orderId],
   )
 }
 
