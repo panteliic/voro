@@ -37,6 +37,8 @@ type CourierRow = {
   current_latitude: string | null
   current_longitude: string | null
   last_location_at: Date | null
+  last_location_address: string | null
+  last_location_address_at: Date | null
   created_at: Date
   updated_at: Date
 }
@@ -158,6 +160,9 @@ function toCourier(row: CourierRow): AdminCourier {
     currentLatitude: row.current_latitude === null ? null : Number(row.current_latitude),
     currentLongitude: row.current_longitude === null ? null : Number(row.current_longitude),
     lastLocationAt: row.last_location_at,
+    locationAddress: row.last_location_address || '',
+    locationAddressAt: row.last_location_address_at,
+    isLocationLive: false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

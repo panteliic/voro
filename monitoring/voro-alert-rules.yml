@@ -1,0 +1,26 @@
+groups:
+  - name: voro-api
+    rules:
+      - alert: VoroApiDown
+        expr: up{job="voro-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Voro API is unreachable"
+
+      - alert: VoroServerErrorRateHigh
+        expr: sum(rate(voro_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(voro_http_requests_total[5m])), 1) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Voro API 5xx rate is above 5%"
+
+      - alert: VoroUnhandledErrors
+        expr: increase(voro_errors_total{event="unhandled_request_error"}[10m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Voro is recording repeated unhandled request errors"

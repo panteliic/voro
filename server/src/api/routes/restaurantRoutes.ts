@@ -6,6 +6,7 @@ export const restaurantRoutes = Router()
 
 restaurantRoutes.use(authenticateRestaurant)
 restaurantRoutes.get('/me', restaurantController.getDashboard)
+restaurantRoutes.get('/orders/completed', restaurantController.getCompletedOrders)
 restaurantRoutes.patch('/operations', restaurantController.updateOperations)
 restaurantRoutes.get('/notifications', restaurantController.getNotifications)
 restaurantRoutes.patch('/notifications/:notificationId/read', restaurantController.readNotification)

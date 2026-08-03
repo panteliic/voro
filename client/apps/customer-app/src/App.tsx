@@ -7,6 +7,7 @@ import AuthCallback from './pages/AuthCallback'
 import ForgotPassword from './pages/ForgotPassword'
 import Home from './pages/Home'
 import Login from './pages/Login'
+import LegalPage from './pages/LegalPage'
 import SignUp from './pages/SignUp'
 import VerifyEmail from './pages/VerifyEmail'
 import { ThemeProvider } from './theme/theme'
@@ -78,6 +79,8 @@ function App() {
         <Routes>
           <Route path="/" element={protectedHome} />
           <Route path="/search" element={protectedHome} />
+          <Route path="/cart" element={protectedHome} />
+          <Route path="/favorites" element={protectedHome} />
           <Route path="/orders" element={protectedHome} />
           <Route path="/notifications" element={protectedHome} />
           <Route path="/restaurants/:restaurantId" element={protectedHome} />
@@ -91,6 +94,7 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/signup" element={<SignUp />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/legal/:document" element={<LegalPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <Toaster />

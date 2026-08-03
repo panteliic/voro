@@ -2,15 +2,60 @@ import * as driverRepository from '../repositories/driverRepository'
 import * as redisService from './redisService'
 import * as routingService from './routingService'
 import * as dispatchService from './dispatchService'
+import * as geocodingService from './geocodingService'
 import * as operationsRepository from '../repositories/operationsRepository'
 import { publishOrderMessage, publishOrderTracking } from './realtimeService'
 import { notifyUser } from './notificationService'
 import type { DriverAnalytics, DriverAnalyticsDay, DriverAnalyticsPeriod } from '../types/driver'
 import { HttpError } from '../utils/httpError'
 import { sanitizePlainText } from '../utils/securityInput'
+import { logEvent } from './observability'
 
 type WorkSession = { started_at: Date; ended_at: Date | null; updated_at: Date }
 type DeliveredTotal = { deliveredAt: Date; total: number }
+const locationAddressLookups = new Set<number>()
+
+function locationAddressNeedsRefresh(driver: Awaited<ReturnType<typeof driverRepository.findDriverByUserId>>) {
+  if (
+    !driver ||
+    driver.currentLatitude === null ||
+    driver.currentLongitude === null ||
+    !driver.lastLocationAddress ||
+    driver.lastLocationAddressLatitude === null ||
+    driver.lastLocationAddressLongitude === null
+  ) {
+    return true
+  }
+
+  const latitudeMeters = (driver.currentLatitude - driver.lastLocationAddressLatitude) * 111_000
+  const longitudeMeters = (driver.currentLongitude - driver.lastLocationAddressLongitude) * 111_000 * Math.cos((driver.currentLatitude * Math.PI) / 180)
+  return Math.hypot(latitudeMeters, longitudeMeters) > 120
+}
+
+function refreshDriverLocationAddress(driver: NonNullable<Awaited<ReturnType<typeof driverRepository.findDriverByUserId>>>) {
+  if (!driver.isOnline || !locationAddressNeedsRefresh(driver) || locationAddressLookups.has(driver.id)) {
+    return
+  }
+
+  const latitude = driver.currentLatitude
+  const longitude = driver.currentLongitude
+  if (latitude === null || longitude === null) return
+
+  locationAddressLookups.add(driver.id)
+  void geocodingService.reverseGeocodeAddress(latitude, longitude)
+    .then((location) => driverRepository.updateDriverLocationAddress(driver.id, {
+      latitude,
+      longitude,
+      address: location.displayName,
+    }))
+    .catch((error: unknown) => {
+      logEvent('warn', 'courier_location_address_lookup_failed', {
+        courierId: driver.id,
+        message: error instanceof Error ? error.message : String(error),
+      })
+    })
+    .finally(() => locationAddressLookups.delete(driver.id))
+}
 
 async function getOwnedDriver(userId: number) {
   const driver = await driverRepository.findDriverByUserId(userId)
@@ -168,6 +213,7 @@ export async function updatePresence(userId: number, payload: unknown) {
   }
 
   await redisService.syncDriverPresence(driver)
+  refreshDriverLocationAddress(driver)
 
   return { driver }
 }

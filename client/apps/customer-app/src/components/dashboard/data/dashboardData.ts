@@ -1,11 +1,14 @@
 import {
   Bell,
+  Heart,
   HomeIcon,
   Moon,
   CreditCard,
   ReceiptText,
   Search,
+  ShoppingBasket,
   ShieldCheck,
+  CircleHelp,
   Truck,
   UserRound,
 } from 'lucide-react'
@@ -14,6 +17,8 @@ import type { DashboardNavItem, SettingsNavItem } from '../types'
 export const dashboardNavItems: DashboardNavItem[] = [
   { id: 'overview', label: 'Home', path: '/', icon: HomeIcon },
   { id: 'search', label: 'Search', path: '/search', icon: Search },
+  { id: 'cart', label: 'Cart', path: '/cart', icon: ShoppingBasket },
+  { id: 'favorites', label: 'Favorites', path: '/favorites', icon: Heart },
   { id: 'orders', label: 'Orders', path: '/orders', icon: ReceiptText },
   { id: 'notifications', label: 'Notifications', path: '/notifications', icon: Bell },
 ]
@@ -60,6 +65,13 @@ export const settingsNavItems: SettingsNavItem[] = [
     description: 'Password, sessions, privacy, and account protection.',
     path: '/settings/security',
     icon: ShieldCheck,
+  },
+  {
+    id: 'support',
+    label: 'Support',
+    description: 'Contact support about an order, payment, or your account.',
+    path: '/settings/support',
+    icon: CircleHelp,
   },
 ]
 

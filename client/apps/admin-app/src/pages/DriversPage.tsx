@@ -47,9 +47,11 @@ export function DriversPage() {
     }
 
     void load()
+    const refreshInterval = window.setInterval(() => void load(), 15_000)
 
     return () => {
       isMounted = false
+      window.clearInterval(refreshInterval)
     }
   }, [t])
 
@@ -178,11 +180,15 @@ export function DriversPage() {
           {
             key: 'location',
             header: t('drivers.location'),
-            render: (driver) => (
-              driver.currentLatitude !== null && driver.currentLongitude !== null
-                ? `${driver.currentLatitude.toFixed(4)}, ${driver.currentLongitude.toFixed(4)}`
-                : t('drivers.noLocation')
-            ),
+            render: (driver) => {
+              if (driver.currentLatitude === null || driver.currentLongitude === null) return t('drivers.noLocation')
+              return (
+                <div className="min-w-44">
+                  <p className="line-clamp-2 text-sm font-medium text-content">{driver.locationAddress || t('drivers.locationPending')}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{driver.isLocationLive ? t('drivers.liveLocation') : t('drivers.lastKnownLocation')}</p>
+                </div>
+              )
+            },
           },
           {
             key: 'toggle',

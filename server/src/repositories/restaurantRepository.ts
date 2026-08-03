@@ -74,6 +74,7 @@ type RestaurantOrderRow = {
   pickup_code: string | null
   created_at: Date
   updated_at: Date
+  completed_at: Date | null
   items: Array<{ name: string; quantity: number }> | null
 }
 
@@ -155,6 +156,7 @@ function toRestaurantOrder(row: RestaurantOrderRow) {
     pickupCode: row.pickup_code || '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    completedAt: row.completed_at,
     items: Array.isArray(row.items) ? row.items : [],
   }
 }
@@ -519,6 +521,7 @@ export async function listRestaurantOrders(restaurantId: number, limit = 50) {
         delivery.pickup_code,
         o.created_at,
         o.updated_at,
+        delivery.delivered_at AS completed_at,
         COALESCE(
           JSON_AGG(
             JSON_BUILD_OBJECT('name', order_item.product_name, 'quantity', order_item.quantity)
@@ -535,11 +538,60 @@ export async function listRestaurantOrders(restaurantId: number, limit = 50) {
       LEFT JOIN "user" driver ON driver.id = courier.user_id
       LEFT JOIN order_item ON order_item.order_id = o.id
       WHERE o.restaurant_id = $1
-      GROUP BY o.id, customer.name, status.name, address.label, address.street, address.city, driver.name, delivery.pickup_code
+      GROUP BY o.id, customer.name, status.name, address.label, address.street, address.city, driver.name, delivery.pickup_code, delivery.delivered_at
       ORDER BY o.created_at DESC
       LIMIT $2
     `,
     [restaurantId, Math.max(1, Math.min(limit, 100))],
+  )
+
+  return result.rows.map(toRestaurantOrder)
+}
+
+export async function listRestaurantCompletedOrders(
+  restaurantId: number,
+  from: Date,
+  to: Date,
+) {
+  const result = await pool.query<RestaurantOrderRow>(
+    `
+      SELECT
+        o.id,
+        customer.name AS customer_name,
+        status.name AS status,
+        o.subtotal,
+        o.delivery_fee,
+        o.total,
+        o.note,
+        NULLIF(CONCAT_WS(', ', address.label, address.street, address.city), '') AS address,
+        driver.name AS driver_name,
+        delivery.pickup_code,
+        o.created_at,
+        o.updated_at,
+        delivery.delivered_at AS completed_at,
+        COALESCE(
+          JSON_AGG(
+            JSON_BUILD_OBJECT('name', order_item.product_name, 'quantity', order_item.quantity)
+            ORDER BY order_item.id ASC
+          ) FILTER (WHERE order_item.id IS NOT NULL),
+          '[]'::JSON
+        ) AS items
+      FROM "order" o
+      INNER JOIN "user" customer ON customer.id = o.user_id
+      INNER JOIN order_status status ON status.id = o.status_id
+      LEFT JOIN address ON address.id = o.address_id
+      LEFT JOIN delivery ON delivery.order_id = o.id
+      LEFT JOIN courier ON courier.id = delivery.courier_id
+      LEFT JOIN "user" driver ON driver.id = courier.user_id
+      LEFT JOIN order_item ON order_item.order_id = o.id
+      WHERE o.restaurant_id = $1
+        AND status.name = 'delivered'
+        AND COALESCE(delivery.delivered_at, o.updated_at) >= $2
+        AND COALESCE(delivery.delivered_at, o.updated_at) < $3
+      GROUP BY o.id, customer.name, status.name, address.label, address.street, address.city, driver.name, delivery.pickup_code, delivery.delivered_at
+      ORDER BY COALESCE(delivery.delivered_at, o.updated_at) DESC
+    `,
+    [restaurantId, from, to],
   )
 
   return result.rows.map(toRestaurantOrder)

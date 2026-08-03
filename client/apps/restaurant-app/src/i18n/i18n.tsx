@@ -113,6 +113,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'calendar.dayDesc': 'Completed order list for the selected day.',
     'calendar.back': 'Back to calendar',
     'calendar.empty': 'No orders for this day.',
+    'calendar.loading': 'Loading completed orders…',
+    'calendar.loadError': 'Completed orders could not be loaded.',
 
     'menu.productEditor': 'Product editor',
     'menu.newCategory': 'New category',
@@ -274,6 +276,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'calendar.dayDesc': 'Lista završenih porudžbina za izabrani dan.',
     'calendar.back': 'Nazad na kalendar',
     'calendar.empty': 'Nema porudžbina za ovaj dan.',
+    'calendar.loading': 'Učitavanje završenih porudžbina…',
+    'calendar.loadError': 'Završene porudžbine nisu mogle da se učitaju.',
 
     'menu.productEditor': 'Uređivanje proizvoda',
     'menu.newCategory': 'Nova kategorija',

@@ -8,6 +8,8 @@ const dispatchQueueKey = 'voro:dispatch:queue'
 const driverGeoKey = 'voro:drivers:geo'
 const driverPresenceTtlSeconds = 50
 
+type DriverPresence = Pick<DriverProfile, 'id' | 'name' | 'vehicleType' | 'isAvailable' | 'isOnline' | 'currentLatitude' | 'currentLongitude'>
+
 type LiveDriver = Pick<DriverProfile, 'id' | 'name' | 'vehicleType' | 'isAvailable' | 'isOnline'> & {
   currentLatitude: number
   currentLongitude: number
@@ -146,7 +148,7 @@ function parseLiveDriver(payload: string | null): LiveDriver | null {
   }
 }
 
-export async function syncDriverPresence(driver: DriverProfile) {
+export async function syncDriverPresence(driver: DriverPresence) {
   const nextClient = await getClient()
   const latitude = driver.currentLatitude
   const longitude = driver.currentLongitude

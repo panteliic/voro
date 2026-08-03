@@ -142,8 +142,26 @@ export const customerApi = {
     items: CustomerOrderItemPayload[]
     paymentMethod: CustomerOrderPaymentMethod
     cashTendered: number | null
+    promoCode: string
+    referralCode: string
+    tipAmount: number
   }) {
     return jsonRequest<{ order: CreatedCustomerOrder }>('/customer/orders', 'POST', payload)
+  },
+
+  exportAccountData() {
+    return request<Record<string, unknown>>('/customer/account-data')
+  },
+
+  deleteAccount(confirmation: string) {
+    return request<{ deleted: true }>('/customer/account', {
+      method: 'DELETE',
+      body: JSON.stringify({ confirmation }),
+    })
+  },
+
+  createSupportTicket(payload: { category: 'order' | 'payment' | 'account' | 'other'; subject: string; body: string; orderId?: number | null }) {
+    return jsonRequest<{ ticket: { id: number; status: string; createdAt: string } }>('/customer/support-tickets', 'POST', payload)
   },
 
   getOrders() {

@@ -9,6 +9,7 @@ import type { ActiveSettingsSection, DashboardView } from './types'
 type DashboardSidebarProps = {
   activeSettingsSection: ActiveSettingsSection
   activeView: DashboardView
+  cartItemCount?: number
   className?: string
   isCollapsed: boolean
   isLoggingOut: boolean
@@ -22,6 +23,7 @@ type DashboardSidebarProps = {
 export function DashboardSidebar({
   activeSettingsSection,
   activeView,
+  cartItemCount = 0,
   className = '',
   isCollapsed,
   isLoggingOut,
@@ -81,7 +83,12 @@ export function DashboardSidebar({
               onClick={onNavigate}
             >
               <Icon className="size-6 shrink-0" />
-              {!isCollapsed ? <span>{translatedLabel}</span> : null}
+              {!isCollapsed ? <span className="min-w-0 flex-1">{translatedLabel}</span> : null}
+              {id === 'cart' && cartItemCount > 0 ? (
+                <span className="grid min-w-5 place-items-center rounded-full bg-action px-1 text-xs leading-5 text-action-text">
+                  {cartItemCount}
+                </span>
+              ) : null}
             </NavLink>
           )
         })}

@@ -18,5 +18,11 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // Context providers deliberately export hooks alongside their components.
+      'react-refresh/only-export-components': 'off',
+      // These checks flag legitimate synchronization with persisted/server state.
+      'react-hooks/set-state-in-effect': 'off',
+    },
   },
 ])

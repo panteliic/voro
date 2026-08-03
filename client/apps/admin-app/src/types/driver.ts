@@ -10,6 +10,9 @@ export type Driver = {
   currentLatitude: number | null
   currentLongitude: number | null
   lastLocationAt: string | null
+  locationAddress: string
+  locationAddressAt: string | null
+  isLocationLive: boolean
   createdAt: string
   updatedAt: string
 }

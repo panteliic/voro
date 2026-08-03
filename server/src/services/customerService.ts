@@ -4,6 +4,8 @@ import * as geocodingService from "./geocodingService";
 import * as redisService from "./redisService";
 import * as routingService from "./routingService";
 import * as operationsRepository from "../repositories/operationsRepository";
+import * as commerceRepository from '../repositories/commerceRepository'
+import * as authRepository from '../repositories/authRepository'
 import { publishOrderMessage } from './realtimeService'
 import { notifyUser } from './notificationService'
 import type {
@@ -275,6 +277,10 @@ function normalizeOrder(
   const rawItems = Array.isArray(payload.items) ? payload.items : [];
   const paymentMethod = payload.paymentMethod === "cash" ? "cash" : "card";
   const cashTendered = nullableNumber(payload.cashTendered);
+  const promoCode = sanitizePlainText(String(payload.promoCode || ''), 40).toUpperCase()
+  const referralCode = sanitizePlainText(String(payload.referralCode || ''), 40).toUpperCase()
+  const requestedTip = nullableNumber(payload.tipAmount) || 0
+  const tipAmount = Math.round(requestedTip * 100) / 100
 
   if (!restaurantId) {
     throw new HttpError(400, "Choose a restaurant before placing an order.");
@@ -311,6 +317,12 @@ function normalizeOrder(
   if (paymentMethod === "cash" && (cashTendered === null || cashTendered <= 0 || cashTendered > 100_000)) {
     throw new HttpError(400, "Enter the cash amount you will give the courier.");
   }
+  if (tipAmount < 0 || tipAmount > 5_000) {
+    throw new HttpError(400, 'Tip must be between 0 and 5,000 RSD.')
+  }
+  if (promoCode && referralCode) {
+    throw new HttpError(400, 'Use either a promo code or a referral code on one order.')
+  }
 
   return {
     restaurantId,
@@ -319,6 +331,9 @@ function normalizeOrder(
     items,
     paymentMethod,
     cashTendered: paymentMethod === "cash" ? cashTendered : null,
+    promoCode,
+    referralCode,
+    tipAmount,
   };
 }
 
@@ -329,10 +344,11 @@ export async function getCustomerProfile(userId: number) {
     throw new HttpError(404, "User not found.");
   }
 
-  const [preferences, addresses, paymentMethods] = await Promise.all([
+  const [preferences, addresses, paymentMethods, referral] = await Promise.all([
     customerRepository.ensurePreferences(userId),
     customerRepository.listAddresses(userId),
     customerRepository.listPaymentMethods(userId),
+    commerceRepository.getReferralSummary(userId),
   ]);
 
   return {
@@ -340,7 +356,47 @@ export async function getCustomerProfile(userId: number) {
     preferences,
     addresses,
     paymentMethods,
+    referral,
   };
+}
+
+export async function exportCustomerData(userId: number) {
+  const [profile, orders] = await Promise.all([
+    getCustomerProfile(userId),
+    getOrders(userId),
+  ])
+  return {
+    exportedAt: new Date().toISOString(),
+    profile,
+    orders: orders.orders,
+  }
+}
+
+export async function deleteCustomerAccount(userId: number, role: string, confirmation: unknown) {
+  if (role !== 'customer') throw new HttpError(403, 'Only customer accounts can be deleted here.')
+  if (String(confirmation || '') !== 'DELETE') {
+    throw new HttpError(400, 'Type DELETE to confirm account deletion.')
+  }
+  await authRepository.revokeAllUserRefreshTokens(userId)
+  await customerRepository.deactivateCustomerAccount(userId)
+  return { deleted: true }
+}
+
+const supportCategories = new Set(['order', 'payment', 'account', 'other'])
+
+export async function createSupportTicket(userId: number, payload: Record<string, unknown>) {
+  const category = trim(String(payload.category || 'other')).toLowerCase()
+  const subject = trim(String(payload.subject || '')).slice(0, 160)
+  const body = trim(String(payload.body || '')).slice(0, 2_000)
+  const orderId = positiveInteger(payload.orderId)
+  if (!supportCategories.has(category) || !subject || body.length < 10) {
+    throw new HttpError(400, 'Choose a category, add a subject, and describe the issue in at least 10 characters.')
+  }
+  if (orderId) {
+    const owner = await operationsRepository.getOrderOwner(orderId)
+    if (!owner || Number(owner.user_id) !== userId) throw new HttpError(404, 'Order not found.')
+  }
+  return { ticket: await commerceRepository.createSupportTicket(userId, { category, subject, body, orderId }) }
 }
 
 export async function getRestaurantDiscovery(categorySlug = "", userId?: number) {

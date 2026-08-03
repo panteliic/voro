@@ -3,6 +3,7 @@ import { ArrowLeft, Bike, CalendarDays, CircleDollarSign, ClipboardCheck, Trendi
 import { Link, useParams } from 'react-router-dom'
 import { AnalyticsBarChart } from '../components/analytics/AnalyticsBarChart'
 import { AnalyticsMetric } from '../components/analytics/AnalyticsMetric'
+import { DriverLocationMap } from '../components/drivers/DriverLocationMap'
 import { DataTable } from '../components/common/DataTable'
 import { LoadingState } from '../components/common/LoadingState'
 import { StatusBadge } from '../components/common/StatusBadge'
@@ -51,8 +52,10 @@ export function DriverAnalyticsPage() {
     }
 
     void load()
+    const refreshInterval = window.setInterval(() => void load(), 15_000)
     return () => {
       isMounted = false
+      window.clearInterval(refreshInterval)
     }
   }, [driverId, t])
 
@@ -92,6 +95,8 @@ export function DriverAnalyticsPage() {
         <AnalyticsMetric icon={TrendingUp} label={t('analytics.averageDelivery')} value={formatRsd(analytics.summary.averageAmount)} />
         <AnalyticsMetric helper={t('analytics.currentlyAssigned')} icon={CalendarDays} label={t('analytics.activeDeliveries')} value={analytics.summary.activeCount.toLocaleString()} />
       </section>
+
+      <DriverLocationMap driver={analytics.courier} />
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_21rem]">
         <AnalyticsBarChart data={analytics.dailyEarnings} language={language} subtitle={t('analytics.dailyEarningsSubtitle')} title={t('analytics.dailyEarnings')} />

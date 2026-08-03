@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { env } from '../../config/env'
 import { pool } from '../../database/pool'
 import { isRedisHealthy } from '../../services/redisService'
+import { prometheusMetrics } from '../../services/observability'
 
 export const systemRoutes = Router()
 
@@ -32,4 +33,8 @@ systemRoutes.get('/health', async (_req, res) => {
       message: error instanceof Error ? error.message : 'Database connection failed.',
     })
   }
+})
+
+systemRoutes.get('/metrics', (_req, res) => {
+  res.type('text/plain; version=0.0.4').send(prometheusMetrics())
 })

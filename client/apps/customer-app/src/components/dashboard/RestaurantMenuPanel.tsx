@@ -1,13 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Heart, Minus, Plus, ReceiptText, ShoppingBasket, Store } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft, Heart, Minus, Plus, ShoppingBasket, Store } from 'lucide-react'
 import { Button } from '@voro/ui'
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import { useI18n } from '../../i18n/i18n'
 import { customerApi } from '../../services/customerApi'
 import type { RestaurantMenu, RestaurantMenuProduct } from '../../types/customer'
-import { saveCheckoutDraft } from '../../types/checkout'
-
-const deliveryFee = 250
+import { clearCheckoutDraft, loadCheckoutDraft, saveCheckoutDraft } from '../../types/checkout'
 
 function productGroups(menu: RestaurantMenu) {
   const categories = menu.categories.map((category) => ({
@@ -37,6 +35,7 @@ export function RestaurantMenuPanel() {
   const restaurantId = Number(restaurantIdParam)
   const [menu, setMenu] = useState<RestaurantMenu | null>(null)
   const [cart, setCart] = useState<Record<number, number>>({})
+  const cartRef = useRef<Record<number, number>>({})
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isFavorite, setIsFavorite] = useState(false)
@@ -53,6 +52,16 @@ export function RestaurantMenuPanel() {
       .then(([result, favorites]) => {
         if (isMounted) {
           setMenu(result)
+          const savedDraft = loadCheckoutDraft()
+          const restoredCart = savedDraft?.restaurantId === result.restaurant.id
+            ? Object.fromEntries(
+                savedDraft.items
+                  .filter((item) => Number.isInteger(item.productId) && item.quantity > 0)
+                  .map((item) => [item.productId, Math.min(item.quantity, 20)]),
+              )
+            : {}
+          cartRef.current = restoredCart
+          setCart(restoredCart)
           setIsFavorite(favorites.restaurantIds.includes(restaurantId))
           setError('')
         }
@@ -89,40 +98,49 @@ export function RestaurantMenuPanel() {
   })
 
   function updateQuantity(productId: number, change: number) {
-    setCart((current) => {
-      const nextQuantity = (current[productId] || 0) + change
+    if (!menu) return
 
-      if (nextQuantity <= 0) {
-        const { [productId]: _removed, ...remaining } = current
-        return remaining
+    const nextCart = { ...cartRef.current }
+    const nextQuantity = (nextCart[productId] || 0) + change
+
+    if (nextQuantity <= 0) {
+      delete nextCart[productId]
+    } else {
+      nextCart[productId] = Math.min(nextQuantity, 20)
+    }
+
+    cartRef.current = nextCart
+    setCart(nextCart)
+
+    const items = Object.entries(nextCart)
+      .map(([id, quantity]) => ({ product: menu.products.find((product) => product.id === Number(id)), quantity }))
+      .filter(
+        (item): item is { product: RestaurantMenuProduct; quantity: number } => Boolean(item.product),
+      )
+
+    if (items.length === 0) {
+      if (loadCheckoutDraft()?.restaurantId === menu.restaurant.id) {
+        clearCheckoutDraft()
       }
-
-      return { ...current, [productId]: Math.min(nextQuantity, 20) }
-    })
-  }
-
-  function continueToCheckout() {
-    if (!menu || cartItems.length === 0) return
-
-    if (!menu.restaurant.isOpen) {
-      setError(t('menu.notAccepting'))
       return
     }
 
-    const checkoutDraft = {
+    saveCheckoutDraft({
       restaurantId: menu.restaurant.id,
       restaurantName: menu.restaurant.name,
       restaurantImageUrl: menu.restaurant.imageUrl,
-      items: cartItems.map(({ product, quantity }) => ({
+      items: items.map(({ product, quantity }) => ({
         productId: product.id,
         name: product.name,
         price: product.price,
         quantity,
       })),
-    }
+    })
+  }
 
-    saveCheckoutDraft(checkoutDraft)
-    navigate('/checkout', { state: { checkoutDraft } })
+  function continueToCart() {
+    if (!menu || cartItems.length === 0) return
+    navigate('/cart')
   }
 
   async function toggleFavorite() {
@@ -213,8 +231,25 @@ export function RestaurantMenuPanel() {
           {error}
         </p>
       ) : null}
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="grid gap-6">
+      {cartItems.length > 0 ? (
+        <section className="flex flex-col gap-4 rounded-voro-xl border border-action/30 bg-accent p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div className="flex items-start gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-voro-lg bg-action text-action-text">
+              <ShoppingBasket className="size-5" />
+            </span>
+            <div>
+              <p className="font-bold text-content">{t('cart.savedTitle')}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t('cart.savedDescription', { count: itemCount, total: `${money.format(subtotal)} RSD` })}
+              </p>
+            </div>
+          </div>
+          <Button className="w-full sm:w-auto" onClick={continueToCart} type="button">
+            {t('cart.continue')}
+          </Button>
+        </section>
+      ) : null}
+      <div className="grid gap-6">
           {productGroups(menu).map((category) => (
             <section key={category.id}>
               <div className="mb-3">
@@ -278,78 +313,6 @@ export function RestaurantMenuPanel() {
               <p className="font-bold text-content">{t('menu.empty')}</p>
             </div>
           ) : null}
-        </div>
-
-        <aside className="xl:sticky xl:top-5">
-          <section className="rounded-voro-xl border border-line bg-card p-4 sm:p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <ShoppingBasket className="size-5 text-action" />
-                <h2 className="font-bold text-content">{t('menu.cart')}</h2>
-              </div>
-              {itemCount ? <span className="rounded-full bg-action px-2 py-1 text-xs font-bold text-action-text">{itemCount}</span> : null}
-            </div>
-
-            {cartItems.length === 0 ? (
-              <div className="mt-5 rounded-voro-lg border border-dashed border-line px-4 py-8 text-center">
-                <ReceiptText className="mx-auto size-5 text-muted-foreground" />
-                <p className="mt-3 text-sm font-bold text-content">{t('menu.cartEmpty')}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{t('menu.cartEmptyDesc')}</p>
-              </div>
-            ) : (
-              <div className="mt-5 grid gap-3">
-                {cartItems.map(({ product, quantity }) => (
-                  <div className="flex items-center gap-3" key={product.id}>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-content">{product.name}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {money.format(product.price)} RSD × {quantity}
-                      </p>
-                    </div>
-                    <div className="flex items-center rounded-voro-md border border-line bg-background p-0.5">
-                      <button
-                        aria-label={t('menu.decrease', { name: product.name })}
-                        className="grid size-7 place-items-center rounded-voro-sm text-muted-foreground transition hover:bg-accent hover:text-content"
-                        onClick={() => updateQuantity(product.id, -1)}
-                        type="button"
-                      >
-                        <Minus className="size-3.5" />
-                      </button>
-                      <span className="min-w-6 text-center text-xs font-bold text-content">{quantity}</span>
-                      <button
-                        aria-label={t('menu.increase', { name: product.name })}
-                        className="grid size-7 place-items-center rounded-voro-sm text-muted-foreground transition hover:bg-accent hover:text-content"
-                        onClick={() => updateQuantity(product.id, 1)}
-                        type="button"
-                      >
-                        <Plus className="size-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-
-                <div className="grid gap-2 border-t border-line pt-4 text-sm">
-                  <div className="flex items-center justify-between text-muted-foreground">
-                    <span>{t('menu.subtotal')}</span>
-                    <span>{money.format(subtotal)} RSD</span>
-                  </div>
-                  <div className="flex items-center justify-between text-muted-foreground">
-                    <span>{t('menu.deliveryFee')}</span>
-                    <span>{money.format(deliveryFee)} RSD</span>
-                  </div>
-                  <div className="flex items-center justify-between pt-1 text-base font-bold text-content">
-                    <span>{t('menu.total')}</span>
-                    <span>{money.format(subtotal + deliveryFee)} RSD</span>
-                  </div>
-                </div>
-
-                <Button onClick={continueToCheckout} type="button">
-                  {t('checkout.reviewOrder')}
-                </Button>
-              </div>
-            )}
-          </section>
-        </aside>
       </div>
     </section>
   )

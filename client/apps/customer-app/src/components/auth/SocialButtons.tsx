@@ -26,7 +26,7 @@ export function SocialButtons({ action = 'signin' }: SocialButtonsProps) {
   const { t } = useI18n()
 
   function handleSocialLogin(providerId: string) {
-    window.location.href = `${API_URL}/auth/auth0/${providerId}`
+    window.location.assign(`${API_URL}/auth/auth0/${providerId}`)
   }
 
   return (

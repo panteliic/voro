@@ -25,6 +25,7 @@ type DashboardPageProps = {
   isSavingProduct: boolean
   isSavingOperations: boolean
   isUpdatingOrderId: number | null
+  token: string
   onRefresh: () => void
   onLogout: () => void
   onCreateCategory: (payload: CategoryForm) => Promise<void>
@@ -47,6 +48,7 @@ export function DashboardPage({
   onSaveOperations,
   onUpdateOrderStatus,
   status,
+  token,
   user,
 }: DashboardPageProps) {
   return (
@@ -84,8 +86,8 @@ export function DashboardPage({
               element={<DashboardOverviewPage dashboard={dashboard} />}
               path="/dashboard"
             />
-            <Route element={<OrderCalendarPage />} path="/calendar" />
-            <Route element={<OrderDayPage />} path="/calendar/:day" />
+            <Route element={<OrderCalendarPage token={token} />} path="/calendar" />
+            <Route element={<OrderDayPage token={token} />} path="/calendar/:day" />
             <Route element={<OperationsPage dashboard={dashboard} isSaving={isSavingOperations} onSave={onSaveOperations} />} path="/operations" />
             <Route
               element={

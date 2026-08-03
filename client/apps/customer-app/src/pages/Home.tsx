@@ -13,6 +13,7 @@ import { OrdersPanel } from '../components/dashboard/OrdersPanel'
 import { RestaurantDiscoveryPanel } from '../components/dashboard/RestaurantDiscoveryPanel'
 import { RestaurantMenuPanel } from '../components/dashboard/RestaurantMenuPanel'
 import { CheckoutPanel } from '../components/dashboard/CheckoutPanel'
+import { CartPanel } from '../components/dashboard/CartPanel'
 import { NotificationsPanel } from '../components/dashboard/NotificationsPanel'
 import { SettingsPanel } from '../components/dashboard/settings/SettingsPanel'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
@@ -20,6 +21,7 @@ import { logout, logoutUser } from '../features/auth/authSlice'
 import { useI18n } from '../i18n/i18n'
 import { customerApi } from '../services/customerApi'
 import type { CustomerNotification, CustomerProfile } from '../types/customer'
+import { checkoutDraftChangedEvent, loadCheckoutDraft } from '../types/checkout'
 
 const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
@@ -35,6 +37,9 @@ function Home() {
   const [profile, setProfile] = useState<CustomerProfile | null>(null)
   const [profileError, setProfileError] = useState('')
   const [messageNotification, setMessageNotification] = useState<CustomerNotification | null>(null)
+  const [cartItemCount, setCartItemCount] = useState(
+    () => loadCheckoutDraft()?.items.reduce((sum, item) => sum + item.quantity, 0) || 0,
+  )
   const name = user?.name || 'korisnice'
   const displayName = profile?.user.name || user?.name || name
   const firstName = displayName.split(' ')[0] || displayName
@@ -108,6 +113,15 @@ function Home() {
     return () => window.clearTimeout(timeout)
   }, [messageNotification])
 
+  useEffect(() => {
+    const updateCartItemCount = () => {
+      setCartItemCount(loadCheckoutDraft()?.items.reduce((sum, item) => sum + item.quantity, 0) || 0)
+    }
+
+    window.addEventListener(checkoutDraftChangedEvent, updateCartItemCount)
+    return () => window.removeEventListener(checkoutDraftChangedEvent, updateCartItemCount)
+  }, [])
+
   async function handleLogout() {
     if (refreshToken) {
       await dispatch(logoutUser({ refreshToken }))
@@ -131,6 +145,7 @@ function Home() {
         <DashboardSidebar
           activeSettingsSection={activeSettingsSection}
           activeView={activeView}
+          cartItemCount={cartItemCount}
           className="hidden lg:flex"
           isCollapsed={isSidebarCollapsed}
           isLoggingOut={isLoggingOut}
@@ -140,7 +155,7 @@ function Home() {
           userName={user?.name}
         />
 
-        <section className="min-h-0 min-w-0 overflow-y-auto px-4 pb-[calc(4rem+max(env(safe-area-inset-bottom),0.5rem))] pt-5 sm:px-6 lg:px-8 lg:py-5">
+        <section className="min-h-0 min-w-0 overflow-y-auto px-4 pb-[calc(4.75rem+max(env(safe-area-inset-bottom),0.5rem))] pt-5 sm:px-6 lg:px-8 lg:py-5">
           {profileError ? (
             <div className="mb-5 rounded-voro-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
               {profileError}
@@ -153,6 +168,8 @@ function Home() {
           {activeView === 'search' ? (
             <RestaurantDiscoveryPanel showSearch />
           ) : null}
+          {activeView === 'cart' ? <CartPanel /> : null}
+          {activeView === 'favorites' ? <RestaurantDiscoveryPanel favoritesOnly /> : null}
           {activeView === 'orders' ? (
             <OrdersPanel />
           ) : null}
@@ -170,7 +187,7 @@ function Home() {
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-[1000] border-t border-line bg-card px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-12px_24px_rgba(0,0,0,0.08)] lg:hidden">
-        <div className="grid grid-cols-5 gap-1">
+        <div className="grid grid-cols-7 gap-1">
           {[...dashboardNavItems, { icon: Settings, id: 'settings' as const, path: '/settings' }].map(({ icon: Icon, id, path }) => {
             const isActive = activeView === id
             const label = t(`nav.${id}`)
@@ -178,16 +195,21 @@ function Home() {
             return (
               <NavLink
                 aria-label={label}
-                className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-voro-lg px-1 text-[0.7rem] font-bold leading-none transition ${
+                className={`relative grid min-h-14 min-w-0 place-items-center rounded-voro-lg px-1 transition ${
                   isActive
                     ? 'bg-accent text-content'
                     : 'text-muted-foreground hover:bg-muted hover:text-content'
                 }`}
                 key={id}
+                title={label}
                 to={path}
               >
                 <Icon className="size-5 shrink-0" />
-                <span className="max-w-full truncate">{label}</span>
+                {id === 'cart' && cartItemCount > 0 ? (
+                  <span className="absolute right-1.5 top-1.5 grid min-w-4 place-items-center rounded-full bg-action px-1 text-[0.6rem] leading-4 text-action-text">
+                    {cartItemCount}
+                  </span>
+                ) : null}
               </NavLink>
             )
           })}

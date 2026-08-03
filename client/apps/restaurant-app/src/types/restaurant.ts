@@ -70,6 +70,7 @@ export type RestaurantOrder = {
   items: Array<{ name: string; quantity: number }>
   createdAt: string
   updatedAt: string
+  completedAt: string | null
   address: string
   driverName: string
   pickupCode: string

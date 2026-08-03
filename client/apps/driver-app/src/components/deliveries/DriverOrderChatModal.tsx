@@ -43,14 +43,14 @@ export function DriverOrderChatModal({
         if (active) setError('')
       })
       .catch((requestError: unknown) => {
-        if (active) setError(requestError instanceof Error ? requestError.message : t('chat.unavailable'))
+        if (active) setError(requestError instanceof Error ? requestError.message : translate(language, 'chat.unavailable'))
       })
 
     const socketToken = window.localStorage.getItem(TOKEN_KEY) || token
     const socket = createSocketClient(API_URL, { auth: { token: socketToken } })
     socket.on('connect', () => {
       socket.emit('order:join', { orderId }, (result: { ok: boolean; message?: string }) => {
-        if (active && !result.ok) setError(result.message || t('chat.notFound'))
+        if (active && !result.ok) setError(result.message || translate(language, 'chat.notFound'))
       })
     })
     socket.on('order:message', (message: DriverOrderMessage) => {

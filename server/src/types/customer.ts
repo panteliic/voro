@@ -53,6 +53,9 @@ export type CreateCustomerOrderPayload = {
   items: CustomerOrderItemPayload[]
   paymentMethod: CustomerOrderPaymentMethod
   cashTendered: number | null
+  promoCode: string
+  referralCode: string
+  tipAmount: number
 }
 
 export type CustomerOrderIssuePayload = {

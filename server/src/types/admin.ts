@@ -27,6 +27,9 @@ export type AdminCourier = {
   currentLatitude: number | null
   currentLongitude: number | null
   lastLocationAt: Date | null
+  locationAddress: string
+  locationAddressAt: Date | null
+  isLocationLive: boolean
   createdAt: Date
   updatedAt: Date
 }
