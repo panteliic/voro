@@ -31,6 +31,15 @@ const nextStatusAction: Partial<
 > = {
   pending: { status: 'accepted', label: 'orders.accept' },
   accepted: { status: 'preparing', label: 'orders.startPreparing' },
+  preparing: { status: 'ready', label: 'orders.markReady' },
+}
+
+const cancellationAction: Partial<
+  Record<RestaurantOrder['status'], { label: string; confirmation: string }>
+> = {
+  pending: { label: 'orders.reject', confirmation: 'orders.confirmReject' },
+  accepted: { label: 'orders.cancel', confirmation: 'orders.confirmCancel' },
+  preparing: { label: 'orders.cancel', confirmation: 'orders.confirmCancel' },
 }
 
 export function OrdersBoard({ isUpdatingOrderId, onUpdateOrderStatus, orders }: OrdersBoardProps) {
@@ -61,6 +70,7 @@ export function OrdersBoard({ isUpdatingOrderId, onUpdateOrderStatus, orders }: 
         <div className="grid gap-3">
           {activeOrders.map((order) => {
             const action = nextStatusAction[order.status]
+            const cancellation = cancellationAction[order.status]
 
             return (
               <article
@@ -121,20 +131,36 @@ export function OrdersBoard({ isUpdatingOrderId, onUpdateOrderStatus, orders }: 
 
               <div className="grid content-center gap-3 rounded-voro-lg border border-dashed border-line bg-background p-4 text-center xl:min-w-44">
                 {action ? (
-                  <button
-                    className="rounded-voro-md bg-action px-3 py-2 text-sm font-bold text-action-text transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={isUpdatingOrderId === order.id}
-                    onClick={() => {
-                      void onUpdateOrderStatus(order.id, action.status)
-                    }}
-                    type="button"
-                  >
-                    {isUpdatingOrderId === order.id
-                      ? t('orders.updating')
-                      : t(action.label)}
-                  </button>
-                ) : order.status === 'preparing' ? (
-                  <p className="text-sm font-bold text-muted-foreground">{t('orders.courierCanPickUp')}</p>
+                  <>
+                    <button
+                      className="rounded-voro-md bg-action px-3 py-2 text-sm font-bold text-action-text transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={isUpdatingOrderId === order.id}
+                      onClick={() => {
+                        void onUpdateOrderStatus(order.id, action.status)
+                      }}
+                      type="button"
+                    >
+                      {isUpdatingOrderId === order.id
+                        ? t('orders.updating')
+                        : t(action.label)}
+                    </button>
+                    {cancellation ? (
+                      <button
+                        className="rounded-voro-md border border-destructive/40 px-3 py-2 text-sm font-bold text-destructive transition hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={isUpdatingOrderId === order.id}
+                        onClick={() => {
+                          if (window.confirm(t(cancellation.confirmation))) {
+                            void onUpdateOrderStatus(order.id, 'cancelled')
+                          }
+                        }}
+                        type="button"
+                      >
+                        {isUpdatingOrderId === order.id
+                          ? t('orders.updating')
+                          : t(cancellation.label)}
+                      </button>
+                    ) : null}
+                  </>
                 ) : order.status === 'ready' ? (
                   <p className="text-sm font-bold text-muted-foreground">{t('orders.waitingDriver')}</p>
                 ) : order.status === 'picked_up' ? (

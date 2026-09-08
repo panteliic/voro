@@ -166,11 +166,22 @@ export async function updateOrderStatus(restaurantId: number, orderId: number, n
     throw new HttpError(400, 'This order cannot move to that status.')
   }
 
-  const order = await restaurantRepository.updateRestaurantOrderStatus(
-    restaurant.id,
-    orderId,
-    nextStatus,
-  )
+  const cancelled = nextStatus === 'cancelled'
+    ? await operationsRepository.cancelRestaurantOrder(
+      restaurant.id,
+      orderId,
+      'Cancelled by the restaurant.',
+    )
+    : null
+  const order = cancelled
+    ? { id: orderId, status: nextStatus }
+    : nextStatus === 'cancelled'
+      ? null
+      : await restaurantRepository.updateRestaurantOrderStatus(
+        restaurant.id,
+        orderId,
+        nextStatus,
+      )
 
   if (!order) {
     throw new HttpError(404, 'Order not found.')

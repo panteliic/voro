@@ -189,6 +189,7 @@ services:
         APP_NAME: customer-app
         VITE_API_URL: ${VITE_API_URL:-http://api.localhost}
         VITE_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+        VITE_AUTH0_GOOGLE_ENABLED: ${VITE_AUTH0_GOOGLE_ENABLED:-true}
     restart: unless-stopped
 
   restaurant-app:

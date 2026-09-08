@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import * as customerRepository from "../repositories/customerRepository";
 import * as restaurantRepository from "../repositories/restaurantRepository";
 import * as geocodingService from "./geocodingService";
@@ -43,6 +44,24 @@ const deliveryEstimateByStatus = {
 
 function trim(value: string) {
   return sanitizePlainText(value, 2_000)
+}
+
+function formatDeliveryAddress(address: {
+  label: string
+  street: string
+  apartment: string
+  postalCode: string
+  city: string
+  country: string
+}) {
+  return [
+    address.label,
+    address.street,
+    address.apartment,
+    address.postalCode,
+    address.city,
+    address.country,
+  ].filter(Boolean).join(', ')
 }
 
 function nullableNumber(value: unknown) {
@@ -447,7 +466,20 @@ export async function getRestaurantMenu(restaurantId: number) {
   });
 }
 
-export async function createOrder(userId: number, payload: Record<string, unknown>) {
+function idempotencyKey(value: unknown) {
+  const key = String(value || '').trim()
+  if (!key) return null
+  if (!/^[A-Za-z0-9_-]{16,128}$/.test(key)) {
+    throw new HttpError(400, 'Idempotency-Key must contain 16 to 128 letters, numbers, hyphens, or underscores.')
+  }
+  return key
+}
+
+export async function createOrder(
+  userId: number,
+  payload: Record<string, unknown>,
+  idempotencyKeyValue?: unknown,
+) {
   const normalized = normalizeOrder(payload);
   const restaurant = await restaurantRepository.findRestaurantById(normalized.restaurantId);
 
@@ -468,52 +500,69 @@ export async function createOrder(userId: number, payload: Record<string, unknow
     throw new HttpError(400, "Add a delivery address before placing an order.");
   }
 
-  if (
-    restaurant.latitude !== null &&
-    restaurant.longitude !== null &&
-    address.latitude !== null &&
-    address.longitude !== null
-  ) {
-    const distanceKm = haversineKilometers(
-      restaurant.latitude,
-      restaurant.longitude,
-      address.latitude,
-      address.longitude,
-    )
-    if (distanceKm > restaurant.deliveryRadiusKm) {
-      throw new HttpError(
-        400,
-        `This address is outside ${restaurant.name}'s ${restaurant.deliveryRadiusKm} km delivery zone.`,
-      )
-    }
+  if (address.latitude === null || address.longitude === null) {
+    throw new HttpError(400, 'Choose a delivery address with a verified map location.')
   }
 
-  const order = await customerRepository.createCustomerOrder(
+  if (restaurant.latitude === null || restaurant.longitude === null) {
+    throw new HttpError(409, 'This restaurant does not have a delivery location yet.')
+  }
+
+  const distanceKm = haversineKilometers(
+    restaurant.latitude,
+    restaurant.longitude,
+    address.latitude,
+    address.longitude,
+  )
+  if (distanceKm > restaurant.deliveryRadiusKm) {
+    throw new HttpError(
+      400,
+      `This address is outside ${restaurant.name}'s ${restaurant.deliveryRadiusKm} km delivery zone.`,
+    )
+  }
+
+  const key = idempotencyKey(idempotencyKeyValue)
+  const created = await customerRepository.createCustomerOrder(
     userId,
     { ...normalized, addressId: address.id },
     deliveryFee,
+    {
+      address: formatDeliveryAddress(address),
+      instructions: address.deliveryInstructions,
+      latitude: address.latitude,
+      longitude: address.longitude,
+    },
+    key
+      ? {
+        key,
+        requestHash: crypto.createHash('sha256').update(JSON.stringify(normalized)).digest('hex'),
+      }
+      : undefined,
   );
 
-  if (!order) {
+  if (!created || !created.order) {
     throw new HttpError(400, "One or more selected menu items are unavailable.");
   }
+  const { order } = created
 
-  await operationsRepository.createRestaurantNotification(restaurant.id, {
-    type: 'order_created',
-    title: `New order #${order.id}`,
-    body: 'A new customer order is ready for your review.',
-    data: { orderId: order.id },
-  })
-
-  if (restaurant.autoAcceptOrders) {
-    await restaurantRepository.updateRestaurantOrderStatus(restaurant.id, order.id, 'accepted')
-    dispatchService.enqueueDispatch(order.id)
-    await notifyUser(userId, {
-      type: 'order_status',
-      title: `Order #${order.id}: accepted`,
-      body: 'The restaurant accepted your order and is preparing it.',
-      data: { orderId: order.id, status: 'accepted' },
+  if (created.created) {
+    await operationsRepository.createRestaurantNotification(restaurant.id, {
+      type: 'order_created',
+      title: `New order #${order.id}`,
+      body: 'A new customer order is ready for your review.',
+      data: { orderId: order.id },
     })
+
+    if (restaurant.autoAcceptOrders) {
+      await restaurantRepository.updateRestaurantOrderStatus(restaurant.id, order.id, 'accepted')
+      dispatchService.enqueueDispatch(order.id)
+      await notifyUser(userId, {
+        type: 'order_status',
+        title: `Order #${order.id}: accepted`,
+        body: 'The restaurant accepted your order and is preparing it.',
+        data: { orderId: order.id, status: 'accepted' },
+      })
+    }
   }
 
   return { order: { ...order, status: restaurant.autoAcceptOrders ? 'accepted' : 'pending' } };
@@ -570,11 +619,16 @@ export async function getOrderRoute(userId: number, orderId: number) {
     throw new HttpError(404, 'Order not found.')
   }
 
-  const liveCourier = locations.courierId
+  const isOnTheWay = locations.deliveryStatus === 'on_the_way'
+  const liveCourier = isOnTheWay && locations.courierId
     ? await redisService.getLiveDriver(locations.courierId)
     : null
-  const courierLatitude = liveCourier?.currentLatitude ?? locations.courierLatitude
-  const courierLongitude = liveCourier?.currentLongitude ?? locations.courierLongitude
+  const courierLatitude = isOnTheWay
+    ? liveCourier?.currentLatitude ?? locations.courierLatitude
+    : null
+  const courierLongitude = isOnTheWay
+    ? liveCourier?.currentLongitude ?? locations.courierLongitude
+    : null
 
   if (
     locations.restaurantLatitude === null ||
@@ -585,11 +639,11 @@ export async function getOrderRoute(userId: number, orderId: number) {
     throw new HttpError(400, 'Set restaurant and delivery coordinates before viewing the route.')
   }
 
-  const isOnTheWay =
-    locations.deliveryStatus === 'on_the_way' &&
+  const hasLiveRoute =
+    isOnTheWay &&
     courierLatitude !== null &&
     courierLongitude !== null
-  const route = isOnTheWay
+  const route = hasLiveRoute
     ? await routingService.findDrivingRoute(
         { latitude: courierLatitude as number, longitude: courierLongitude as number },
         { latitude: locations.deliveryLatitude, longitude: locations.deliveryLongitude },
@@ -608,7 +662,7 @@ export async function getOrderRoute(userId: number, orderId: number) {
       latitude: locations.deliveryLatitude,
       longitude: locations.deliveryLongitude,
     },
-    courier: locations.courierName
+    courier: isOnTheWay && locations.courierName
       ? {
           name: liveCourier?.name || locations.courierName,
           latitude: courierLatitude,
@@ -631,13 +685,14 @@ export async function getOrderTracking(userId: number, orderId: number) {
     throw new HttpError(404, 'Order not found.')
   }
 
-  const liveCourier = locations.courierId
+  const isOnTheWay = locations.deliveryStatus === 'on_the_way'
+  const liveCourier = isOnTheWay && locations.courierId
     ? await redisService.getLiveDriver(locations.courierId)
     : null
 
   return {
     orderId,
-    courier: locations.courierName
+    courier: isOnTheWay && locations.courierName
       ? {
           name: liveCourier?.name || locations.courierName,
           latitude: liveCourier?.currentLatitude ?? locations.courierLatitude,

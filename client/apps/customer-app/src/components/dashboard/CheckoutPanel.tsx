@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Banknote, CreditCard, MapPin, Minus, Plus, ReceiptText, ShieldCheck } from 'lucide-react'
 import { Button, Input, Textarea } from '@voro/ui'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
@@ -42,6 +42,7 @@ export function CheckoutPanel({ profile }: CheckoutPanelProps) {
   const [tipInput, setTipInput] = useState('')
   const [error, setError] = useState('')
   const [isOrdering, setIsOrdering] = useState(false)
+  const checkoutAttemptKey = useRef<string | null>(null)
   const money = useMemo(
     () => new Intl.NumberFormat(language === 'sr' ? 'sr-RS' : 'en-US', { maximumFractionDigits: 0 }),
     [language],
@@ -60,6 +61,12 @@ export function CheckoutPanel({ profile }: CheckoutPanelProps) {
     const defaultAddress = profile.addresses.find((address) => address.isDefault) || profile.addresses[0]
     setSelectedAddressId(defaultAddress?.id || null)
   }, [profile, selectedAddressId])
+
+  useEffect(() => {
+    // Keep the key only for retries of the exact same checkout. Editing any
+    // field intentionally starts a distinct request.
+    checkoutAttemptKey.current = null
+  }, [draft, selectedAddressId, note, paymentMethod, cashTenderedInput, promoCode, referralCode, tipInput])
 
   const subtotal = draft?.items.reduce((sum, item) => sum + item.price * item.quantity, 0) || 0
   const tipAmount = cashValue(tipInput) || 0
@@ -94,6 +101,8 @@ export function CheckoutPanel({ profile }: CheckoutPanelProps) {
     setError('')
 
     try {
+      const idempotencyKey = checkoutAttemptKey.current || crypto.randomUUID()
+      checkoutAttemptKey.current = idempotencyKey
       await customerApi.createOrder({
         restaurantId: draft.restaurantId,
         addressId: selectedAddressId,
@@ -104,8 +113,9 @@ export function CheckoutPanel({ profile }: CheckoutPanelProps) {
         referralCode,
         tipAmount,
         items: draft.items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
-      })
+      }, idempotencyKey)
       clearCheckoutDraft()
+      checkoutAttemptKey.current = null
       navigate('/orders')
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : t('menu.orderError'))

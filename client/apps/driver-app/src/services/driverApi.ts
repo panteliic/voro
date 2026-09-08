@@ -1,4 +1,4 @@
-import type { DashboardResponse, Delivery, Driver, DriverNotification, DriverOrderMessage, DriverRoute, UpdatePresencePayload } from '../types/driver'
+import type { DashboardResponse, Delivery, Driver, DriverNotification, DriverOfferRouteEstimate, DriverOrderMessage, DriverRoute, UpdatePresencePayload } from '../types/driver'
 import { request } from './apiClient'
 
 export function getDriverDashboard(token: string) {
@@ -22,6 +22,10 @@ export function declineDeliveryOffer(token: string, offerId: number) {
   return request<{ declined: true }>(`/driver/offers/${offerId}/decline`, token, {
     method: 'POST',
   })
+}
+
+export function getDeliveryOfferRouteEstimate(token: string, offerId: number) {
+  return request<DriverOfferRouteEstimate>(`/driver/offers/${offerId}/route-estimate`, token)
 }
 
 export function updateDeliveryStatus(

@@ -18,7 +18,7 @@ import type {
 import { HttpError } from '../utils/httpError'
 import { generateOtp } from '../utils/otp'
 import { passwordValidationMessage, sanitizePlainText } from '../utils/securityInput'
-import { sendOtpEmail, sendPasswordResetEmail } from './mailService'
+import { assertEmailDeliveryAvailable, sendOtpEmail, sendPasswordResetEmail } from './mailService'
 
 function devCode(code: string) {
   return env.isProduction || env.smtp.enabled ? undefined : code
@@ -44,7 +44,7 @@ type Auth0StateClaims = {
   type: 'auth0_state'
 }
 
-type Auth0Provider = 'google' | 'facebook'
+type Auth0Provider = 'google'
 
 type Auth0UserInfo = {
   email?: string
@@ -55,7 +55,6 @@ type Auth0UserInfo = {
 
 const auth0Connections: Record<Auth0Provider, string> = {
   google: 'google-oauth2',
-  facebook: 'facebook',
 }
 
 function getAuth0Config() {
@@ -67,7 +66,7 @@ function getAuth0Config() {
 }
 
 function isAuth0Provider(provider: string): provider is Auth0Provider {
-  return provider === 'google' || provider === 'facebook'
+  return provider === 'google'
 }
 
 function publicUser(user: {
@@ -278,6 +277,8 @@ export async function signup(payload: SignupPayload) {
     throw new HttpError(400, passwordError)
   }
 
+  assertEmailDeliveryAvailable()
+
   const existingUser = await authRepository.findUserByEmail(email)
 
   if (existingUser?.emailVerified) {
@@ -307,6 +308,8 @@ export async function signup(payload: SignupPayload) {
 }
 
 export async function resendCode(email: string) {
+  assertEmailDeliveryAvailable()
+
   const user = await authRepository.findUserByEmail(email)
 
   if (!user || user.emailVerified) {
@@ -619,6 +622,8 @@ export async function requestPasswordReset(payload: RequestPasswordResetPayload)
   if (!email) {
     throw new HttpError(400, 'Email is required.')
   }
+
+  assertEmailDeliveryAvailable()
 
   const user = await authRepository.findUserByEmail(email)
 

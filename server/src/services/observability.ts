@@ -5,6 +5,14 @@ const requestCounts = new Map<string, number>()
 const requestDurations = new Map<string, { count: number; totalMs: number }>()
 const errorCounts = new Map<string, number>()
 
+const terminalColor = {
+  reset: '\u001b[0m',
+  red: '\u001b[31m',
+  yellow: '\u001b[33m',
+  green: '\u001b[32m',
+  cyan: '\u001b[36m',
+} as const
+
 function metricKey(request: Request, response: Response) {
   const route = request.route?.path || request.path || 'unmatched'
   return `${request.method} ${route} ${response.statusCode}`
@@ -16,15 +24,43 @@ export function logEvent(level: 'error' | 'info' | 'warn', event: string, contex
     console[level](JSON.stringify(entry))
     return
   }
-  console[level](`[${entry.timestamp}] ${event}`, context)
+  const color = level === 'error'
+    ? terminalColor.red
+    : level === 'warn'
+      ? terminalColor.yellow
+      : terminalColor.cyan
+  console[level](`${color}[${entry.timestamp}] ${event}${terminalColor.reset}`, context)
 }
 
 export function trackError(event: string, error: unknown, context: Record<string, unknown> = {}) {
   errorCounts.set(event, (errorCounts.get(event) || 0) + 1)
+  if (!(error instanceof Error)) {
+    logEvent('error', event, { ...context, name: 'UnknownError', message: String(error) })
+    return
+  }
+
+  const networkError = error as NodeJS.ErrnoException & { errors?: unknown }
+  const code = networkError.code
+  const connectionErrors = Array.isArray(networkError.errors)
+    ? networkError.errors.map((nestedError) => {
+        if (!(nestedError instanceof Error)) return { message: String(nestedError) }
+        const nestedNetworkError = nestedError as NodeJS.ErrnoException & { address?: string; port?: number }
+        return {
+          name: nestedError.name,
+          message: nestedError.message,
+          ...(nestedNetworkError.code ? { code: nestedNetworkError.code } : {}),
+          ...(nestedNetworkError.address ? { address: nestedNetworkError.address } : {}),
+          ...(nestedNetworkError.port ? { port: nestedNetworkError.port } : {}),
+        }
+      })
+    : undefined
   logEvent('error', event, {
     ...context,
-    name: error instanceof Error ? error.name : 'UnknownError',
-    message: error instanceof Error ? error.message : String(error),
+    name: error.name,
+    message: error.message,
+    ...(code ? { code } : {}),
+    ...(connectionErrors?.length ? { connectionErrors } : {}),
+    ...(error.stack ? { stack: error.stack } : {}),
   })
 }
 

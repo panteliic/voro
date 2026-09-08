@@ -3,6 +3,7 @@ import { HttpError } from '../utils/httpError'
 import * as commerceRepository from './commerceRepository'
 import type {
   CustomerAddressPayload,
+  DeliveryAddressSnapshot,
   CreateCustomerOrderPayload,
   CustomerPaymentMethodPayload,
   CustomerPreferencesPayload,
@@ -89,6 +90,29 @@ type CreatedOrderRow = {
   promotion_code: string | null
   referral_code: string | null
   created_at: Date
+}
+
+type CreatedCheckoutOrder = {
+  id: number
+  status: 'pending'
+  subtotal: number
+  deliveryFee: number
+  discountAmount: number
+  tipAmount: number
+  promotionCode: string | null
+  referralCode: string | null
+  total: number
+  paymentMethod: 'card' | 'cash'
+  cashTendered: number | null
+  changeDue: number
+  createdAt: Date
+  items: Array<{
+    productId: number
+    name: string
+    quantity: number
+    unitPrice: number
+    totalPrice: number
+  }>
 }
 
 type CustomerOrderRow = {
@@ -675,7 +699,7 @@ export async function listCustomerOrders(userId: number, limit = 50) {
         o.tip_amount,
         o.total,
         o.note,
-        NULLIF(CONCAT_WS(', ', address.label, address.street, address.city), '') AS address,
+        COALESCE(o.delivery_address, NULLIF(CONCAT_WS(', ', address.label, address.street, address.city), '')) AS address,
         o.created_at,
         o.updated_at,
         COALESCE(
@@ -764,9 +788,9 @@ export async function getCustomerOrderRouteLocations(userId: number, orderId: nu
         restaurant.name AS restaurant_name,
         restaurant.latitude AS restaurant_latitude,
         restaurant.longitude AS restaurant_longitude,
-        NULLIF(CONCAT_WS(', ', address.label, address.street, address.city), '') AS delivery_address,
-        address.latitude AS delivery_latitude,
-        address.longitude AS delivery_longitude,
+        COALESCE(o.delivery_address, NULLIF(CONCAT_WS(', ', address.label, address.street, address.city), '')) AS delivery_address,
+        COALESCE(o.delivery_latitude, address.latitude) AS delivery_latitude,
+        COALESCE(o.delivery_longitude, address.longitude) AS delivery_longitude,
         driver.name AS courier_name,
         courier.id AS courier_id,
         courier.current_latitude AS courier_latitude,
@@ -909,11 +933,51 @@ export async function createCustomerOrder(
   userId: number,
   payload: CreateCustomerOrderPayload,
   deliveryFee: number,
+  deliveryAddress: DeliveryAddressSnapshot,
+  idempotency?: { key: string; requestHash: string },
 ) {
   const client = await pool.connect()
 
   try {
     await client.query('BEGIN')
+
+    if (idempotency) {
+      const reservation = await client.query(
+        `
+          INSERT INTO checkout_idempotency (user_id, idempotency_key, request_hash)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (user_id, idempotency_key) DO NOTHING
+          RETURNING user_id
+        `,
+        [userId, idempotency.key, idempotency.requestHash],
+      )
+
+      if ((reservation.rowCount || 0) === 0) {
+        const existing = await client.query<{
+          request_hash: string
+          order_response: CreatedCheckoutOrder | null
+        }>(
+          `
+            SELECT request_hash, order_response
+            FROM checkout_idempotency
+            WHERE user_id = $1 AND idempotency_key = $2
+            FOR UPDATE
+          `,
+          [userId, idempotency.key],
+        )
+        const replay = existing.rows[0]
+        if (!replay || replay.request_hash !== idempotency.requestHash) {
+          await client.query('ROLLBACK')
+          throw new HttpError(409, 'This checkout key was already used for a different order.')
+        }
+        if (!replay.order_response) {
+          await client.query('ROLLBACK')
+          throw new HttpError(409, 'This checkout is still being processed. Please try again shortly.')
+        }
+        await client.query('COMMIT')
+        return { order: replay.order_response, created: false }
+      }
+    }
 
     const productIds = payload.items.map((item) => item.productId)
     const productResult = await client.query<CheckoutProductRow>(
@@ -968,14 +1032,34 @@ export async function createCustomerOrder(
       : 0
     const orderResult = await client.query<CreatedOrderRow>(
       `
-        INSERT INTO "order" (user_id, restaurant_id, address_id, subtotal, delivery_fee, discount_amount, tip_amount, promotion_code, referral_code, total, note)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        INSERT INTO "order" (
+          user_id,
+          restaurant_id,
+          address_id,
+          delivery_address,
+          delivery_instructions,
+          delivery_latitude,
+          delivery_longitude,
+          subtotal,
+          delivery_fee,
+          discount_amount,
+          tip_amount,
+          promotion_code,
+          referral_code,
+          total,
+          note
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING id, subtotal, delivery_fee, discount_amount, tip_amount, promotion_code, referral_code, total, created_at
       `,
       [
         userId,
         payload.restaurantId,
         payload.addressId,
+        deliveryAddress.address,
+        deliveryAddress.instructions || null,
+        deliveryAddress.latitude,
+        deliveryAddress.longitude,
         subtotal,
         deliveryFee,
         discount.amount,
@@ -1019,9 +1103,7 @@ export async function createCustomerOrder(
       )
     }
 
-    await client.query('COMMIT')
-
-    return {
+    const createdOrder: CreatedCheckoutOrder = {
       id: Number(order.id),
       status: 'pending',
       subtotal: Number(order.subtotal),
@@ -1043,10 +1125,32 @@ export async function createCustomerOrder(
         totalPrice,
       })),
     }
+
+    if (idempotency) {
+      await client.query(
+        `
+          UPDATE checkout_idempotency
+          SET order_id = $3, order_response = $4::JSONB, updated_at = NOW()
+          WHERE user_id = $1 AND idempotency_key = $2
+        `,
+        [userId, idempotency.key, order.id, JSON.stringify(createdOrder)],
+      )
+    }
+
+    await client.query('COMMIT')
+    return { order: createdOrder, created: true }
   } catch (error) {
     await client.query('ROLLBACK')
     throw error
   } finally {
     client.release()
   }
+}
+
+export async function purgeExpiredCheckoutIdempotency(retentionDays = 7) {
+  const result = await pool.query(
+    `DELETE FROM checkout_idempotency WHERE created_at < NOW() - ($1 * INTERVAL '1 day')`,
+    [Math.max(1, Math.min(retentionDays, 30))],
+  )
+  return result.rowCount || 0
 }

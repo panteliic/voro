@@ -1,13 +1,23 @@
 import * as dispatchRepository from "../repositories/dispatchRepository";
 import * as driverRepository from "../repositories/driverRepository";
+import * as customerRepository from "../repositories/customerRepository";
 import * as redisService from "./redisService";
+import { notifyUser } from "./notificationService";
+import { logEvent, trackError } from "./observability";
 import { pool } from "../database/pool";
 
 const offerWindowMs = 60_000;
 const retryDelayMs = 30_000;
 const workerPollIntervalMs = 1_500;
-const defaultMatchingRadiusMeters = 7_500;
-const maximumOffersPerRound = 3;
+// This is the distance for the courier to reach the restaurant, not the
+// restaurant's customer-delivery radius. Keeping it bounded stops a courier
+// from being offered a job on the other side of town just because the
+// restaurant happens to deliver far.
+const defaultPickupRadiusMeters = 5_000;
+const minimumPickupRadiusMeters = 3_000;
+const maximumPickupRadiusMeters = 6_000;
+const maximumOffersPerRound = 4;
+const maximumPendingOffersPerCourier = 2;
 const databaseSweepIntervalMs = 20_000;
 const locationRetentionSweepIntervalMs = 24 * 60 * 60 * 1_000;
 
@@ -32,8 +42,9 @@ function haversineMeters(
 function nearbyCandidates(
   order: dispatchRepository.DispatchOrder,
   couriers: dispatchRepository.DispatchCandidate[],
-  matchingRadiusMeters: number,
+  pickupRadiusMeters: number,
   activeLoads: Map<number, number>,
+  pendingOfferCounts: Map<number, number>,
 ) {
   return couriers
     .map((courier) => ({
@@ -45,14 +56,25 @@ function nearbyCandidates(
         order.restaurantLongitude,
       ),
       activeLoad: activeLoads.get(courier.id) || 0,
+      pendingOfferCount: pendingOfferCounts.get(courier.id) || 0,
     }))
-    .filter(({ distanceMeters }) => distanceMeters <= matchingRadiusMeters)
+    .filter(
+      ({ distanceMeters, pendingOfferCount }) =>
+        distanceMeters <= pickupRadiusMeters &&
+        pendingOfferCount < maximumPendingOffersPerCourier,
+    )
     .sort((first, second) => {
-      // A courier already carrying work gets a meaningful penalty. Distance is
-      // still the primary signal, but dispatch does not repeatedly favour the
-      // same closest courier when the fleet has alternatives.
-      const firstScore = first.distanceMeters + first.activeLoad * 2_000;
-      const secondScore = second.distanceMeters + second.activeLoad * 2_000;
+      // A courier already carrying work or holding a live offer gets a
+      // meaningful penalty. This spreads a burst of orders through the fleet
+      // instead of constantly selecting the same closest few drivers.
+      const firstScore =
+        first.distanceMeters +
+        first.activeLoad * 2_000 +
+        first.pendingOfferCount * 2_500;
+      const secondScore =
+        second.distanceMeters +
+        second.activeLoad * 2_000 +
+        second.pendingOfferCount * 2_500;
       return firstScore - secondScore;
     });
 }
@@ -71,42 +93,55 @@ async function processDispatch(orderId: number) {
     }
 
     const attempts = await dispatchRepository.markDispatchMatching(orderId);
-    const matchingRadiusMeters = Math.max(
-      4_000,
+    const pickupRadiusMeters = Math.max(
+      minimumPickupRadiusMeters,
       Math.min(
-        12_000,
-        Math.round(order.deliveryRadiusKm * 1_000) ||
-          defaultMatchingRadiusMeters,
+        maximumPickupRadiusMeters,
+        Math.round(order.deliveryRadiusKm * 750) || defaultPickupRadiusMeters,
       ),
     );
-    const liveCouriers = await redisService.listNearbyLiveDrivers(
-      order.restaurantLatitude,
-      order.restaurantLongitude,
-      matchingRadiusMeters,
+    const [liveCouriers, storedCouriers] = await Promise.all([
+      redisService.listNearbyLiveDrivers(
+        order.restaurantLatitude,
+        order.restaurantLongitude,
+        pickupRadiusMeters,
+      ),
+      dispatchRepository.listAvailableOnlineCouriers(),
+    ]);
+
+    // Redis has the freshest coordinates, while Postgres remains the source
+    // of truth for every recently-online courier. Previously, finding even one
+    // Redis record discarded all other online couriers and made offers appear
+    // to go to a single driver.
+    const couriersById = new Map<number, dispatchRepository.DispatchCandidate>(
+      storedCouriers.map((courier) => [courier.id, courier]),
     );
-    const couriers =
-      liveCouriers.length > 0
-        ? liveCouriers.map((courier) => ({
-            id: courier.id,
-            name: courier.name,
-            vehicleType: courier.vehicleType,
-            latitude: courier.currentLatitude,
-            longitude: courier.currentLongitude,
-          }))
-        : await dispatchRepository.listAvailableOnlineCouriers();
-    const activeLoads = await dispatchRepository.getCourierActiveLoads(
-      couriers.map((courier) => courier.id),
-    );
+    for (const courier of liveCouriers) {
+      couriersById.set(courier.id, {
+        id: courier.id,
+        name: courier.name,
+        vehicleType: courier.vehicleType,
+        latitude: courier.currentLatitude,
+        longitude: courier.currentLongitude,
+      });
+    }
+    const couriers = [...couriersById.values()];
+    const courierIds = couriers.map((courier) => courier.id);
+    const [activeLoads, pendingOfferCounts] = await Promise.all([
+      dispatchRepository.getCourierActiveLoads(courierIds),
+      dispatchRepository.getCourierPendingOfferCounts(courierIds),
+    ]);
     const nearby = nearbyCandidates(
       order,
       couriers,
-      matchingRadiusMeters,
+      pickupRadiusMeters,
       activeLoads,
+      pendingOfferCounts,
     );
 
     if (nearby.length === 0) {
       const reason =
-        "No available courier is currently within the delivery radius.";
+        "No available courier is currently close enough to the restaurant.";
       await dispatchRepository.markDispatchWaiting(
         orderId,
         reason,
@@ -122,9 +157,10 @@ async function processDispatch(orderId: number) {
       return;
     }
 
+    const selectedCouriers = nearby.slice(0, maximumOffersPerRound);
     const offerCount = await dispatchRepository.createDispatchOffers(
       orderId,
-      nearby.slice(0, maximumOffersPerRound).map(({ courier }) => courier.id),
+      selectedCouriers.map(({ courier }) => courier.id),
       offerWindowMs,
     );
     const reason = `Offer sent to ${offerCount} nearby courier${offerCount === 1 ? "" : "s"}.`;
@@ -140,11 +176,16 @@ async function processDispatch(orderId: number) {
         "No courier accepted the delivery offers.",
       );
     }
-    console.info(
-      `Dispatch offered order #${orderId} to ${offerCount} nearby couriers.`,
-    );
+    logEvent("info", "dispatch_offer_sent", {
+      orderId,
+      offerCount,
+      availableCourierCount: couriers.length,
+      nearbyCourierCount: nearby.length,
+      pickupRadiusMeters,
+      offeredCourierIds: selectedCouriers.map(({ courier }) => courier.id),
+    });
   } catch (error) {
-    console.error(`Dispatch failed for order #${orderId}.`, error);
+    trackError("dispatch_process_failed", error, { orderId });
     await dispatchRepository
       .markDispatchWaiting(orderId, "Temporary dispatch error.", retryDelayMs)
       .catch(() => undefined);
@@ -155,9 +196,7 @@ export function enqueueDispatch(orderId: number) {
   void dispatchRepository
     .queueDispatch(orderId)
     .then(() => redisService.enqueueDispatch(orderId))
-    .catch((error) =>
-      console.error(`Could not queue dispatch for order #${orderId}.`, error),
-    );
+    .catch((error) => trackError("dispatch_queue_failed", error, { orderId }));
 }
 
 let isDispatchCycleRunning = false;
@@ -179,6 +218,20 @@ export async function runDispatchCycle() {
       ),
     );
 
+    const recoveredAssignments =
+      await dispatchRepository.recoverStaleCourierAssignments();
+    await Promise.all(
+      recoveredAssignments.flatMap((assignment) => [
+        redisService.enqueueDispatch(assignment.orderId),
+        notifyUser(assignment.customerUserId, {
+          type: "courier_reassignment",
+          title: `Order #${assignment.orderId}: finding another courier`,
+          body: "Your courier could not be reached before pickup. We are finding a replacement now.",
+          data: { orderId: assignment.orderId },
+        }),
+      ]),
+    );
+
     const queuedOrderIds = await redisService.dequeueDispatchBatch();
     const now = Date.now();
     const pendingOrderIds =
@@ -196,11 +249,20 @@ export async function runDispatchCycle() {
       locationRetentionSweepIntervalMs
     ) {
       lastLocationRetentionSweepAt = now;
-      await driverRepository.purgeExpiredDeliveryLocations().catch((error) => {
-        console.error("Could not purge expired delivery locations.", error);
+      await Promise.all([
+        driverRepository.purgeExpiredDeliveryLocations(),
+        customerRepository.purgeExpiredCheckoutIdempotency(),
+      ]).catch((error) => {
+        trackError("daily_data_retention_cleanup_failed", error);
       });
     }
-    const orderIds = [...new Set([...queuedOrderIds, ...pendingOrderIds])];
+    const orderIds = [
+      ...new Set([
+        ...recoveredAssignments.map((assignment) => assignment.orderId),
+        ...queuedOrderIds,
+        ...pendingOrderIds,
+      ]),
+    ];
 
     for (const orderId of orderIds) {
       await processDispatch(orderId);
@@ -211,7 +273,7 @@ export async function runDispatchCycle() {
 }
 
 export function startDispatchWorker() {
-  console.info("Dispatch worker started.");
+  logEvent("info", "dispatch_worker_started");
   void runDispatchCycle();
 
   const interval = setInterval(() => {

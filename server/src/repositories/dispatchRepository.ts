@@ -26,6 +26,12 @@ export type DispatchAlert = {
   createdAt: Date
 }
 
+export type RecoveredCourierAssignment = {
+  orderId: number
+  customerUserId: number
+  courierId: number
+}
+
 type DispatchOrderRow = {
   id: string
   restaurant_latitude: string | null
@@ -71,14 +77,14 @@ export async function getPreparingOrderForDispatch(orderId: number) {
         "order".id,
         restaurant.latitude AS restaurant_latitude,
         restaurant.longitude AS restaurant_longitude,
-        address.latitude AS delivery_latitude,
-        address.longitude AS delivery_longitude,
+        COALESCE("order".delivery_latitude, address.latitude) AS delivery_latitude,
+        COALESCE("order".delivery_longitude, address.longitude) AS delivery_longitude,
         restaurant.delivery_radius_km
       FROM "order"
       INNER JOIN order_status ON order_status.id = "order".status_id
         AND order_status.name IN ('accepted', 'preparing', 'ready')
       INNER JOIN restaurant ON restaurant.id = "order".restaurant_id
-      INNER JOIN address ON address.id = "order".address_id
+      LEFT JOIN address ON address.id = "order".address_id
       LEFT JOIN delivery ON delivery.order_id = "order".id
       LEFT JOIN delivery_status existing_delivery_status ON existing_delivery_status.id = delivery.status_id
       WHERE "order".id = $1
@@ -123,6 +129,24 @@ export async function getCourierActiveLoads(courierIds: number[]) {
     [courierIds],
   )
   return new Map(result.rows.map((row) => [Number(row.courier_id), Number(row.active_deliveries)]))
+}
+
+export async function getCourierPendingOfferCounts(courierIds: number[]) {
+  if (courierIds.length === 0) return new Map<number, number>()
+
+  const result = await pool.query<{ courier_id: string; pending_offers: string }>(
+    `
+      SELECT courier_id, COUNT(*)::TEXT AS pending_offers
+      FROM delivery_dispatch_offer
+      WHERE courier_id = ANY($1::BIGINT[])
+        AND status = 'pending'
+        AND expires_at > NOW()
+      GROUP BY courier_id
+    `,
+    [courierIds],
+  )
+
+  return new Map(result.rows.map((row) => [Number(row.courier_id), Number(row.pending_offers)]))
 }
 
 export async function listAvailableOnlineCouriers() {
@@ -265,4 +289,109 @@ export async function listPendingDispatchOrderIds() {
   )
 
   return result.rows.map((row) => Number(row.order_id))
+}
+
+/**
+ * A browser can be suspended or lose its network connection without the
+ * courier explicitly withdrawing.  Assignments that have not reached pickup
+ * are safe to put back into dispatch; once food is picked up, only operations
+ * staff may intervene.
+ */
+export async function recoverStaleCourierAssignments(staleAfterSeconds = 120) {
+  const client = await pool.connect()
+
+  try {
+    await client.query('BEGIN')
+    const stale = await client.query<{
+      delivery_id: string
+      order_id: string
+      customer_user_id: string
+      courier_id: string
+    }>(
+      `
+        SELECT
+          delivery.id AS delivery_id,
+          delivery.order_id,
+          "order".user_id AS customer_user_id,
+          delivery.courier_id
+        FROM delivery
+        INNER JOIN delivery_status ON delivery_status.id = delivery.status_id
+        INNER JOIN courier ON courier.id = delivery.courier_id
+        INNER JOIN "order" ON "order".id = delivery.order_id
+        INNER JOIN order_status ON order_status.id = "order".status_id
+        WHERE delivery_status.name IN ('assigned', 'arriving_to_restaurant')
+          AND order_status.name IN ('accepted', 'preparing', 'ready')
+          AND (
+            courier.last_location_at IS NULL
+            OR courier.last_location_at < NOW() - ($1 * INTERVAL '1 second')
+          )
+        ORDER BY courier.last_location_at ASC NULLS FIRST
+        LIMIT 50
+        FOR UPDATE OF delivery SKIP LOCKED
+      `,
+      [Math.max(60, Math.min(staleAfterSeconds, 15 * 60))],
+    )
+
+    if (stale.rows.length === 0) {
+      await client.query('COMMIT')
+      return [] satisfies RecoveredCourierAssignment[]
+    }
+
+    const recovered: RecoveredCourierAssignment[] = []
+    for (const assignment of stale.rows) {
+      const reason = 'Courier location stopped updating before pickup; reassignment started automatically.'
+      await client.query(
+        `
+          UPDATE delivery
+          SET
+            courier_id = NULL,
+            status_id = (SELECT id FROM delivery_status WHERE name = 'failed'),
+            failed_at = NOW(),
+            failure_reason = $2,
+            reassign_count = reassign_count + 1,
+            updated_at = NOW()
+          WHERE id = $1
+        `,
+        [assignment.delivery_id, reason],
+      )
+      await client.query(
+        `
+          INSERT INTO delivery_event (delivery_id, order_id, courier_id, event_type, reason, metadata)
+          VALUES ($1, $2, $3, 'driver_withdrew', $4, '{"automaticRecovery": true}'::JSONB)
+        `,
+        [assignment.delivery_id, assignment.order_id, assignment.courier_id, reason],
+      )
+      await client.query(
+        `UPDATE delivery_dispatch_offer SET status = 'expired', updated_at = NOW() WHERE order_id = $1 AND status = 'pending'`,
+        [assignment.order_id],
+      )
+      await client.query(
+        `
+          INSERT INTO delivery_dispatch_job (order_id, status, assigned_courier_id, last_error, next_attempt_at)
+          VALUES ($1, 'queued', NULL, $2, NOW())
+          ON CONFLICT (order_id) DO UPDATE
+          SET
+            status = 'queued',
+            assigned_courier_id = NULL,
+            last_error = EXCLUDED.last_error,
+            next_attempt_at = NOW(),
+            updated_at = NOW()
+        `,
+        [assignment.order_id, reason],
+      )
+      recovered.push({
+        orderId: Number(assignment.order_id),
+        customerUserId: Number(assignment.customer_user_id),
+        courierId: Number(assignment.courier_id),
+      })
+    }
+
+    await client.query('COMMIT')
+    return recovered
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
 }

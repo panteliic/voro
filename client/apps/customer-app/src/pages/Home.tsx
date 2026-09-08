@@ -94,10 +94,6 @@ function Home() {
 
       if (Notification.permission === 'granted') {
         showBrowserNotification()
-      } else if (Notification.permission === 'default') {
-        void Notification.requestPermission().then((permission) => {
-          if (permission === 'granted') showBrowserNotification()
-        })
       }
     })
     socket.connect()

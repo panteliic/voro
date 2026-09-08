@@ -26,6 +26,9 @@ const smtpEnabled = Boolean(
 const isProduction = process.env.NODE_ENV === "production";
 const jwtSecret = process.env.JWT_SECRET || (isProduction ? "" : "voro_secret_key");
 const paymentCardEncryptionKey = process.env.PAYMENT_CARD_ENCRYPTION_KEY || "";
+const seedDemoData = process.env.SEED_DEMO_DATA === "true";
+const adminBootstrapToken = process.env.ADMIN_BOOTSTRAP_TOKEN?.trim() || "";
+const observabilityToken = process.env.OBSERVABILITY_TOKEN?.trim() || "";
 
 if (isProduction && (jwtSecret.length < 32 || jwtSecret === "voro_secret_key")) {
   throw new Error("JWT_SECRET must be a unique value of at least 32 characters in production.");
@@ -35,13 +38,32 @@ if (isProduction && !paymentCardEncryptionKey) {
   throw new Error("PAYMENT_CARD_ENCRYPTION_KEY is required in production.");
 }
 
+if (isProduction && seedDemoData) {
+  throw new Error("SEED_DEMO_DATA must be false in production.");
+}
+
+if (isProduction && !observabilityToken) {
+  throw new Error("OBSERVABILITY_TOKEN is required in production.");
+}
+
+if (adminBootstrapToken && adminBootstrapToken.length < 32) {
+  throw new Error("ADMIN_BOOTSTRAP_TOKEN must be at least 32 characters when set.");
+}
+
+if (observabilityToken && observabilityToken.length < 32) {
+  throw new Error("OBSERVABILITY_TOKEN must be at least 32 characters when set.");
+}
+
 export const env = {
   port: Number(process.env.PORT || 3000),
   clientUrls,
   apiUrl: process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`,
   isProduction,
+  seedDemoData,
   jwtSecret,
   paymentCardEncryptionKey,
+  adminBootstrapToken,
+  observabilityToken,
   accessTokenTtl: process.env.ACCESS_TOKEN_TTL || "15m",
   refreshTokenTtlMs: Number(process.env.REFRESH_TOKEN_TTL_DAYS || 30) * 24 * 60 * 60 * 1000,
   redisUrl: process.env.REDIS_URL || `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`,

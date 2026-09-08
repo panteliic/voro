@@ -32,25 +32,23 @@ export async function login(payload: LoginPayload) {
 export async function registerFirstAdmin(payload: RegisterAdminPayload) {
   validateAdminInput(payload)
 
-  const existingAdmins = await authRepository.countUsersByRole('admin')
-
-  if (existingAdmins > 0) {
-    throw new HttpError(409, 'Admin account already exists.')
-  }
-
-  const existingUser = await authRepository.findUserByEmail(payload.email)
-
-  if (existingUser) {
-    throw new HttpError(409, 'An account with this email already exists.')
-  }
-
   const passwordHash = await bcrypt.hash(payload.password, 10)
-  const user = await authRepository.createVerifiedUser({
+  const result = await authRepository.createFirstActiveAdmin({
     name: payload.name,
     email: payload.email,
     passwordHash,
-    roleId: 4,
   })
+
+  if (!result.user) {
+    throw new HttpError(
+      409,
+      result.reason === 'email_exists'
+        ? 'An account with this email already exists.'
+        : 'An active admin account already exists.',
+    )
+  }
+
+  const user = result.user
 
   return {
     message: 'Admin account created.',

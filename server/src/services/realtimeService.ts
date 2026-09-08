@@ -47,6 +47,11 @@ export type RealtimeOrderTracking = {
   deliveryStatus: string | null
 }
 
+export type RealtimeDriverLocation = {
+  latitude: number
+  longitude: number
+}
+
 let realtimeServer: Server | null = null
 
 function orderRoom(orderId: number) {
@@ -154,6 +159,10 @@ export function publishOrderMessage(message: RealtimeOrderMessage) {
 
 export function publishOrderTracking(tracking: RealtimeOrderTracking) {
   realtimeServer?.to(orderRoom(tracking.orderId)).emit('order:tracking', tracking)
+}
+
+export function publishDriverLocation(userId: number, location: RealtimeDriverLocation) {
+  realtimeServer?.to(userRoom(userId)).emit('driver:location', location)
 }
 
 export function publishUserNotification(userId: number, notification: RealtimeUserNotification) {

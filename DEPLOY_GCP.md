@@ -37,12 +37,10 @@ docker --version
 docker compose version
 ```
 
-## 3. Clone the latest Voro branch
-
-The current latest application branch is `codex/delivery-operations-security`, not `main`.
+## 3. Clone Voro
 
 ```bash
-git clone --branch codex/delivery-operations-security --single-branch https://github.com/panteliic/voro.git
+git clone https://github.com/panteliic/voro.git
 cd voro
 ```
 
@@ -55,10 +53,11 @@ cp gcp.env.example .env.gcp
 openssl rand -hex 32
 openssl rand -hex 32
 openssl rand -hex 32
+openssl rand -hex 32
 nano .env.gcp
 ```
 
-Put the three generated values in `POSTGRES_PASSWORD`, `JWT_SECRET`, and `PAYMENT_CARD_ENCRYPTION_KEY`, respectively. Replace `CADDY_EMAIL` with your own email address. Leave `SEED_DEMO_DATA=true`.
+Put the generated values in `POSTGRES_PASSWORD`, `JWT_SECRET`, `PAYMENT_CARD_ENCRYPTION_KEY`, and `OBSERVABILITY_TOKEN`, respectively. Replace `CADDY_EMAIL` with your own email address. Keep `SEED_DEMO_DATA=false`.
 
 `.env.gcp` stays only on the VM and is ignored by Git. Never commit it.
 
@@ -69,7 +68,21 @@ docker compose --env-file .env.gcp -f docker-compose.gcp.yml up --build -d
 docker compose --env-file .env.gcp -f docker-compose.gcp.yml ps
 ```
 
-On the first launch the `migrations` container creates all database tables and demo records. Wait until `backend` is healthy, then open:
+On the first launch the `migrations` container creates all database tables. Wait until `backend` is healthy, then create the first admin from inside the private backend container:
+
+```bash
+read -rp "Admin name: " ADMIN_NAME
+read -rp "Admin email: " ADMIN_EMAIL
+read -rsp "Admin password: " ADMIN_PASSWORD; echo
+docker compose --env-file .env.gcp -f docker-compose.gcp.yml exec \
+  -e ADMIN_BOOTSTRAP_NAME="$ADMIN_NAME" \
+  -e ADMIN_BOOTSTRAP_EMAIL="$ADMIN_EMAIL" \
+  -e ADMIN_BOOTSTRAP_PASSWORD="$ADMIN_PASSWORD" \
+  backend node dist/scripts/bootstrapAdmin.js
+unset ADMIN_PASSWORD
+```
+
+Then open:
 
 | Application | URL |
 | --- | --- |
@@ -87,10 +100,10 @@ To open the database shell on the VM:
 docker compose --env-file .env.gcp -f docker-compose.gcp.yml exec database psql -U voro -d voro
 ```
 
-To update the demo after a new commit reaches the deployment branch:
+To update the deployment after a new commit is available:
 
 ```bash
-git pull origin codex/delivery-operations-security
+git pull
 docker compose --env-file .env.gcp -f docker-compose.gcp.yml up --build -d
 ```
 

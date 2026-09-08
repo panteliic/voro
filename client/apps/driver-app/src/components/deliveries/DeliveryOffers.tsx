@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Banknote, BellRing, Clock3, CreditCard, MapPin, Store } from 'lucide-react'
+import { Banknote, BellRing, Clock3, CreditCard, MapPin, Navigation, Store } from 'lucide-react'
 import { translate, type DriverLanguage } from '../../i18n'
-import type { DeliveryOffer } from '../../types/driver'
+import { getDeliveryOfferRouteEstimate } from '../../services/driverApi'
+import type { DeliveryOffer, DriverOfferRouteEstimate } from '../../types/driver'
 
 function remainingSeconds(expiresAt: string, now: number) {
   return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - now) / 1_000))
@@ -11,17 +12,20 @@ export function DeliveryOffers({
   offers,
   isAccepting,
   language,
+  token,
   onAccept,
   onDecline,
 }: {
   offers: DeliveryOffer[]
   isAccepting: boolean
   language: DriverLanguage
+  token: string
   onAccept: (offerId: number) => void
   onDecline: (offerId: number) => void
 }) {
   const t = (key: string, values?: Record<string, string | number>) => translate(language, key, values)
   const [now, setNow] = useState(() => Date.now())
+  const [routeEstimates, setRouteEstimates] = useState<Record<number, DriverOfferRouteEstimate>>({})
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1_000)
@@ -29,6 +33,38 @@ export function DeliveryOffers({
   }, [])
 
   const activeOffers = offers.filter((offer) => remainingSeconds(offer.expiresAt, now) > 0)
+  const activeOfferKey = activeOffers.map((offer) => `${offer.id}:${offer.expiresAt}`).join('|')
+
+  useEffect(() => {
+    let active = true
+    const activeOfferIds = new Set(activeOffers.map((offer) => offer.id))
+
+    setRouteEstimates((current) => Object.fromEntries(
+      Object.entries(current).filter(([offerId]) => activeOfferIds.has(Number(offerId))),
+    ))
+
+    void Promise.all(activeOffers.map(async (offer) => {
+      try {
+        return await getDeliveryOfferRouteEstimate(token, offer.id)
+      } catch {
+        return null
+      }
+    })).then((estimates) => {
+      if (!active) return
+      const next = estimates.filter((estimate): estimate is DriverOfferRouteEstimate => estimate !== null)
+      if (next.length === 0) return
+      setRouteEstimates((current) => ({
+        ...current,
+        ...Object.fromEntries(next.map((estimate) => [estimate.offerId, estimate])),
+      }))
+    })
+
+    return () => {
+      active = false
+    }
+  // Only a new/expired offer should recalculate its initial route estimate.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeOfferKey, token])
 
   if (activeOffers.length === 0) {
     return null
@@ -52,6 +88,7 @@ export function DeliveryOffers({
       <div className="mt-4 grid gap-3">
         {activeOffers.map((offer) => {
           const seconds = remainingSeconds(offer.expiresAt, now)
+          const routeEstimate = routeEstimates[offer.id]
           return (
             <article className="rounded-voro-md border border-line bg-card p-4" key={offer.id}>
               <div className="flex items-start justify-between gap-3">
@@ -66,6 +103,16 @@ export function DeliveryOffers({
               <div className="mt-4 grid gap-2 text-sm text-muted-foreground">
                 <p className="flex items-start gap-2"><Store className="mt-0.5 size-4 shrink-0 text-action" />{offer.restaurantAddress || offer.restaurantName}</p>
                 <p className="flex items-start gap-2"><MapPin className="mt-0.5 size-4 shrink-0 text-emerald-600" />{offer.customerAddress || offer.customerName}</p>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <div className="rounded-voro-md bg-muted px-3 py-2 text-sm">
+                  <p className="flex items-center gap-1.5 font-bold text-content"><Navigation className="size-4 text-action" />{routeEstimate ? t('offers.toRestaurant', { minutes: routeEstimate.toRestaurant.etaMinutes }) : t('offers.calculatingRoute')}</p>
+                  {routeEstimate ? <p className="mt-1 text-xs text-muted-foreground">{(routeEstimate.toRestaurant.distanceMeters / 1000).toFixed(1)} km</p> : null}
+                </div>
+                <div className="rounded-voro-md bg-accent px-3 py-2 text-sm">
+                  <p className="flex items-center gap-1.5 font-bold text-action"><Clock3 className="size-4" />{routeEstimate ? t('offers.totalToCustomer', { minutes: routeEstimate.total.etaMinutes }) : t('offers.calculatingRoute')}</p>
+                  {routeEstimate ? <p className="mt-1 text-xs text-muted-foreground">{(routeEstimate.total.distanceMeters / 1000).toFixed(1)} km</p> : null}
+                </div>
               </div>
               <div className={`mt-4 flex items-start gap-2 rounded-voro-md px-3 py-2 text-sm ${offer.paymentMethod === 'cash' ? 'bg-action/10 text-content' : 'bg-muted text-muted-foreground'}`}>
                 {offer.paymentMethod === 'cash' ? <Banknote className="mt-0.5 size-4 shrink-0 text-action" /> : <CreditCard className="mt-0.5 size-4 shrink-0" />}

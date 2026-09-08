@@ -7,7 +7,7 @@ import { AuthDivider } from '../components/auth/AuthDivider'
 import { AuthField } from '../components/auth/AuthField'
 import { AuthHeader } from '../components/auth/AuthHeader'
 import { AuthLayout } from '../components/auth/AuthLayout'
-import { SocialButtons } from '../components/auth/SocialButtons'
+import { googleAuthEnabled, SocialButtons } from '../components/auth/SocialButtons'
 import { clearAuthFeedback, signupUser } from '../features/auth/authSlice'
 import { useI18n } from '../i18n/i18n'
 
@@ -99,8 +99,12 @@ function SignUp() {
         </Button>
       </form>
 
-      <AuthDivider />
-      <SocialButtons action="signup" />
+      {googleAuthEnabled ? (
+        <>
+          <AuthDivider />
+          <SocialButtons action="signup" />
+        </>
+      ) : null}
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
         {t('auth.signup.hasAccount')}{' '}

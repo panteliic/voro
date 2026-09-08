@@ -4,9 +4,9 @@ import * as routingService from './routingService'
 import * as dispatchService from './dispatchService'
 import * as geocodingService from './geocodingService'
 import * as operationsRepository from '../repositories/operationsRepository'
-import { publishOrderMessage, publishOrderTracking } from './realtimeService'
+import { publishDriverLocation, publishOrderMessage, publishOrderTracking } from './realtimeService'
 import { notifyUser, notifyUserOnceCourierIsNearby } from './notificationService'
-import type { DriverAnalytics, DriverAnalyticsDay, DriverAnalyticsPeriod } from '../types/driver'
+import type { DriverAnalytics, DriverAnalyticsDay, DriverAnalyticsPeriod, DriverProfile } from '../types/driver'
 import { HttpError } from '../utils/httpError'
 import { sanitizePlainText } from '../utils/securityInput'
 import { logEvent } from './observability'
@@ -14,6 +14,15 @@ import { logEvent } from './observability'
 type WorkSession = { started_at: Date; ended_at: Date | null; updated_at: Date }
 type DeliveredTotal = { deliveredAt: Date; total: number }
 const customerNearbyDistanceMeters = 250
+const pickupConfirmationDistanceMeters = 200
+const deliveryConfirmationDistanceMeters = 200
+const statusLocationMaxAgeMs = 45_000
+const locationAddressRefreshDistanceMeters = 250
+const locationAddressRefreshIntervalMs = 15 * 60 * 1000
+const locationAddressRequestDelayMs = 1_100
+const queuedDriverAddressIds = new Set<number>()
+const pendingDriverAddressRefreshes: DriverProfile[] = []
+let isProcessingDriverAddressRefreshes = false
 
 function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
   const earthRadius = 6_371_000
@@ -22,6 +31,135 @@ function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number)
   const a = Math.sin(latitudeDelta / 2) ** 2
     + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(longitudeDelta / 2) ** 2
   return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function hasFreshDriverLocation(driver: DriverProfile) {
+  return Boolean(
+    driver.isOnline &&
+    driver.currentLatitude !== null &&
+    driver.currentLongitude !== null &&
+    driver.lastLocationAt !== null &&
+    Date.now() - driver.lastLocationAt.getTime() <= statusLocationMaxAgeMs,
+  )
+}
+
+function requireNearbyDeliveryStop(
+  driver: DriverProfile,
+  target: { latitude: number; longitude: number; label: string },
+  maximumDistanceMeters: number,
+) {
+  if (!hasFreshDriverLocation(driver)) {
+    throw new HttpError(409, 'A fresh GPS location is required before updating this delivery.')
+  }
+
+  const distanceMeters = Math.round(haversineMeters(
+    driver.currentLatitude as number,
+    driver.currentLongitude as number,
+    target.latitude,
+    target.longitude,
+  ))
+  if (distanceMeters > maximumDistanceMeters) {
+    throw new HttpError(
+      409,
+      `You must be within ${maximumDistanceMeters} m of ${target.label} before updating this delivery. You are ${distanceMeters} m away.`,
+    )
+  }
+}
+
+function straightLineRouteEstimate(
+  start: { latitude: number; longitude: number },
+  end: { latitude: number; longitude: number },
+) {
+  // A resilient fallback when the public routing provider is unavailable.
+  // Urban motorcycle/car travel is deliberately estimated conservatively.
+  const directDistanceMeters = Math.round(haversineMeters(
+    start.latitude,
+    start.longitude,
+    end.latitude,
+    end.longitude,
+  ))
+  const distanceMeters = Math.max(100, Math.round(directDistanceMeters * 1.28))
+  const etaMinutes = Math.max(1, Math.ceil((distanceMeters / 1000 / 18) * 60 + 1))
+
+  return {
+    distanceMeters,
+    etaMinutes,
+    etaRange: { min: etaMinutes, max: etaMinutes + 5 },
+  }
+}
+
+async function routeEstimate(
+  start: { latitude: number; longitude: number },
+  end: { latitude: number; longitude: number },
+) {
+  try {
+    return await routingService.findDrivingRoute(start, end)
+  } catch {
+    return straightLineRouteEstimate(start, end)
+  }
+}
+
+function scheduleDriverLocationAddressRefresh(driver: DriverProfile) {
+  if (
+    driver.currentLatitude === null ||
+    driver.currentLongitude === null ||
+    queuedDriverAddressIds.has(driver.id)
+  ) {
+    return
+  }
+
+  const hasRecentNearbyAddress =
+    Boolean(driver.lastLocationAddress) &&
+    driver.lastLocationAddressLatitude !== null &&
+    driver.lastLocationAddressLongitude !== null &&
+    driver.lastLocationAddressAt !== null &&
+    Date.now() - driver.lastLocationAddressAt.getTime() < locationAddressRefreshIntervalMs &&
+    haversineMeters(
+      driver.currentLatitude,
+      driver.currentLongitude,
+      driver.lastLocationAddressLatitude,
+      driver.lastLocationAddressLongitude,
+    ) < locationAddressRefreshDistanceMeters
+
+  if (hasRecentNearbyAddress) return
+
+  queuedDriverAddressIds.add(driver.id)
+  pendingDriverAddressRefreshes.push(driver)
+  if (!isProcessingDriverAddressRefreshes) void processDriverLocationAddressRefreshes()
+}
+
+async function processDriverLocationAddressRefreshes() {
+  isProcessingDriverAddressRefreshes = true
+
+  try {
+    while (pendingDriverAddressRefreshes.length > 0) {
+      const driver = pendingDriverAddressRefreshes.shift()!
+      try {
+        const location = await geocodingService.reverseGeocodeAddress(
+          driver.currentLatitude as number,
+          driver.currentLongitude as number,
+        )
+        await driverRepository.updateDriverLocationAddress(driver.id, {
+          latitude: driver.currentLatitude as number,
+          longitude: driver.currentLongitude as number,
+          address: location.displayName,
+        })
+      } catch (error) {
+        logEvent('warn', 'driver_location_address_refresh_failed', {
+          driverId: driver.id,
+          message: error instanceof Error ? error.message : String(error),
+        })
+      } finally {
+        queuedDriverAddressIds.delete(driver.id)
+      }
+
+      if (pendingDriverAddressRefreshes.length > 0) {
+        await new Promise((resolve) => setTimeout(resolve, locationAddressRequestDelayMs))
+      }
+    }
+  } finally {
+    isProcessingDriverAddressRefreshes = false
+  }
 }
 
 async function getOwnedDriver(userId: number) {
@@ -169,6 +307,7 @@ export async function updatePresence(userId: number, payload: unknown) {
   }
 
   if (nextLatitude !== null && nextLongitude !== null) {
+    publishDriverLocation(userId, { latitude: nextLatitude, longitude: nextLongitude })
     const activeDelivery = await driverRepository.recordActiveDeliveryLocation(driver.id, nextLatitude, nextLongitude)
     if (activeDelivery) {
       publishOrderTracking({
@@ -196,7 +335,7 @@ export async function updatePresence(userId: number, payload: unknown) {
   }
 
   await redisService.syncDriverPresence(driver)
-  refreshDriverLocationAddress(driver)
+  scheduleDriverLocationAddressRefresh(driver)
 
   return { driver }
 }
@@ -286,6 +425,34 @@ export async function updateDeliveryStatus(
   if (!activeDelivery) {
     throw new HttpError(404, 'Active delivery was not found.')
   }
+
+  if (status === 'picked_up') {
+    if (activeDelivery.orderStatus !== 'ready') {
+      throw new HttpError(409, 'The restaurant has not marked this order as ready yet.')
+    }
+    requireNearbyDeliveryStop(
+      driver,
+      {
+        latitude: activeDelivery.restaurantLatitude,
+        longitude: activeDelivery.restaurantLongitude,
+        label: 'the restaurant',
+      },
+      pickupConfirmationDistanceMeters,
+    )
+  }
+
+  if (status === 'delivered') {
+    requireNearbyDeliveryStop(
+      driver,
+      {
+        latitude: activeDelivery.customerLatitude,
+        longitude: activeDelivery.customerLongitude,
+        label: 'the customer address',
+      },
+      deliveryConfirmationDistanceMeters,
+    )
+  }
+
   const note = sanitizePlainText(proofPayload.proofNote, 500)
   const updated = await driverRepository.setDeliveryStatus(driver.id, deliveryId, status, { note })
 
@@ -435,5 +602,54 @@ export async function getDeliveryRoute(userId: number, deliveryId: number) {
     currentLocation: { latitude: driver.currentLatitude, longitude: driver.currentLongitude },
     destination,
     route,
+  }
+}
+
+export async function getOfferRouteEstimate(userId: number, offerId: number) {
+  if (!Number.isInteger(offerId) || offerId <= 0) {
+    throw new HttpError(400, 'Delivery offer was not found.')
+  }
+
+  const driver = await getOwnedDriver(userId)
+  if (!hasFreshDriverLocation(driver)) {
+    throw new HttpError(409, 'Share a fresh current location to calculate the offer time.')
+  }
+
+  const offer = (await driverRepository.listPendingOffers(driver.id))
+    .find((candidate) => candidate.id === offerId)
+  if (!offer) {
+    throw new HttpError(404, 'This delivery offer is no longer available.')
+  }
+
+  const currentLocation = {
+    latitude: driver.currentLatitude as number,
+    longitude: driver.currentLongitude as number,
+  }
+  const restaurantLocation = {
+    latitude: offer.restaurantLatitude,
+    longitude: offer.restaurantLongitude,
+  }
+  const customerLocation = {
+    latitude: offer.customerLatitude,
+    longitude: offer.customerLongitude,
+  }
+  const [toRestaurant, toCustomer] = await Promise.all([
+    routeEstimate(currentLocation, restaurantLocation),
+    routeEstimate(restaurantLocation, customerLocation),
+  ])
+
+  return {
+    offerId: offer.id,
+    currentLocation,
+    toRestaurant,
+    toCustomer,
+    total: {
+      distanceMeters: toRestaurant.distanceMeters + toCustomer.distanceMeters,
+      etaMinutes: toRestaurant.etaMinutes + toCustomer.etaMinutes,
+      etaRange: {
+        min: toRestaurant.etaRange.min + toCustomer.etaRange.min,
+        max: toRestaurant.etaRange.max + toCustomer.etaRange.max,
+      },
+    },
   }
 }

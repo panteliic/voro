@@ -45,6 +45,14 @@ export async function declineOffer(req: Request, res: Response) {
   }
 }
 
+export async function getOfferRouteEstimate(req: Request, res: Response) {
+  try {
+    res.json(await driverService.getOfferRouteEstimate(auth(req).userId, numericParam(req.params.offerId)))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
 export async function updateDeliveryStatus(req: Request, res: Response) {
   try {
     res.json(

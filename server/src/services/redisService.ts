@@ -1,6 +1,7 @@
 import { createClient, type RedisClientType } from 'redis'
 import { env } from '../config/env'
 import type { DriverProfile } from '../types/driver'
+import { trackError } from './observability'
 
 const cachePrefix = 'voro:cache:'
 const rateLimitPrefix = 'voro:rate-limit:'
@@ -21,7 +22,7 @@ let connectPromise: Promise<void> | null = null
 function redisClient() {
   if (!client) {
     client = createClient({ url: env.redisUrl })
-    client.on('error', (error) => console.error('Redis error:', error.message))
+    client.on('error', (error) => trackError('redis_client_error', error))
   }
 
   return client

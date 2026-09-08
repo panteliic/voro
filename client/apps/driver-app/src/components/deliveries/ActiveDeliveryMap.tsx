@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Banknote, Clock3, CreditCard, KeyRound, MessageCircle, Navigation, Store } from 'lucide-react'
 import * as L from 'leaflet'
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
@@ -27,6 +27,56 @@ const customerIcon = L.divIcon({
   iconAnchor: [18, 18],
   iconSize: [36, 36],
 })
+
+const statusConfirmationDistanceMeters = 200
+
+function distanceMeters(
+  first: { latitude: number; longitude: number },
+  second: { latitude: number; longitude: number },
+) {
+  const earthRadius = 6_371_000
+  const latitudeDelta = ((second.latitude - first.latitude) * Math.PI) / 180
+  const longitudeDelta = ((second.longitude - first.longitude) * Math.PI) / 180
+  const a = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos((first.latitude * Math.PI) / 180) * Math.cos((second.latitude * Math.PI) / 180) * Math.sin(longitudeDelta / 2) ** 2
+  return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function AnimatedDriverMarker({ position, label }: { position: [number, number]; label: string }) {
+  const [displayedPosition, setDisplayedPosition] = useState(position)
+  const currentPosition = useRef(position)
+
+  useEffect(() => {
+    const startPosition = currentPosition.current
+    const hasMoved = startPosition[0] !== position[0] || startPosition[1] !== position[1]
+
+    if (!hasMoved || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      currentPosition.current = position
+      setDisplayedPosition(position)
+      return
+    }
+
+    const startedAt = performance.now()
+    let frame = 0
+    const animate = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / 800)
+      const eased = 1 - (1 - progress) ** 2
+      const nextPosition: [number, number] = [
+        startPosition[0] + (position[0] - startPosition[0]) * eased,
+        startPosition[1] + (position[1] - startPosition[1]) * eased,
+      ]
+
+      currentPosition.current = nextPosition
+      setDisplayedPosition(nextPosition)
+      if (progress < 1) frame = window.requestAnimationFrame(animate)
+    }
+
+    frame = window.requestAnimationFrame(animate)
+    return () => window.cancelAnimationFrame(frame)
+  }, [position])
+
+  return <Marker icon={driverIcon} position={displayedPosition}><Popup>{label}</Popup></Marker>
+}
 
 function MapViewport({ points }: { points: Array<[number, number]> }) {
   const map = useMap()
@@ -70,6 +120,7 @@ function deliveryCopy(delivery: Delivery, language: DriverLanguage) {
 }
 
 export function ActiveDeliveryMap({
+  currentLocation,
   delivery,
   language,
   token,
@@ -79,6 +130,7 @@ export function ActiveDeliveryMap({
   onUpdateStatus,
   onWithdraw,
 }: {
+  currentLocation: { latitude: number; longitude: number } | null
   delivery: Delivery
   language: DriverLanguage
   token: string
@@ -146,6 +198,37 @@ export function ActiveDeliveryMap({
     (!routeData && (delivery.status === 'assigned' || delivery.status === 'arriving_to_restaurant'))
   const canShowPickupCode = Boolean(delivery.pickupCode) && (delivery.status === 'assigned' || delivery.status === 'arriving_to_restaurant')
   const canWithdraw = delivery.status === 'assigned' || delivery.status === 'arriving_to_restaurant'
+  const driverPosition: [number, number] | null = currentLocation
+    ? [currentLocation.latitude, currentLocation.longitude]
+    : routeData
+      ? [routeData.currentLocation.latitude, routeData.currentLocation.longitude]
+      : null
+  const driverLocation = driverPosition
+    ? { latitude: driverPosition[0], longitude: driverPosition[1] }
+    : null
+  const statusTarget = copy.nextStatus === 'picked_up'
+    ? { latitude: delivery.restaurantLatitude, longitude: delivery.restaurantLongitude }
+    : copy.nextStatus === 'delivered'
+      ? { latitude: delivery.customerLatitude, longitude: delivery.customerLongitude }
+      : null
+  const statusTargetDistance = driverLocation && statusTarget
+    ? distanceMeters(driverLocation, statusTarget)
+    : null
+  const actionBlockedReason = copy.nextStatus === 'picked_up'
+    ? delivery.orderStatus !== 'ready'
+      ? t('delivery.waitForRestaurant')
+      : statusTargetDistance === null
+        ? t('delivery.freshLocationRequired')
+        : statusTargetDistance > statusConfirmationDistanceMeters
+          ? t('delivery.getCloserToRestaurant')
+          : ''
+    : copy.nextStatus === 'delivered'
+      ? statusTargetDistance === null
+        ? t('delivery.freshLocationRequired')
+        : statusTargetDistance > statusConfirmationDistanceMeters
+          ? t('delivery.getCloserToCustomer')
+          : ''
+      : ''
 
   return (
     <section className="relative flex min-h-[calc(100dvh-10rem)] flex-col overflow-hidden rounded-voro-lg border border-line bg-card">
@@ -188,11 +271,7 @@ export function ActiveDeliveryMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {shouldShowRoute && routeData ? <Polyline color="#ef5a35" pathOptions={{ opacity: 0.9, weight: 6 }} positions={routeData.route.coordinates} /> : null}
-        {routeData ? (
-          <Marker icon={driverIcon} position={[routeData.currentLocation.latitude, routeData.currentLocation.longitude]}>
-            <Popup>{t('delivery.currentLocation')}</Popup>
-          </Marker>
-        ) : null}
+        {driverPosition ? <AnimatedDriverMarker label={t('delivery.currentLocation')} position={driverPosition} /> : null}
         <Marker icon={restaurantIcon} position={[delivery.restaurantLatitude, delivery.restaurantLongitude]}>
           <Popup><strong>{delivery.restaurantName}</strong><br />{t('delivery.pickup')}</Popup>
         </Marker>
@@ -206,6 +285,7 @@ export function ActiveDeliveryMap({
         <div className="min-w-0 text-sm">
           <p className="flex items-center gap-2 font-bold"><Store className="size-4 text-action" />{targetIsRestaurant ? delivery.restaurantName : delivery.customerName}</p>
           <p className="mt-1 truncate text-muted-foreground">{targetIsRestaurant ? delivery.restaurantAddress : delivery.customerAddress}</p>
+          {actionBlockedReason ? <p className="mt-2 text-xs font-medium text-destructive">{actionBlockedReason}</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <a className="rounded-voro-md border border-line px-4 py-3 text-sm font-bold text-action hover:bg-accent" href={`https://www.google.com/maps/dir/?api=1&destination=${targetIsRestaurant ? delivery.restaurantLatitude : delivery.customerLatitude},${targetIsRestaurant ? delivery.restaurantLongitude : delivery.customerLongitude}`} rel="noreferrer" target="_blank"><Navigation className="mr-2 inline size-4" />{t('delivery.navigate')}</a>
@@ -213,7 +293,7 @@ export function ActiveDeliveryMap({
           {canShowPickupCode ? <button className="rounded-voro-md border border-action bg-accent px-4 py-3 text-sm font-bold text-action" onClick={() => setIsShowingPickupCode(true)} type="button"><KeyRound className="mr-2 inline size-4" />{t('delivery.showCode')}</button> : null}
           <button
             className="rounded-voro-md bg-action px-5 py-3 text-sm font-bold text-action-text transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isUpdating}
+            disabled={isUpdating || Boolean(actionBlockedReason)}
             onClick={() => onUpdateStatus(copy.nextStatus, { proofNote: deliveryProofNote })}
             type="button"
           >

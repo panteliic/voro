@@ -55,6 +55,26 @@ export type DeliveryOffer = {
   createdAt: string
 }
 
+export type DriverOfferRouteEstimate = {
+  offerId: number
+  currentLocation: { latitude: number; longitude: number }
+  toRestaurant: {
+    distanceMeters: number
+    etaMinutes: number
+    etaRange: { min: number; max: number }
+  }
+  toCustomer: {
+    distanceMeters: number
+    etaMinutes: number
+    etaRange: { min: number; max: number }
+  }
+  total: {
+    distanceMeters: number
+    etaMinutes: number
+    etaRange: { min: number; max: number }
+  }
+}
+
 export type DriverHistoryItem = {
   deliveryId: number
   orderId: number

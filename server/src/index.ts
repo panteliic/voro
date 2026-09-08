@@ -17,30 +17,72 @@ import { requestSecurity } from './api/middleware/requestSecurity'
 import { connectRedis, disconnectRedis } from './services/redisService'
 import { initializeRealtime } from './services/realtimeService'
 import { logEvent, observeHttpRequest, trackError } from './services/observability'
+import { setDispatchWorkerReady } from './services/runtimeHealth'
 
 const app = express()
 const server = http.createServer(app)
 initializeRealtime(server)
 let dispatchWorker: ChildProcess | null = null
+let dispatchWorkerRestartTimer: NodeJS.Timeout | null = null
+let dispatchWorkerRestartAttempts = 0
+let shouldRunDispatchWorker = true
+
+function scheduleDispatchWorkerRestart() {
+  if (!shouldRunDispatchWorker || dispatchWorkerRestartTimer) return
+
+  const delayMs = Math.min(30_000, 1_000 * 2 ** dispatchWorkerRestartAttempts)
+  dispatchWorkerRestartAttempts += 1
+  logEvent('warn', 'dispatch_worker_restart_scheduled', { delayMs })
+  dispatchWorkerRestartTimer = setTimeout(() => {
+    dispatchWorkerRestartTimer = null
+    startDispatchWorker()
+  }, delayMs)
+  dispatchWorkerRestartTimer.unref()
+}
 
 function startDispatchWorker() {
+  if (!shouldRunDispatchWorker || dispatchWorker) return
   const isTypeScriptRuntime = __filename.endsWith('.ts')
   const extension = isTypeScriptRuntime ? 'ts' : 'js'
   const workerPath = path.resolve(__dirname, 'workers', `dispatchWorker.${extension}`)
+  setDispatchWorkerReady(false)
 
-  dispatchWorker = fork(workerPath, [], {
-    execArgv: isTypeScriptRuntime ? ['-r', 'ts-node/register'] : undefined,
-    stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
-  })
+  try {
+    const worker = fork(workerPath, [], {
+      execArgv: isTypeScriptRuntime ? ['-r', 'ts-node/register'] : undefined,
+      stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+    })
+    dispatchWorker = worker
 
-  dispatchWorker.on('exit', (code, signal) => {
-    if (code !== 0 && signal !== 'SIGTERM') {
+    worker.on('message', (message: unknown) => {
+      if (message && typeof message === 'object' && (message as { type?: string }).type === 'ready') {
+        dispatchWorkerRestartAttempts = 0
+        setDispatchWorkerReady(true)
+        logEvent('info', 'dispatch_worker_ready')
+      }
+    })
+    worker.on('error', (error) => {
+      trackError('dispatch_worker_error', error)
+    })
+    worker.on('exit', (code, signal) => {
+      if (dispatchWorker !== worker) return
+      dispatchWorker = null
+      setDispatchWorkerReady(false)
+      if (!shouldRunDispatchWorker) return
       logEvent('error', 'dispatch_worker_stopped', { code: code ?? 'none', signal: signal ?? 'none' })
-    }
-  })
+      scheduleDispatchWorkerRestart()
+    })
+  } catch (error) {
+    trackError('dispatch_worker_start_failed', error)
+    scheduleDispatchWorkerRestart()
+  }
 }
 
 function stopDispatchWorker() {
+  shouldRunDispatchWorker = false
+  if (dispatchWorkerRestartTimer) clearTimeout(dispatchWorkerRestartTimer)
+  dispatchWorkerRestartTimer = null
+  setDispatchWorkerReady(false)
   dispatchWorker?.kill('SIGTERM')
   dispatchWorker = null
 }
@@ -70,6 +112,14 @@ function allowOrigin(origin: string | undefined, callback: (error: Error | null,
   callback(new Error(`CORS origin is not allowed: ${origin}`))
 }
 
+function colorizeHttpLog(method: string, status: string, message: string) {
+  if (env.isProduction || process.env.NO_COLOR || !process.stdout.isTTY) return message
+  const methodColor = method === 'GET' ? '\u001b[36m' : method === 'POST' ? '\u001b[33m' : '\u001b[35m'
+  const statusCode = Number(status)
+  const statusColor = statusCode >= 500 ? '\u001b[31m' : statusCode >= 400 ? '\u001b[33m' : '\u001b[32m'
+  return `${methodColor}${method}\u001b[0m${message.slice(method.length, message.lastIndexOf(status))}${statusColor}${status}\u001b[0m${message.slice(message.lastIndexOf(status) + status.length)}`
+}
+
 app.disable('x-powered-by')
 if (env.isProduction) app.set('trust proxy', 1)
 app.use(helmet({
@@ -82,7 +132,14 @@ app.use(cors({ origin: allowOrigin }))
 app.use(express.json({ limit: '100kb', strict: true }))
 app.use(requestSecurity)
 app.use(observeHttpRequest)
-app.use(morgan('dev'))
+app.use(morgan((tokens, request, response) => {
+  // Do not log query strings: Auth0 callbacks contain one-time credentials and
+  // address search queries can contain personal data.
+  const method = tokens.method(request, response) || 'REQUEST'
+  const status = tokens.status(request, response) || '000'
+  const message = `${method} ${request.path} ${status} ${tokens['response-time'](request, response)} ms`
+  return colorizeHttpLog(method, status, message)
+}))
 
 app.use('/', systemRoutes)
 app.use('/auth', authRoutes)

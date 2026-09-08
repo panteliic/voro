@@ -13,6 +13,8 @@ import { createSocketClient } from '@voro/socket'
 import type { AuthUser } from '../types/auth'
 import type { DashboardResponse, DriverNotification } from '../types/driver'
 
+type LiveDriverLocation = { latitude: number; longitude: number }
+
 type DashboardPageProps = {
   dashboard: DashboardResponse | null
   token: string
@@ -65,9 +67,25 @@ export function DashboardPage({
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [isDeliveryChatOpen, setIsDeliveryChatOpen] = useState(false)
   const [messageNotification, setMessageNotification] = useState<DriverNotification | null>(null)
+  const [liveDriverLocation, setLiveDriverLocation] = useState<LiveDriverLocation | null>(null)
   const t = (key: string, values?: Record<string, string | number>) => translate(language, key, values)
   const driver = dashboard?.driver
   const activeDelivery = dashboard?.activeDelivery
+
+  useEffect(() => {
+    const latitude = driver?.currentLatitude
+    const longitude = driver?.currentLongitude
+    if (latitude === null || latitude === undefined || longitude === null || longitude === undefined) {
+      setLiveDriverLocation(null)
+      return
+    }
+
+    setLiveDriverLocation((current) =>
+      current?.latitude === latitude && current.longitude === longitude
+        ? current
+        : { latitude, longitude },
+    )
+  }, [driver?.currentLatitude, driver?.currentLongitude])
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark-theme', theme === 'dark')
@@ -99,11 +117,11 @@ export function DashboardPage({
 
       if (Notification.permission === 'granted') {
         showBrowserNotification()
-      } else if (Notification.permission === 'default') {
-        void Notification.requestPermission().then((permission) => {
-          if (permission === 'granted') showBrowserNotification()
-        })
       }
+    })
+    socket.on('driver:location', (location: LiveDriverLocation) => {
+      if (!Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)) return
+      setLiveDriverLocation(location)
     })
     socket.connect()
 
@@ -176,8 +194,8 @@ export function DashboardPage({
               </section>
 
               {!driver?.isOnline ? <section className="rounded-voro-lg border border-dashed border-line bg-card p-8 text-center"><WifiOff className="mx-auto size-7 text-muted-foreground" /><h1 className="mt-3 font-bold">{t('home.offlineTitle')}</h1><p className="mt-1 text-sm text-muted-foreground">{t('home.offlineDesc')}</p></section> : null}
-              {driver?.isOnline && !activeDelivery ? <DeliveryOffers isAccepting={isAccepting} language={language} offers={dashboard?.offers || []} onAccept={onAcceptOffer} onDecline={onDeclineOffer} /> : null}
-              {activeDelivery ? <ActiveDeliveryMap delivery={activeDelivery} isUpdating={isUpdatingDelivery} language={language} locationKey={locationKey} onOpenChat={() => setIsDeliveryChatOpen(true)} onUpdateStatus={onUpdateDelivery} onWithdraw={onWithdrawFromDelivery} token={token} /> : null}
+              {driver?.isOnline && !activeDelivery ? <DeliveryOffers isAccepting={isAccepting} language={language} offers={dashboard?.offers || []} onAccept={onAcceptOffer} onDecline={onDeclineOffer} token={token} /> : null}
+              {activeDelivery ? <ActiveDeliveryMap currentLocation={liveDriverLocation} delivery={activeDelivery} isUpdating={isUpdatingDelivery} language={language} locationKey={locationKey} onOpenChat={() => setIsDeliveryChatOpen(true)} onUpdateStatus={onUpdateDelivery} onWithdraw={onWithdrawFromDelivery} token={token} /> : null}
               {activeDelivery ? null : (
                 <section className="rounded-voro-lg border border-line bg-card p-8 text-center"><Bike className="mx-auto size-8 text-action" /><h1 className="mt-3 text-xl font-bold">{t('home.readyTitle')}</h1><p className="mt-1 text-sm text-muted-foreground">{t('home.readyDesc')}</p><p className="mt-4 flex items-center justify-center gap-2 text-xs font-bold text-muted-foreground"><MapPinned className="size-4" />{t('home.locationHint')}</p></section>
               )}

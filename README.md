@@ -164,7 +164,9 @@ http://api.localhost/auth/auth0/callback
 
 For a deployed app, replace both `AUTH0_CALLBACK_URL` and
 `AUTH0_CLIENT_REDIRECT_URL` with the public API and customer-app URLs, and add
-the public callback URL to Auth0 as well.
+the public callback URL to Auth0 as well. Google is shown by default; set
+`VITE_AUTH0_GOOGLE_ENABLED=false` only if you intentionally need to hide it.
+Facebook login is not supported.
 
 ### Inspect or stop services
 
@@ -259,7 +261,7 @@ npm run simulate:driver
 
 Default behavior:
 
-1. Moves **Marko Jovanović** toward **Domaće palačinke**.
+1. Finds **Marko Jovanović's** active delivery and follows the OSRM driving route to that delivery's restaurant. If he has no active delivery, it falls back to **Domaće palačinke**.
 2. Waits in front of the restaurant.
 3. When the driver app marks the delivery as **On the way**, follows the OSRM driving route to the customer.
 4. Keeps the courier position live on the customer tracking map.
@@ -267,7 +269,7 @@ Default behavior:
 Useful options:
 
 ```powershell
-# Use a specific restaurant and a faster simulation
+# Force a specific restaurant and use a faster simulation
 npm run simulate:driver -- --restaurant-id 51 --step 20 --interval 1000
 
 # Update one location once, then exit

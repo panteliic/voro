@@ -7,8 +7,8 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { AuthUser, LoginPayload, RegisterPayload } from '../types/auth'
-import { getAdminMe, loginAdmin, registerFirstAdmin } from '../services/authApi'
+import type { AuthUser, LoginPayload } from '../types/auth'
+import { getAdminMe, loginAdmin } from '../services/authApi'
 import {
   ADMIN_SESSION_EXPIRED_EVENT,
   REFRESH_TOKEN_KEY,
@@ -22,7 +22,6 @@ type AuthContextValue = {
   isAuthenticated: boolean
   isCheckingSession: boolean
   login: (payload: LoginPayload) => Promise<void>
-  registerFirstAdmin: (payload: RegisterPayload) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -114,20 +113,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(result.user)
   }, [])
 
-  const handleRegisterFirstAdmin = useCallback(async (payload: RegisterPayload) => {
-    await registerFirstAdmin(payload)
-  }, [])
-
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       isAuthenticated: Boolean(user),
       isCheckingSession,
       login,
-      registerFirstAdmin: handleRegisterFirstAdmin,
       logout,
     }),
-    [handleRegisterFirstAdmin, isCheckingSession, login, logout, user],
+    [isCheckingSession, login, logout, user],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

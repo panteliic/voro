@@ -21,6 +21,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "migrate": "ts-node src/database/migrate.ts",
     "seed:demo": "ts-node src/database/seedDemo.ts",
+    "bootstrap:admin": "ts-node src/scripts/bootstrapAdmin.ts",
     "simulate:driver": "ts-node src/scripts/simulateDriverLocation.ts",
     "build": "tsc",
     "test:security": "npm run build && node dist/scripts/securitySmokeTest.js",

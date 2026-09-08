@@ -58,6 +58,13 @@ export type CreateCustomerOrderPayload = {
   tipAmount: number
 }
 
+export type DeliveryAddressSnapshot = {
+  address: string
+  instructions: string
+  latitude: number
+  longitude: number
+}
+
 export type CustomerOrderIssuePayload = {
   category: string
   description: string

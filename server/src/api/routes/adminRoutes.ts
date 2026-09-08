@@ -1,12 +1,16 @@
 import { Router } from 'express'
 import * as adminController from '../controllers/adminController'
 import { authenticate, requireRole } from '../middleware/authenticate'
+import { requireAdminBootstrapToken } from '../middleware/adminBootstrap'
+import { rateLimit } from '../middleware/rateLimit'
 
 export const adminRoutes = Router()
 
-adminRoutes.post('/bootstrap', adminController.bootstrapAdmin)
-adminRoutes.post('/auth/login', adminController.login)
-adminRoutes.post('/auth/register', adminController.registerAdmin)
+const adminLoginLimit = rateLimit({ namespace: 'admin-login', limit: 8, windowSeconds: 15 * 60 })
+const adminBootstrapLimit = rateLimit({ namespace: 'admin-bootstrap', limit: 3, windowSeconds: 15 * 60 })
+
+adminRoutes.post('/bootstrap', adminBootstrapLimit, requireAdminBootstrapToken, adminController.bootstrapAdmin)
+adminRoutes.post('/auth/login', adminLoginLimit, adminController.login)
 
 adminRoutes.use(authenticate, requireRole('admin'))
 adminRoutes.get('/me', adminController.getMe)

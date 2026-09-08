@@ -11,6 +11,7 @@ type SimulatorOptions = {
   driverEmail: string
   restaurantId: number | null
   restaurantName: string | null
+  hasRestaurantOverride: boolean
   frontDistanceMeters: number
   stepMeters: number
   intervalMs: number
@@ -26,7 +27,6 @@ type TargetDriver = {
 }
 
 type TargetRestaurant = {
-  id: number
   name: string
   latitude: number
   longitude: number
@@ -89,7 +89,7 @@ function positiveNumber(value: string | undefined, fallback: number, label: stri
 function parseOptions(): SimulatorOptions {
   if (process.argv.includes('--help') || process.argv.includes('-h')) {
     console.log(`
-Moves one courier to the front of a restaurant, then keeps the courier waiting there.
+Moves one courier to the restaurant for its active delivery, then keeps the courier waiting there.
 After the driver marks the delivery as "On the way", it follows the driving route to the customer.
 
 Usage:
@@ -100,8 +100,8 @@ Usage:
 
 Options:
   --driver <email>         Courier email (default: ${defaultDriverEmail})
-  --restaurant <name>      Exact restaurant name (default: ${defaultRestaurantName})
-  --restaurant-id <id>     Restaurant ID; takes precedence over --restaurant
+  --restaurant <name>      Force an exact restaurant instead of the active delivery
+  --restaurant-id <id>     Force a restaurant ID; takes precedence over --restaurant
   --front-distance <meters> Waiting position north of the restaurant (default: 30)
   --step <meters>          Distance travelled on each update (default: 10)
   --interval <milliseconds> Update interval (default: 1000)
@@ -113,6 +113,7 @@ Options:
   }
 
   const restaurantId = argumentValue('--restaurant-id')
+  const restaurantName = argumentValue('--restaurant')
   const ticks = process.argv.includes('--once')
     ? 1
     : argumentValue('--ticks') === undefined
@@ -122,7 +123,8 @@ Options:
   return {
     driverEmail: argumentValue('--driver') || defaultDriverEmail,
     restaurantId: restaurantId ? Math.floor(positiveNumber(restaurantId, 1, '--restaurant-id')) : null,
-    restaurantName: restaurantId ? null : argumentValue('--restaurant') || defaultRestaurantName,
+    restaurantName: restaurantId ? null : restaurantName || null,
+    hasRestaurantOverride: Boolean(restaurantId || restaurantName),
     frontDistanceMeters: positiveNumber(argumentValue('--front-distance'), 30, '--front-distance'),
     stepMeters: positiveNumber(argumentValue('--step'), 10, '--step'),
     intervalMs: positiveNumber(argumentValue('--interval'), 1_000, '--interval'),
@@ -163,9 +165,9 @@ async function findTargetDriver(email: string): Promise<TargetDriver> {
 }
 
 async function findTargetRestaurant(options: SimulatorOptions): Promise<TargetRestaurant> {
-  const result = await pool.query<{ id: string; name: string; latitude: string; longitude: string }>(
+  const result = await pool.query<{ name: string; latitude: string; longitude: string }>(
     `
-      SELECT id, name, latitude, longitude
+      SELECT name, latitude, longitude
       FROM restaurant
       WHERE (
         ($1::BIGINT IS NOT NULL AND id = $1::BIGINT)
@@ -175,7 +177,7 @@ async function findTargetRestaurant(options: SimulatorOptions): Promise<TargetRe
         AND longitude IS NOT NULL
       LIMIT 1
     `,
-    [options.restaurantId, options.restaurantName],
+    [options.restaurantId, options.restaurantName || defaultRestaurantName],
   )
   const restaurant = result.rows[0]
 
@@ -184,10 +186,21 @@ async function findTargetRestaurant(options: SimulatorOptions): Promise<TargetRe
   }
 
   return {
-    id: Number(restaurant.id),
     name: restaurant.name,
     latitude: Number(restaurant.latitude),
     longitude: Number(restaurant.longitude),
+  }
+}
+
+function restaurantForDelivery(delivery: {
+  restaurantName: string
+  restaurantLatitude: number
+  restaurantLongitude: number
+}): TargetRestaurant {
+  return {
+    name: delivery.restaurantName,
+    latitude: delivery.restaurantLatitude,
+    longitude: delivery.restaurantLongitude,
   }
 }
 
@@ -207,26 +220,6 @@ function distanceMeters(first: Position, second: Position) {
     Math.cos((first.latitude * Math.PI) / 180) * Math.cos((second.latitude * Math.PI) / 180) * Math.sin(longitudeDelta / 2) ** 2
 
   return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
-
-function moveTowards(
-  current: Position,
-  destination: Position,
-  maxStepMeters: number,
-) {
-  const remainingMeters = distanceMeters(current, destination)
-  if (remainingMeters <= maxStepMeters) {
-    return { point: destination, arrived: true }
-  }
-
-  const fraction = maxStepMeters / remainingMeters
-  return {
-    point: {
-      latitude: current.latitude + (destination.latitude - current.latitude) * fraction,
-      longitude: current.longitude + (destination.longitude - current.longitude) * fraction,
-    },
-    arrived: false,
-  }
 }
 
 function moveAlongRoute(current: Position, routePoints: Position[], nextPointIndex: number, maxStepMeters: number) {
@@ -270,20 +263,21 @@ async function main() {
   }
 
   const options = parseOptions()
-  const [targetDriver, targetRestaurant] = await Promise.all([
-    findTargetDriver(options.driverEmail),
-    findTargetRestaurant(options),
-  ])
+  const targetDriver = await findTargetDriver(options.driverEmail)
   const driverProfile = await driverRepository.findDriverByUserId(targetDriver.userId)
   if (!driverProfile) {
     throw new Error(`Courier profile for ${targetDriver.email} no longer exists.`)
   }
 
   const accessToken = simulatorAccessToken(targetDriver.userId, targetDriver.email)
+  const initialActiveDelivery = (await driverRepository.listActiveDeliveries(driverProfile.id))[0] || null
+  let targetRestaurant = options.hasRestaurantOverride || !initialActiveDelivery
+    ? await findTargetRestaurant(options)
+    : restaurantForDelivery(initialActiveDelivery)
 
   const simulatorLeaseSeconds = Math.max(5, Math.ceil((options.intervalMs * 3) / 1_000))
   let tick = 0
-  const waitingPoint = frontOfRestaurant(targetRestaurant, options.frontDistanceMeters)
+  let waitingPoint = frontOfRestaurant(targetRestaurant, options.frontDistanceMeters)
   let currentPoint =
     targetDriver.currentLatitude !== null && targetDriver.currentLongitude !== null
       ? { latitude: targetDriver.currentLatitude, longitude: targetDriver.currentLongitude }
@@ -292,10 +286,13 @@ async function main() {
           longitude: targetRestaurant.longitude - 0.0015,
         }
   let isWaitingAtRestaurant = distanceMeters(currentPoint, waitingPoint) < 1
+  let restaurantRoute: Position[] | null = null
+  let restaurantRoutePointIndex = 1
   let deliveryRoute: Position[] | null = null
   let deliveryRouteId: number | null = null
   let deliveryRoutePointIndex = 1
   let isWaitingAtCustomer = false
+  let trackedActiveDeliveryId = initialActiveDelivery?.id || null
   let timeout: NodeJS.Timeout | null = null
   let stopping = false
 
@@ -314,6 +311,22 @@ async function main() {
     // release the local lease so the simulator request itself is accepted.
     await redisService.clearDriverSimulatorLease(driverProfile.id)
     const activeDelivery = (await driverRepository.listActiveDeliveries(driverProfile.id))[0] || null
+
+    if (!options.hasRestaurantOverride && activeDelivery) {
+      const activeRestaurant = restaurantForDelivery(activeDelivery)
+      const activeDeliveryChanged = trackedActiveDeliveryId !== activeDelivery.id
+      if (activeDeliveryChanged || distanceMeters(targetRestaurant, activeRestaurant) >= 1) {
+        targetRestaurant = activeRestaurant
+        waitingPoint = frontOfRestaurant(targetRestaurant, options.frontDistanceMeters)
+        isWaitingAtRestaurant = distanceMeters(currentPoint, waitingPoint) < 1
+        isWaitingAtCustomer = false
+        restaurantRoute = null
+        restaurantRoutePointIndex = 1
+        trackedActiveDeliveryId = activeDelivery.id
+        console.log(`Active delivery #${activeDelivery.orderId} selected: heading to ${targetRestaurant.name}.`)
+      }
+    }
+
     let movementLabel = 'waiting in front'
     let arrivedAtRestaurantNow = false
     let arrivedAtCustomerNow = false
@@ -348,10 +361,18 @@ async function main() {
         movementLabel = 'waiting after delivery'
       } else {
         isWaitingAtCustomer = false
+        if (!isWaitingAtRestaurant && !restaurantRoute) {
+          const route = await routingService.findDrivingRoute(currentPoint, waitingPoint)
+          restaurantRoute = [currentPoint, ...route.coordinates.slice(1).map(([latitude, longitude]) => ({ latitude, longitude }))]
+          restaurantRoutePointIndex = 1
+          console.log(`Following the driving route to ${targetRestaurant.name}.`)
+        }
+
         const nextLocation = isWaitingAtRestaurant
-          ? { point: waitingPoint, arrived: true }
-          : moveTowards(currentPoint, waitingPoint, options.stepMeters)
+          ? { point: waitingPoint, nextPointIndex: restaurantRoutePointIndex, arrived: true }
+          : moveAlongRoute(currentPoint, restaurantRoute || [currentPoint], restaurantRoutePointIndex, options.stepMeters)
         currentPoint = nextLocation.point
+        restaurantRoutePointIndex = nextLocation.nextPointIndex
         arrivedAtRestaurantNow = !isWaitingAtRestaurant && nextLocation.arrived
         isWaitingAtRestaurant = nextLocation.arrived
         movementLabel = isWaitingAtRestaurant ? 'waiting in front' : 'heading to restaurant'
@@ -395,6 +416,9 @@ async function main() {
     `Starting local driver simulator for ${targetDriver.name} to ${targetRestaurant.name} ` +
       `(${options.stepMeters}m every ${options.intervalMs}ms; waits ${options.frontDistanceMeters}m in front, then follows the customer route after On the way). Press Ctrl+C to stop.`,
   )
+  if (!options.hasRestaurantOverride && initialActiveDelivery) {
+    console.log(`Using active delivery #${initialActiveDelivery.orderId}; the restaurant will update automatically if Marko accepts another delivery.`)
+  }
   await updateLocation()
 }
 

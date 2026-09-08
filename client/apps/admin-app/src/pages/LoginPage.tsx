@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { Button, Input } from '@voro/ui'
 import { useAuth } from '../hooks/useAuth'
 import { LanguageSwitch } from '../components/layout/LanguageSwitch'
@@ -69,12 +69,6 @@ export function LoginPage() {
             {isSubmitting ? t('auth.signingIn') : t('auth.signIn')}
           </Button>
         </form>
-        <p className="mt-4 text-sm text-muted-foreground">
-          {t('auth.firstSetup')}{' '}
-          <Link className="font-bold text-action" to="/register">
-            {t('auth.createFirstAdmin')}
-          </Link>
-        </p>
       </section>
     </main>
   )

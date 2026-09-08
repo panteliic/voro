@@ -17,6 +17,7 @@ type RefreshTokenRow = {
   id: string
   token_hash: string
   expires_at: Date
+  session_id: string | null
 }
 
 type SetupCodeRow = {
@@ -157,6 +158,19 @@ export async function consumeSetupCode(codeId: number) {
   )
 }
 
+export async function recordSetupCodeAttempt(codeId: number) {
+  const result = await pool.query<{ attempts: number }>(
+    `
+      UPDATE restaurant_password_setup_code
+      SET attempts = attempts + 1, last_attempt_at = NOW()
+      WHERE id = $1 AND consumed_at IS NULL
+      RETURNING attempts
+    `,
+    [codeId],
+  )
+  return result.rows[0]?.attempts || 0
+}
+
 export async function updateRestaurantUserPassword(payload: {
   userId: number
   passwordHash: string
@@ -175,14 +189,15 @@ export async function saveRefreshToken(payload: {
   restaurantUserId: number
   tokenHash: string
   expiresAt: Date
+  sessionId: string
 }) {
   const result = await pool.query<{ id: string }>(
     `
-      INSERT INTO restaurant_refresh_token (restaurant_user_id, token_hash, expires_at)
-      VALUES ($1, $2, $3)
+      INSERT INTO restaurant_refresh_token (restaurant_user_id, token_hash, expires_at, session_id)
+      VALUES ($1, $2, $3, $4::UUID)
       RETURNING id
     `,
-    [payload.restaurantUserId, payload.tokenHash, payload.expiresAt],
+    [payload.restaurantUserId, payload.tokenHash, payload.expiresAt, payload.sessionId],
   )
 
   return Number(result.rows[0].id)
@@ -191,7 +206,7 @@ export async function saveRefreshToken(payload: {
 export async function findActiveRefreshTokens(restaurantUserId: number) {
   const result = await pool.query<RefreshTokenRow>(
     `
-      SELECT id, token_hash, expires_at
+      SELECT id, token_hash, expires_at, session_id
       FROM restaurant_refresh_token
       WHERE restaurant_user_id = $1
         AND revoked_at IS NULL
@@ -205,6 +220,7 @@ export async function findActiveRefreshTokens(restaurantUserId: number) {
     id: Number(row.id),
     tokenHash: row.token_hash,
     expiresAt: row.expires_at,
+    sessionId: row.session_id,
   }))
 }
 
@@ -228,4 +244,34 @@ export async function revokeAllRefreshTokens(restaurantUserId: number) {
     `,
     [restaurantUserId],
   )
+}
+
+export async function revokeRestaurantRefreshTokens(restaurantId: number) {
+  await pool.query(
+    `
+      UPDATE restaurant_refresh_token token
+      SET revoked_at = NOW()
+      FROM restaurant_user user_account
+      WHERE token.restaurant_user_id = user_account.id
+        AND user_account.restaurant_id = $1
+        AND token.revoked_at IS NULL
+    `,
+    [restaurantId],
+  )
+}
+
+export async function isRefreshSessionActive(restaurantUserId: number, sessionId: string) {
+  const result = await pool.query(
+    `
+      SELECT 1
+      FROM restaurant_refresh_token
+      WHERE restaurant_user_id = $1
+        AND session_id = $2::UUID
+        AND revoked_at IS NULL
+        AND expires_at > NOW()
+      LIMIT 1
+    `,
+    [restaurantUserId, sessionId],
+  )
+  return Boolean(result.rows[0])
 }

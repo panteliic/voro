@@ -307,6 +307,106 @@ export async function cancelCustomerOrder(userId: number, orderId: number, reaso
   }
 }
 
+/**
+ * Cancelling from the restaurant console has to unwind dispatch as well.  A
+ * restaurant may cancel while a courier offer is pending or a courier is on
+ * the way to collect the order, but never once food has been picked up.
+ */
+export async function cancelRestaurantOrder(restaurantId: number, orderId: number, reason: string) {
+  const client = await pool.connect()
+
+  try {
+    await client.query('BEGIN')
+    const order = await client.query<{
+      id: string
+      user_id: string
+      courier_id: string | null
+    }>(
+      `
+        SELECT o.id, o.user_id, delivery.courier_id
+        FROM "order" o
+        INNER JOIN order_status ON order_status.id = o.status_id
+        LEFT JOIN delivery ON delivery.order_id = o.id
+        LEFT JOIN delivery_status ON delivery_status.id = delivery.status_id
+        WHERE o.id = $1
+          AND o.restaurant_id = $2
+          AND order_status.name IN ('pending', 'accepted', 'preparing')
+          AND (delivery.id IS NULL OR delivery_status.name IN ('assigned', 'arriving_to_restaurant', 'failed', 'cancelled'))
+        FOR UPDATE OF o
+      `,
+      [orderId, restaurantId],
+    )
+    const row = order.rows[0]
+    if (!row) {
+      await client.query('ROLLBACK')
+      return null
+    }
+
+    await client.query(
+      `
+        UPDATE "order"
+        SET
+          status_id = (SELECT id FROM order_status WHERE name = 'cancelled'),
+          cancelled_at = NOW(),
+          cancellation_reason = $2,
+          updated_at = NOW()
+        WHERE id = $1
+      `,
+      [orderId, reason || 'Cancelled by the restaurant.'],
+    )
+    await client.query(
+      `UPDATE payment SET status = 'cancelled', updated_at = NOW() WHERE order_id = $1`,
+      [orderId],
+    )
+    await client.query(
+      `
+        UPDATE delivery
+        SET
+          status_id = (SELECT id FROM delivery_status WHERE name = 'cancelled'),
+          courier_id = NULL,
+          updated_at = NOW()
+        WHERE order_id = $1
+          AND status_id IN (
+            SELECT id FROM delivery_status
+            WHERE name IN ('assigned', 'arriving_to_restaurant', 'failed', 'cancelled')
+          )
+      `,
+      [orderId],
+    )
+    await client.query(
+      `UPDATE delivery_dispatch_offer SET status = 'expired', updated_at = NOW() WHERE order_id = $1 AND status = 'pending'`,
+      [orderId],
+    )
+    await client.query(`DELETE FROM delivery_dispatch_job WHERE order_id = $1`, [orderId])
+
+    if (row.courier_id) {
+      await client.query(
+        `
+          UPDATE courier
+          SET is_available = is_online, updated_at = NOW()
+          WHERE id = $1
+            AND NOT EXISTS (
+              SELECT 1
+              FROM delivery
+              INNER JOIN delivery_status ON delivery_status.id = delivery.status_id
+              WHERE delivery.courier_id = $1
+                AND delivery_status.name NOT IN ('delivered', 'failed', 'cancelled')
+            )
+        `,
+        [row.courier_id],
+      )
+    }
+
+    await client.query('COMMIT')
+    return { customerUserId: Number(row.user_id) }
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
 export async function createReview(
   userId: number,
   orderId: number,
@@ -353,8 +453,14 @@ export async function canAccessOrderConversation(orderId: number, userId: number
       : `
           SELECT 1
           FROM delivery
+          INNER JOIN delivery_status ON delivery_status.id = delivery.status_id
           INNER JOIN courier ON courier.id = delivery.courier_id
-          WHERE delivery.order_id = $1 AND courier.user_id = $2
+          WHERE delivery.order_id = $1
+            AND courier.user_id = $2
+            AND (
+              delivery_status.name IN ('assigned', 'arriving_to_restaurant', 'picked_up', 'on_the_way')
+              OR (delivery_status.name = 'delivered' AND delivery.delivered_at >= NOW() - INTERVAL '24 hours')
+            )
         `,
     [orderId, userId],
   )
@@ -581,8 +687,8 @@ export async function listActiveOperations() {
         restaurant.name AS restaurant_name,
         restaurant.latitude AS restaurant_latitude,
         restaurant.longitude AS restaurant_longitude,
-        address.latitude AS customer_latitude,
-        address.longitude AS customer_longitude,
+        COALESCE(o.delivery_latitude, address.latitude) AS customer_latitude,
+        COALESCE(o.delivery_longitude, address.longitude) AS customer_longitude,
         os.name AS status,
         ds.name AS delivery_status,
         courier.id AS courier_id,

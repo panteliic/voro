@@ -111,6 +111,66 @@ export async function countUsersByRole(roleName: string) {
   return Number(result.rows[0]?.count ?? 0);
 }
 
+/**
+ * Creates an administrator only when there is no active administrator. The
+ * advisory lock makes the one-time bootstrap safe when two requests arrive at
+ * the same time (for example while an operator retries a deployment command).
+ */
+export async function createFirstActiveAdmin(payload: {
+  name: string;
+  email: string;
+  passwordHash: string;
+}) {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    await client.query("SELECT pg_advisory_xact_lock(91328471)");
+
+    const admins = await client.query<{ count: string }>(
+      `
+        SELECT COUNT(*) AS count
+        FROM "user" u
+        INNER JOIN role r ON r.id = u.role_id
+        WHERE r.name = 'admin' AND u.is_active = TRUE
+      `,
+    );
+
+    if (Number(admins.rows[0]?.count || 0) > 0) {
+      await client.query('ROLLBACK');
+      return { user: null, reason: 'admin_exists' as const };
+    }
+
+    const existingUser = await client.query<{ id: string }>(
+      'SELECT id FROM "user" WHERE LOWER(email) = LOWER($1) LIMIT 1',
+      [payload.email],
+    );
+
+    if (existingUser.rows[0]) {
+      await client.query('ROLLBACK');
+      return { user: null, reason: 'email_exists' as const };
+    }
+
+    const result = await client.query<UserRow>(
+      `
+        INSERT INTO "user" (name, email, password, role_id, email_verified, verified_at)
+        VALUES ($1, $2, $3, 4, TRUE, NOW())
+        RETURNING *,
+          (SELECT name FROM role WHERE id = "user".role_id) AS role_name
+      `,
+      [payload.name, payload.email, payload.passwordHash],
+    );
+
+    await client.query('COMMIT');
+    return { user: toUser(result.rows[0]), reason: null };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function updateUnverifiedUser(payload: {
   userId: number;
   name: string;

@@ -8,6 +8,7 @@ import ForgotPassword from './pages/ForgotPassword'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import LegalPage from './pages/LegalPage'
+import NotFoundPage from './pages/NotFoundPage'
 import SignUp from './pages/SignUp'
 import VerifyEmail from './pages/VerifyEmail'
 import { ThemeProvider } from './theme/theme'
@@ -95,7 +96,7 @@ function App() {
           <Route path="/signup" element={<SignUp />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/legal/:document" element={<LegalPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
         <Toaster />
       </TooltipProvider>

@@ -14,6 +14,7 @@ type RestaurantAccessClaims = {
   accessRole: 'manager' | 'staff'
   audience: 'restaurant'
   type: 'access'
+  sessionId: string
 }
 
 type RestaurantRefreshClaims = Omit<RestaurantAccessClaims, 'type'> & {
@@ -36,7 +37,10 @@ function publicRestaurantUser(user: Awaited<ReturnType<typeof restaurantAuthRepo
   }
 }
 
-function signAccessToken(user: NonNullable<Awaited<ReturnType<typeof restaurantAuthRepository.findRestaurantUserById>>>) {
+function signAccessToken(
+  user: NonNullable<Awaited<ReturnType<typeof restaurantAuthRepository.findRestaurantUserById>>>,
+  sessionId: string,
+) {
   return jwt.sign(
     {
       restaurantUserId: user.id,
@@ -45,13 +49,17 @@ function signAccessToken(user: NonNullable<Awaited<ReturnType<typeof restaurantA
       accessRole: user.accessRole,
       audience: 'restaurant',
       type: 'access',
+      sessionId,
     },
     env.jwtSecret,
     { expiresIn: env.accessTokenTtl as SignOptions['expiresIn'] },
   )
 }
 
-function signRefreshToken(user: NonNullable<Awaited<ReturnType<typeof restaurantAuthRepository.findRestaurantUserById>>>) {
+function signRefreshToken(
+  user: NonNullable<Awaited<ReturnType<typeof restaurantAuthRepository.findRestaurantUserById>>>,
+  sessionId: string,
+) {
   return jwt.sign(
     {
       restaurantUserId: user.id,
@@ -60,6 +68,7 @@ function signRefreshToken(user: NonNullable<Awaited<ReturnType<typeof restaurant
       accessRole: user.accessRole,
       audience: 'restaurant',
       type: 'refresh',
+      sessionId,
     },
     env.jwtSecret,
     {
@@ -69,17 +78,21 @@ function signRefreshToken(user: NonNullable<Awaited<ReturnType<typeof restaurant
   )
 }
 
-async function issueTokenPair(user: NonNullable<Awaited<ReturnType<typeof restaurantAuthRepository.findRestaurantUserById>>>) {
-  const accessToken = signAccessToken(user)
-  const refreshToken = signRefreshToken(user)
+async function issueTokenPair(
+  user: NonNullable<Awaited<ReturnType<typeof restaurantAuthRepository.findRestaurantUserById>>>,
+  sessionId: string = crypto.randomUUID(),
+) {
+  const accessToken = signAccessToken(user, sessionId)
+  const refreshToken = signRefreshToken(user, sessionId)
   const refreshTokenHash = await bcrypt.hash(refreshToken, 10)
   const refreshTokenId = await restaurantAuthRepository.saveRefreshToken({
     restaurantUserId: user.id,
     tokenHash: refreshTokenHash,
     expiresAt: new Date(Date.now() + env.refreshTokenTtlMs),
+    sessionId,
   })
 
-  return { accessToken, refreshToken, refreshTokenId }
+  return { accessToken, refreshToken, refreshTokenId, sessionId }
 }
 
 function verifyRefreshToken(refreshToken: string) {
@@ -91,7 +104,9 @@ function verifyRefreshToken(refreshToken: string) {
       decoded.audience !== 'restaurant' ||
       !decoded.restaurantUserId ||
       !decoded.restaurantId ||
-      !decoded.email
+      !decoded.email ||
+      !decoded.sessionId ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(decoded.sessionId)
     ) {
       throw new HttpError(401, 'Invalid restaurant refresh token.')
     }
@@ -162,7 +177,7 @@ export async function refresh(payload: { refreshToken: string }) {
     throw new HttpError(401, 'Invalid restaurant refresh token.')
   }
 
-  const tokenPair = await issueTokenPair(user)
+  const tokenPair = await issueTokenPair(user, decoded.sessionId)
   await restaurantAuthRepository.revokeRefreshToken(matchedToken.id, tokenPair.refreshTokenId)
 
   return {

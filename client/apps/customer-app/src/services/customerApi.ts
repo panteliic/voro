@@ -108,10 +108,11 @@ async function request<TResponse>(path: string, options: RequestInit = {}) {
   return data
 }
 
-function jsonRequest<TResponse>(path: string, method: string, body: unknown) {
+function jsonRequest<TResponse>(path: string, method: string, body: unknown, headers?: HeadersInit) {
   return request<TResponse>(path, {
     method,
     body: JSON.stringify(body),
+    headers,
   })
 }
 
@@ -171,18 +172,9 @@ export const customerApi = {
     promoCode: string
     referralCode: string
     tipAmount: number
-  }) {
-    return jsonRequest<{ order: CreatedCustomerOrder }>('/customer/orders', 'POST', payload)
-  },
-
-  exportAccountData() {
-    return request<Record<string, unknown>>('/customer/account-data')
-  },
-
-  deleteAccount(confirmation: string) {
-    return request<{ deleted: true }>('/customer/account', {
-      method: 'DELETE',
-      body: JSON.stringify({ confirmation }),
+  }, idempotencyKey: string) {
+    return jsonRequest<{ order: CreatedCustomerOrder }>('/customer/orders', 'POST', payload, {
+      'Idempotency-Key': idempotencyKey,
     })
   },
 
@@ -252,10 +244,10 @@ export const customerApi = {
     return request<Record<string, unknown>>('/customer/privacy/export', { cache: 'no-store' })
   },
 
-  deleteAccount() {
+  deletePersonalAccount(confirmation: string) {
     return request<{ deleted: true }>('/customer/privacy/account', {
       method: 'DELETE',
-      body: JSON.stringify({ confirmation: 'DELETE' }),
+      body: JSON.stringify({ confirmation }),
     })
   },
 

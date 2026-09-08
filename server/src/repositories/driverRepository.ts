@@ -178,9 +178,9 @@ const deliverySelect = `
     restaurant.latitude AS restaurant_latitude,
     restaurant.longitude AS restaurant_longitude,
     customer.name AS customer_name,
-    NULLIF(CONCAT_WS(', ', address.label, address.street, address.city), '') AS customer_address,
-    address.latitude AS customer_latitude,
-    address.longitude AS customer_longitude,
+    COALESCE("order".delivery_address, NULLIF(CONCAT_WS(', ', address.label, address.street, address.city), '')) AS customer_address,
+    COALESCE("order".delivery_latitude, address.latitude) AS customer_latitude,
+    COALESCE("order".delivery_longitude, address.longitude) AS customer_longitude,
     "order".total,
     payment.method AS payment_method,
     payment.cash_tendered,
@@ -371,8 +371,8 @@ export async function recordActiveDeliveryLocation(
           delivery.courier_id,
           delivery_status.name AS delivery_status,
           "order".user_id AS customer_user_id,
-          address.latitude AS customer_latitude,
-          address.longitude AS customer_longitude
+          COALESCE("order".delivery_latitude, address.latitude) AS customer_latitude,
+          COALESCE("order".delivery_longitude, address.longitude) AS customer_longitude
         FROM delivery
         INNER JOIN delivery_status ON delivery_status.id = delivery.status_id
         INNER JOIN "order" ON "order".id = delivery.order_id
@@ -415,8 +415,8 @@ export async function listActiveDeliveries(courierId: number) {
         AND delivery_status.name IN ('assigned', 'arriving_to_restaurant', 'picked_up', 'on_the_way')
         AND restaurant.latitude IS NOT NULL
         AND restaurant.longitude IS NOT NULL
-        AND address.latitude IS NOT NULL
-        AND address.longitude IS NOT NULL
+        AND COALESCE("order".delivery_latitude, address.latitude) IS NOT NULL
+        AND COALESCE("order".delivery_longitude, address.longitude) IS NOT NULL
       ORDER BY delivery.created_at DESC
     `,
     [courierId],
@@ -451,9 +451,9 @@ export async function listPendingOffers(courierId: number) {
         restaurant.latitude AS restaurant_latitude,
         restaurant.longitude AS restaurant_longitude,
         customer.name AS customer_name,
-        NULLIF(CONCAT_WS(', ', address.label, address.street, address.city), '') AS customer_address,
-        address.latitude AS customer_latitude,
-        address.longitude AS customer_longitude,
+        COALESCE("order".delivery_address, NULLIF(CONCAT_WS(', ', address.label, address.street, address.city), '')) AS customer_address,
+        COALESCE("order".delivery_latitude, address.latitude) AS customer_latitude,
+        COALESCE("order".delivery_longitude, address.longitude) AS customer_longitude,
         "order".total,
         payment.method AS payment_method,
         payment.cash_tendered,
@@ -476,8 +476,8 @@ export async function listPendingOffers(courierId: number) {
         AND courier.last_location_at >= NOW() - INTERVAL '45 seconds'
         AND restaurant.latitude IS NOT NULL
         AND restaurant.longitude IS NOT NULL
-        AND address.latitude IS NOT NULL
-        AND address.longitude IS NOT NULL
+        AND COALESCE("order".delivery_latitude, address.latitude) IS NOT NULL
+        AND COALESCE("order".delivery_longitude, address.longitude) IS NOT NULL
       ORDER BY offer.expires_at ASC
     `,
     [courierId],
@@ -723,11 +723,14 @@ export async function setDeliveryStatus(
     const allowed: Record<string, string[]> = {
       assigned: ['picked_up'],
       arriving_to_restaurant: ['picked_up'],
-      picked_up: ['on_the_way', 'delivered'],
+      picked_up: ['on_the_way'],
       on_the_way: ['delivered'],
     }
 
-    if (!allowed[current.status]?.includes(status)) {
+    if (
+      !allowed[current.status]?.includes(status) ||
+      (status === 'picked_up' && current.order_status !== 'ready')
+    ) {
       await client.query('ROLLBACK')
       return null
     }
@@ -889,7 +892,7 @@ export async function listDriverHistory(courierId: number, limit = 365) {
         delivery.id AS delivery_id,
         delivery.order_id,
         restaurant.name AS restaurant_name,
-        NULLIF(CONCAT_WS(', ', address.label, address.street, address.city), '') AS customer_address,
+        NULL::TEXT AS customer_address,
         "order".total,
         delivery.picked_up_at,
         delivery.delivered_at

@@ -52,7 +52,11 @@ export async function getRestaurantMenu(req: Request, res: Response) {
 
 export async function createOrder(req: Request, res: Response) {
   try {
-    res.status(201).json(await customerService.createOrder(auth(req).userId, req.body))
+    res.status(201).json(await customerService.createOrder(
+      auth(req).userId,
+      req.body,
+      req.get('Idempotency-Key'),
+    ))
   } catch (error) {
     sendError(error, res)
   }

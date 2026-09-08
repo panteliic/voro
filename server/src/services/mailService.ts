@@ -1,5 +1,7 @@
 import nodemailer from 'nodemailer'
 import { env } from '../config/env'
+import { HttpError } from '../utils/httpError'
+import { logEvent } from './observability'
 
 function createTransporter() {
   const { host, port, secure, user, pass } = env.smtp
@@ -16,16 +18,49 @@ function createTransporter() {
   })
 }
 
-export async function sendOtpEmail(email: string, code: string) {
+export function assertEmailDeliveryAvailable() {
+  const transporter = createTransporter()
+  const from = env.smtp.from
+
+  if (env.isProduction && (!env.smtp.enabled || !transporter || !from)) {
+    throw new HttpError(503, 'Email delivery is not configured. Please try again later.')
+  }
+}
+
+async function deliverEmail(message: Parameters<NonNullable<ReturnType<typeof createTransporter>>['sendMail']>[0]) {
   const transporter = createTransporter()
   const from = env.smtp.from
 
   if (!env.smtp.enabled || !transporter || !from) {
+    if (env.isProduction) {
+      throw new HttpError(503, 'Email delivery is not configured. Please try again later.')
+    }
+    return false
+  }
+
+  try {
+    await transporter.sendMail(message)
+    return true
+  } catch (error) {
+    logEvent('error', 'email_delivery_failed', {
+      name: error instanceof Error ? error.name : 'UnknownError',
+    })
+    throw new HttpError(503, 'Email delivery is temporarily unavailable. Please try again later.')
+  }
+}
+
+export async function sendOtpEmail(email: string, code: string) {
+  const from = env.smtp.from
+
+  if (!env.smtp.enabled || !createTransporter() || !from) {
+    if (env.isProduction) {
+      throw new HttpError(503, 'Email delivery is not configured. Please try again later.')
+    }
     console.log(`[DEV OTP] ${email}: ${code}`)
     return
   }
 
-  await transporter.sendMail({
+  await deliverEmail({
     from,
     to: email,
     subject: 'Your Voro verification code',
@@ -42,15 +77,17 @@ export async function sendOtpEmail(email: string, code: string) {
 }
 
 export async function sendPasswordResetEmail(email: string, code: string) {
-  const transporter = createTransporter()
   const from = env.smtp.from
 
-  if (!env.smtp.enabled || !transporter || !from) {
+  if (!env.smtp.enabled || !createTransporter() || !from) {
+    if (env.isProduction) {
+      throw new HttpError(503, 'Email delivery is not configured. Please try again later.')
+    }
     console.log(`[DEV PASSWORD RESET] ${email}: ${code}`)
     return
   }
 
-  await transporter.sendMail({
+  await deliverEmail({
     from,
     to: email,
     subject: 'Your Voro password reset code',

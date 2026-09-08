@@ -32,6 +32,13 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'common.hidePassword': 'Hide password',
     'common.close': 'Close',
 
+    'router.notFoundTitle': 'Page not found',
+    'router.notFoundDesc': 'This page does not exist or is no longer available.',
+    'router.errorTitle': 'Something went wrong',
+    'router.errorDesc': 'Please reload the app and try again.',
+    'router.goHome': 'Go to home',
+    'router.retry': 'Reload app',
+
     'theme.change': 'Change theme',
     'theme.theme': 'Theme',
     'theme.system': 'System',
@@ -510,8 +517,6 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'security.passwordMinLength': 'Password must be at least 8 characters.',
     'security.passwordDifferent': 'New password must be different from current password.',
     'security.currentPasswordIncorrect': 'Current password is incorrect.',
-    'security.twoStep': 'Two-step verification',
-    'security.twoStepDesc': 'Require an extra check on new devices.',
     'security.sessions': 'Active sessions',
     'security.sessionsDesc': 'Review devices signed in to this account.',
     'security.refreshSessions': 'Refresh active sessions',
@@ -532,7 +537,7 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'security.exportData': 'Download my data',
     'security.exported': 'Your data export has been downloaded.',
     'security.deleteAccount': 'Delete account',
-    'security.deleteConfirm': 'Delete your account permanently? Order history will be anonymized and you will be signed out.',
+    'security.deleteConfirm': 'Type DELETE to permanently close your account. Order history will be anonymized and you will be signed out.',
     'security.deleteError': 'The account could not be deleted.',
   },
   sr: {
@@ -553,6 +558,13 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'common.showPassword': 'Prikaži lozinku',
     'common.hidePassword': 'Sakrij lozinku',
     'common.close': 'Zatvori',
+
+    'router.notFoundTitle': 'Stranica nije pronađena',
+    'router.notFoundDesc': 'Ova stranica ne postoji ili više nije dostupna.',
+    'router.errorTitle': 'Nešto je pošlo po zlu',
+    'router.errorDesc': 'Osveži aplikaciju i pokušaj ponovo.',
+    'router.goHome': 'Idi na početnu',
+    'router.retry': 'Osveži aplikaciju',
 
     'theme.change': 'Promeni temu',
     'theme.theme': 'Tema',
@@ -1032,8 +1044,6 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'security.passwordMinLength': 'Lozinka mora imati najmanje 8 karaktera.',
     'security.passwordDifferent': 'Nova lozinka mora biti drugačija od trenutne.',
     'security.currentPasswordIncorrect': 'Trenutna lozinka nije tačna.',
-    'security.twoStep': 'Verifikacija u dva koraka',
-    'security.twoStepDesc': 'Zahtevaj dodatnu proveru na novim uređajima.',
     'security.sessions': 'Aktivne sesije',
     'security.sessionsDesc': 'Pregledaj uređaje prijavljene na ovaj nalog.',
     'security.refreshSessions': 'Osveži aktivne sesije',
@@ -1054,7 +1064,7 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'security.exportData': 'Preuzmi moje podatke',
     'security.exported': 'Izvoz podataka je preuzet.',
     'security.deleteAccount': 'Obriši nalog',
-    'security.deleteConfirm': 'Trajno obrisati nalog? Istorija porudžbina će biti anonimizovana, a bićeš odjavljen.',
+    'security.deleteConfirm': 'Upiši DELETE da trajno obrišeš nalog. Istorija porudžbina će biti anonimizovana, a bićeš odjavljen.',
     'security.deleteError': 'Nalog nije mogao da se obriše.',
   },
 }
