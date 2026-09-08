@@ -11,6 +11,10 @@
     "dev:restaurant": "npm run dev --workspace=restaurant-app",
     "dev:driver": "npm run dev --workspace=driver-app",
     "dev:all": "concurrently -k -n customer,admin,restaurant,driver -c cyan,yellow,magenta,green \"npm run dev:customer\" \"npm run dev:admin\" \"npm run dev:restaurant\" \"npm run dev:driver\"",
+    "build:pages:customer": "npm run build --workspace=customer-app",
+    "build:pages:restaurant": "npm run build --workspace=restaurant-app",
+    "build:pages:driver": "npm run build --workspace=driver-app",
+    "build:pages:admin": "npm run build --workspace=admin-app",
     "build": "npm run build --workspaces --if-present",
     "format": "prettier . --write",
     "format:check": "prettier . --check"
