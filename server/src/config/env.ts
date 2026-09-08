@@ -29,6 +29,9 @@ const paymentCardEncryptionKey = process.env.PAYMENT_CARD_ENCRYPTION_KEY || "";
 const seedDemoData = process.env.SEED_DEMO_DATA === "true";
 const adminBootstrapToken = process.env.ADMIN_BOOTSTRAP_TOKEN?.trim() || "";
 const observabilityToken = process.env.OBSERVABILITY_TOKEN?.trim() || "";
+const databaseUrl = process.env.DATABASE_URL?.trim() || "";
+const databaseSsl = process.env.DB_SSL === "true";
+const databaseSslRejectUnauthorized = process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false";
 
 if (isProduction && (jwtSecret.length < 32 || jwtSecret === "voro_secret_key")) {
   throw new Error("JWT_SECRET must be a unique value of at least 32 characters in production.");
@@ -69,6 +72,9 @@ export const env = {
   redisUrl: process.env.REDIS_URL || `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`,
   otpTtlMs: 10 * 60 * 1000,
   database: {
+    url: databaseUrl,
+    ssl: databaseSsl,
+    sslRejectUnauthorized: databaseSslRejectUnauthorized,
     host: process.env.DB_HOST || "localhost",
     port: Number(process.env.DB_PORT || 5432),
     name: process.env.DB_NAME || "voro",
