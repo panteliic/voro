@@ -1,0 +1,10 @@
+{
+	email {$CADDY_EMAIL}
+}
+
+# Cloudflare Pages hosts the four web applications. This VM exposes only the
+# API; PostgreSQL and Redis remain private on the Docker network.
+api.{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy backend:5000
+}
