@@ -220,7 +220,7 @@ export async function issuePasswordSetupCode(restaurantId: number) {
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   })
 
-  return { user: publicRestaurantUser(user), setupCode }
+  return { user: publicRestaurantUser(user)!, setupCode }
 }
 
 export async function setupPassword(payload: { email: string; setupCode: string; password: string }) {

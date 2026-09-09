@@ -34,8 +34,8 @@ export function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-background px-4 py-8 text-content">
-      <section className="w-full max-w-md rounded-voro-lg border border-line bg-card p-5">
+    <main className="grid min-h-[100dvh] place-items-center bg-background px-4 py-8 text-content">
+      <section className="w-full max-w-md rounded-voro-lg border border-line bg-card p-6 shadow-xl shadow-black/10">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
           <img src="/logo.svg" alt="Voro" className="size-10 shrink-0 rounded-voro-lg" />

@@ -11,6 +11,8 @@ import { notifyUser } from './notificationService'
 import * as restaurantAuthRepository from '../repositories/restaurantAuthRepository'
 import * as restaurantRepository from '../repositories/restaurantRepository'
 import * as restaurantAuthService from './restaurantAuthService'
+import { sendOperatorInviteEmail } from './mailService'
+import { env } from '../config/env'
 import type {
   AdminCourier,
   AdminRestaurantUpdatePayload,
@@ -101,6 +103,38 @@ async function issuePasswordSetupCode(userId: number) {
   })
 
   return setupCode
+}
+
+function buildFirstAccessUrl(baseUrl: string, email: string) {
+  try {
+    const url = new URL(baseUrl)
+    url.searchParams.set('access', '1')
+    url.searchParams.set('email', email)
+    return url.toString()
+  } catch {
+    return baseUrl
+  }
+}
+
+async function createOperatorInvitation(input: {
+  accountLabel: 'driver' | 'restaurant'
+  email: string
+  name: string
+  setupCode: string
+}) {
+  const appUrl = input.accountLabel === 'driver'
+    ? env.operatorApps.driverUrl
+    : env.operatorApps.restaurantUrl
+  const setupUrl = buildFirstAccessUrl(appUrl, input.email)
+  const inviteEmailSent = await sendOperatorInviteEmail({
+    recipientEmail: input.email,
+    recipientName: input.name,
+    accountLabel: input.accountLabel,
+    setupCode: input.setupCode,
+    setupUrl,
+  })
+
+  return { setupUrl, inviteEmailSent }
 }
 
 export async function getDashboardStats() {
@@ -222,11 +256,18 @@ export async function createRestaurant(payload: CreateRestaurantPayload) {
   })
   const setup = await restaurantAuthService.issuePasswordSetupCode(result.restaurant.id)
   await redisService.invalidateRestaurantCatalog()
+  const invitation = await createOperatorInvitation({
+    accountLabel: 'restaurant',
+    email: setup.user.email,
+    name: setup.user.name,
+    setupCode: setup.setupCode,
+  })
 
   return {
     restaurant: result.restaurant,
     operator: setup.user,
     setupCode: setup.setupCode,
+    ...invitation,
   }
 }
 
@@ -278,11 +319,18 @@ export async function updateRestaurantStatus(restaurantId: number, isActive: boo
 export async function resetRestaurantAccess(restaurantId: number) {
   const restaurant = await getRestaurant(restaurantId)
   const setup = await restaurantAuthService.issuePasswordSetupCode(restaurant.id)
+  const invitation = await createOperatorInvitation({
+    accountLabel: 'restaurant',
+    email: setup.user.email,
+    name: setup.user.name,
+    setupCode: setup.setupCode,
+  })
 
   return {
     restaurant,
     operator: setup.user,
     setupCode: setup.setupCode,
+    ...invitation,
   }
 }
 
@@ -383,8 +431,14 @@ export async function createCourier(payload: CreateCourierPayload) {
   const passwordHash = await bcrypt.hash(crypto.randomUUID(), 10)
   const courier = await adminRepository.createCourier({ ...payload, passwordHash })
   const setupCode = await issuePasswordSetupCode(courier.userId)
+  const invitation = await createOperatorInvitation({
+    accountLabel: 'driver',
+    email: courier.email,
+    name: courier.name,
+    setupCode,
+  })
 
-  return { courier, setupCode }
+  return { courier, setupCode, ...invitation }
 }
 
 export async function updateCourierStatus(courierId: number, isAvailable: boolean) {
@@ -403,8 +457,14 @@ export async function updateCourierStatus(courierId: number, isAvailable: boolea
 export async function resetCourierPassword(courierId: number) {
   const courier = await getCourier(courierId)
   const setupCode = await issuePasswordSetupCode(courier.userId)
+  const invitation = await createOperatorInvitation({
+    accountLabel: 'driver',
+    email: courier.email,
+    name: courier.name,
+    setupCode,
+  })
 
-  return { courier, setupCode }
+  return { courier, setupCode, ...invitation }
 }
 
 export function listOrders(status?: string) {

@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { Button, Input } from '@voro/ui'
 import { PublicHeader } from '../components/layout/PublicHeader'
 import type { AuthMode, LoginPayload, SetupPasswordPayload, SetupPurpose } from '../types/auth'
@@ -30,6 +30,18 @@ export function AuthPage({
   const [setupPurpose, setSetupPurpose] = useState<SetupPurpose>('firstAccess')
   const [setupForm, setSetupForm] = useState(emptySetup)
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const invitedEmail = params.get('email')?.trim()
+
+    if (params.get('access') !== '1' || !invitedEmail) return
+
+    setSetupPurpose('firstAccess')
+    setSetupForm((current) => ({ ...current, email: invitedEmail }))
+    setAuthMode('setup')
+    window.history.replaceState({}, document.title, window.location.pathname)
+  }, [])
+
   const setupCopy = setupPurpose === 'firstAccess'
     ? { title: t('auth.firstAccessTitle'), description: t('auth.firstAccessDesc'), button: t('auth.createPassword') }
     : { title: t('auth.resetTitle'), description: t('auth.resetDesc'), button: t('auth.setPassword') }
@@ -55,11 +67,11 @@ export function AuthPage({
   }
 
   return (
-    <main className="min-h-screen bg-background text-content">
+    <main className="grid min-h-screen grid-rows-[auto_1fr] bg-background text-content">
       <PublicHeader />
-      <div className="mx-auto grid max-w-5xl px-4 py-8">
+      <div className="grid place-items-center px-4 py-8">
         {authMode === 'login' ? (
-          <section className="mx-auto w-full max-w-md rounded-voro-lg border border-line bg-card p-5">
+          <section className="w-full max-w-md rounded-voro-lg border border-line bg-card p-5 shadow-xl shadow-black/5">
             <h1 className="text-xl font-bold">{t('auth.title')}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {t('auth.description')}
@@ -96,7 +108,7 @@ export function AuthPage({
             </div>
           </section>
         ) : (
-          <section className="mx-auto w-full max-w-md rounded-voro-lg border border-line bg-card p-5">
+          <section className="w-full max-w-md rounded-voro-lg border border-line bg-card p-5 shadow-xl shadow-black/5">
             <h1 className="text-xl font-bold">{setupCopy.title}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{setupCopy.description}</p>
             <form className="mt-5 grid gap-3" onSubmit={handleSetupPassword}>

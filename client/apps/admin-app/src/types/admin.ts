@@ -37,4 +37,6 @@ export type SetupResult = {
   driverName?: string
   driverEmail?: string
   setupCode: string
+  setupUrl?: string
+  inviteEmailSent?: boolean
 }

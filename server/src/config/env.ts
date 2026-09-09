@@ -32,6 +32,12 @@ const observabilityToken = process.env.OBSERVABILITY_TOKEN?.trim() || "";
 const databaseUrl = process.env.DATABASE_URL?.trim() || "";
 const databaseSsl = process.env.DB_SSL === "true";
 const databaseSslRejectUnauthorized = process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false";
+const driverAppUrl = process.env.DRIVER_APP_URL || (
+  isProduction ? "https://voro-driver.pages.dev" : "http://localhost:5175"
+);
+const restaurantAppUrl = process.env.RESTAURANT_APP_URL || (
+  isProduction ? "https://voro-restaurant.pages.dev" : "http://localhost:5174"
+);
 
 if (isProduction && (jwtSecret.length < 32 || jwtSecret === "voro_secret_key")) {
   throw new Error("JWT_SECRET must be a unique value of at least 32 characters in production.");
@@ -61,6 +67,10 @@ export const env = {
   port: Number(process.env.PORT || 3000),
   clientUrls,
   apiUrl: process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`,
+  operatorApps: {
+    driverUrl: driverAppUrl,
+    restaurantUrl: restaurantAppUrl,
+  },
   isProduction,
   seedDemoData,
   jwtSecret,

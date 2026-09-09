@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react'
 import { DataTable } from '../components/common/DataTable'
 import { LoadingState } from '../components/common/LoadingState'
 import { StatusBadge } from '../components/common/StatusBadge'
+import { SetupInviteCard } from '../components/common/SetupInviteCard'
 import { useI18n } from '../i18n/i18n'
 import { listDrivers, resetDriverPassword, updateDriverStatus } from '../services/driversApi'
 import type { SetupResult } from '../types/admin'
@@ -99,6 +100,8 @@ export function DriversPage() {
         driverName: result.courier.name,
         driverEmail: result.courier.email,
         setupCode: result.setupCode,
+        setupUrl: result.setupUrl,
+        inviteEmailSent: result.inviteEmailSent,
       })
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : t('drivers.resetError'))
@@ -133,18 +136,7 @@ export function DriversPage() {
           </Button>
         </div>
       </div>
-      {resetSetup ? (
-        <section className="rounded-voro-lg border border-action bg-accent p-4">
-          <p className="font-bold">{t('drivers.newCode')}</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t('common.sendSetup', {
-              name: resetSetup.driverName || '',
-              email: resetSetup.driverEmail || '',
-              code: resetSetup.setupCode || '',
-            })}
-          </p>
-        </section>
-      ) : null}
+      {resetSetup ? <SetupInviteCard invite={resetSetup} /> : null}
       {error ? <p className="rounded-voro-lg border border-line bg-card p-3 text-sm font-bold text-red-700">{error}</p> : null}
       <DataTable
         columns={[

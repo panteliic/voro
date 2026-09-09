@@ -15,7 +15,7 @@ export function getDriverAnalytics(driverId: number) {
 }
 
 export function createDriver(payload: CreateDriverPayload) {
-  return apiRequest<{ courier: Driver; setupCode: string }>('/admin/drivers', {
+  return apiRequest<{ courier: Driver; setupCode: string; setupUrl: string; inviteEmailSent: boolean }>('/admin/drivers', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
@@ -29,7 +29,7 @@ export function updateDriverStatus(driverId: number, isAvailable: boolean) {
 }
 
 export function resetDriverPassword(driverId: number) {
-  return apiRequest<{ courier: Driver; setupCode: string }>(
+  return apiRequest<{ courier: Driver; setupCode: string; setupUrl: string; inviteEmailSent: boolean }>(
     `/admin/drivers/${driverId}/password-reset`,
     {
       method: 'POST',

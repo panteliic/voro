@@ -28,6 +28,8 @@ export function createRestaurant(payload: CreateRestaurantPayload) {
     restaurant: Restaurant
     operator: { id: number; name: string; email: string }
     setupCode: string
+    setupUrl: string
+    inviteEmailSent: boolean
   }>('/admin/restaurants', {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -60,6 +62,8 @@ export function resetRestaurantAccess(restaurantId: number) {
     restaurant: Restaurant
     operator: { id: number; name: string; email: string }
     setupCode: string
+    setupUrl: string
+    inviteEmailSent: boolean
   }>(`/admin/restaurants/${restaurantId}/password-reset`, {
     method: 'POST',
   })

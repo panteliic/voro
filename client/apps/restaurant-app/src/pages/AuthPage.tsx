@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { Button, Input } from '@voro/ui'
 import { ClipboardList, Settings2 } from 'lucide-react'
 import { PublicHeader } from '../components/layout/PublicHeader'
@@ -29,6 +29,18 @@ export function AuthPage({
   const [authMode, setAuthMode] = useState<AuthMode>('login')
   const [setupPurpose, setSetupPurpose] = useState<SetupPurpose>('firstAccess')
   const [setupForm, setSetupForm] = useState(emptySetup)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const invitedEmail = params.get('email')?.trim()
+
+    if (params.get('access') !== '1' || !invitedEmail) return
+
+    setSetupPurpose('firstAccess')
+    setSetupForm((current) => ({ ...current, email: invitedEmail }))
+    setAuthMode('setup')
+    window.history.replaceState({}, document.title, window.location.pathname)
+  }, [])
 
   const setupCopy = useMemo(
     () =>
@@ -67,11 +79,11 @@ export function AuthPage({
   }
 
   return (
-    <main className="min-h-screen bg-background text-content">
+    <main className="grid min-h-screen grid-rows-[auto_1fr] bg-background text-content">
       <PublicHeader />
-      <div className="mx-auto grid max-w-5xl px-4 py-8">
+      <div className="grid place-items-center px-4 py-8">
         {authMode === 'login' ? (
-          <section className="mx-auto w-full max-w-md rounded-voro-lg border border-line bg-card p-5">
+          <section className="w-full max-w-md rounded-voro-lg border border-line bg-card p-5 shadow-xl shadow-black/5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h1 className="text-xl font-bold">{t('auth.signIn')}</h1>
@@ -113,7 +125,7 @@ export function AuthPage({
             </div>
           </section>
         ) : (
-          <section className="mx-auto w-full max-w-md rounded-voro-lg border border-line bg-card p-5">
+          <section className="w-full max-w-md rounded-voro-lg border border-line bg-card p-5 shadow-xl shadow-black/5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h1 className="text-xl font-bold">{setupCopy.title}</h1>

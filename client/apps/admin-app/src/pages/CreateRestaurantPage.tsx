@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, Input, Textarea } from '@voro/ui'
 import { ArrowLeft, CheckCircle2, KeyRound, Mail, MapPin, Store, Tags, UserRound } from 'lucide-react'
+import { SetupInviteCard } from '../components/common/SetupInviteCard'
 import { useI18n } from '../i18n/i18n'
 import { createRestaurant, listRestaurantCategories, resolveRestaurantLocation } from '../services/restaurantsApi'
 import { searchLocations, type LocationSuggestion } from '../services/locationSearchApi'
@@ -152,6 +153,8 @@ export function CreateRestaurantPage() {
         restaurantName: result.restaurant.name,
         operatorEmail: result.operator.email,
         setupCode: result.setupCode,
+        setupUrl: result.setupUrl,
+        inviteEmailSent: result.inviteEmailSent,
       })
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : t('createRestaurant.error'))
@@ -175,21 +178,7 @@ export function CreateRestaurantPage() {
         </Button>
       </div>
 
-      {setup ? (
-        <section className="flex gap-3 rounded-voro-lg border border-action bg-accent p-4">
-          <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-action" />
-          <div>
-            <p className="font-bold">{t('createRestaurant.inviteReady')}</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t('common.sendSetup', {
-              name: setup.restaurantName || '',
-              email: setup.operatorEmail || '',
-              code: setup.setupCode || '',
-            })}
-          </p>
-          </div>
-        </section>
-      ) : null}
+      {setup ? <SetupInviteCard invite={setup} /> : null}
       {error ? <p className="rounded-voro-lg border border-line bg-card p-3 text-sm font-bold text-red-700">{error}</p> : null}
 
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_19rem]">

@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, Input } from '@voro/ui'
 import { ArrowLeft, Bike, Car, CheckCircle2, KeyRound, MapPinned, ShieldCheck, UserRound } from 'lucide-react'
+import { SetupInviteCard } from '../components/common/SetupInviteCard'
 import { useI18n } from '../i18n/i18n'
 import { createDriver } from '../services/driversApi'
 import type { SetupResult } from '../types/admin'
@@ -39,6 +40,8 @@ export function CreateDriverPage() {
         driverName: result.courier.name,
         driverEmail: result.courier.email,
         setupCode: result.setupCode,
+        setupUrl: result.setupUrl,
+        inviteEmailSent: result.inviteEmailSent,
       })
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : t('createDriver.error'))
@@ -62,21 +65,7 @@ export function CreateDriverPage() {
         </Button>
       </div>
 
-      {setup ? (
-        <section className="flex gap-3 rounded-voro-lg border border-action bg-accent p-4">
-          <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-action" />
-          <div>
-            <p className="font-bold">{t('createDriver.inviteReady')}</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t('common.sendSetup', {
-              name: setup.driverName || '',
-              email: setup.driverEmail || '',
-              code: setup.setupCode || '',
-            })}
-          </p>
-          </div>
-        </section>
-      ) : null}
+      {setup ? <SetupInviteCard invite={setup} /> : null}
       {error ? <p className="rounded-voro-lg border border-line bg-card p-3 text-sm font-bold text-red-700">{error}</p> : null}
 
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_19rem]">
