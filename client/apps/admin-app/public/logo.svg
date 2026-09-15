@@ -1,12 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <rect x="32" y="32" width="448" height="448" rx="112" fill="#E94D29" />
+  <rect x="32" y="32" width="448" height="448" rx="112" fill="#E94D29"/>
+  <path d="M 156 180 L 256 320 L 356 180"
+        stroke="#FFFFFF"
+        stroke-width="44"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        fill="none"/>
+  <circle cx="256" cy="390" r="22" fill="#FFFFFF"/>
+  <!-- Admin badge -->
+  <circle cx="394" cy="384" r="61" fill="#FFFFFF"/>
 
-  <path d="M 156 180 L 256 320 L 356 180" 
-        stroke="#FFFFFF" 
-        stroke-width="44" 
-        stroke-linecap="round" 
-        stroke-linejoin="round" 
-        fill="none" />
-
-  <circle cx="256" cy="390" r="22" fill="#FFFFFF" />
+  <!-- Shield / admin control -->
+  <path d="M 394 348
+           L 421 358
+           V 379
+           C 421 397, 410 411, 394 420
+           C 378 411, 367 397, 367 379
+           V 358
+           Z"
+        fill="none"
+        stroke="#E94D29"
+        stroke-width="10"
+        stroke-linejoin="round"/>
+  <path d="M 394 353 V 414"
+        stroke="#E94D29"
+        stroke-width="8"
+        stroke-linecap="round"/>
 </svg>

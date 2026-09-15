@@ -1,12 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <rect x="32" y="32" width="448" height="448" rx="112" fill="#E94D29" />
+  <rect x="32" y="32" width="448" height="448" rx="112" fill="#E94D29"/>
+  <path d="M 156 180 L 256 320 L 356 180"
+        stroke="#FFFFFF"
+        stroke-width="44"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        fill="none"/>
+  <circle cx="256" cy="390" r="22" fill="#FFFFFF"/>
+  <!-- Restaurant badge -->
+  <circle cx="394" cy="384" r="61" fill="#FFFFFF"/>
 
-  <path d="M 156 180 L 256 320 L 356 180" 
-        stroke="#FFFFFF" 
-        stroke-width="44" 
-        stroke-linecap="round" 
-        stroke-linejoin="round" 
-        fill="none" />
-
-  <circle cx="256" cy="390" r="22" fill="#FFFFFF" />
+  <!-- Serving cloche -->
+  <circle cx="394" cy="356" r="5" fill="#E94D29"/>
+  <path d="M 366 387
+           C 368 370, 379 361, 394 361
+           C 409 361, 420 370, 422 387
+           Z"
+        fill="#E94D29"/>
+  <rect x="360" y="389" width="68" height="9" rx="4.5" fill="#E94D29"/>
+  <path d="M 378 354 L 372 346
+           M 394 349 L 394 339
+           M 410 354 L 416 346"
+        stroke="#E94D29"
+        stroke-width="7"
+        stroke-linecap="round"/>
 </svg>

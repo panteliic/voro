@@ -1,12 +1,39 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <rect x="32" y="32" width="448" height="448" rx="112" fill="#E94D29" />
+  <rect x="32" y="32" width="448" height="448" rx="112" fill="#E94D29"/>
+  <path d="M 156 180 L 256 320 L 356 180"
+        stroke="#FFFFFF"
+        stroke-width="44"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        fill="none"/>
+  <circle cx="256" cy="390" r="22" fill="#FFFFFF"/>
+  <!-- Driver badge -->
+  <circle cx="394" cy="384" r="61" fill="#FFFFFF"/>
 
-  <path d="M 156 180 L 256 320 L 356 180" 
-        stroke="#FFFFFF" 
-        stroke-width="44" 
-        stroke-linecap="round" 
-        stroke-linejoin="round" 
-        fill="none" />
-
-  <circle cx="256" cy="390" r="22" fill="#FFFFFF" />
+  <!-- Delivery scooter -->
+  <circle cx="371" cy="402" r="13" fill="none" stroke="#E94D29" stroke-width="10"/>
+  <circle cx="419" cy="402" r="13" fill="none" stroke="#E94D29" stroke-width="10"/>
+  <rect x="354" y="359" width="35" height="27" rx="5" fill="#E94D29"/>
+  <path d="M 386 389
+           L 399 389
+           L 408 369
+           L 422 369
+           L 430 390
+           L 418 390"
+        fill="none"
+        stroke="#E94D29"
+        stroke-width="10"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+  <path d="M 406 369 L 414 357 L 426 357"
+        fill="none"
+        stroke="#E94D29"
+        stroke-width="8"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+  <path d="M 384 390 L 374 379"
+        fill="none"
+        stroke="#E94D29"
+        stroke-width="8"
+        stroke-linecap="round"/>
 </svg>
