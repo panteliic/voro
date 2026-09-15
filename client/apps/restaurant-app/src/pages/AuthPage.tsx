@@ -11,6 +11,7 @@ type AuthPageProps = {
   isLoading: boolean
   isSettingPassword: boolean
   onLogin: (payload: LoginPayload) => Promise<void>
+  onRequestPasswordReset: (email: string) => Promise<{ resetUrl?: string }>
   onSetupPassword: (payload: SetupPasswordPayload) => Promise<void>
   onClearStatus: () => void
 }
@@ -21,6 +22,7 @@ export function AuthPage({
   isSettingPassword,
   onClearStatus,
   onLogin,
+  onRequestPasswordReset,
   onSetupPassword,
 }: AuthPageProps) {
   const { t } = useI18n()
@@ -29,15 +31,18 @@ export function AuthPage({
   const [authMode, setAuthMode] = useState<AuthMode>('login')
   const [setupPurpose, setSetupPurpose] = useState<SetupPurpose>('firstAccess')
   const [setupForm, setSetupForm] = useState(emptySetup)
+  const [isRequestingReset, setIsRequestingReset] = useState(false)
+  const [resetNotice, setResetNotice] = useState('')
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const invitedEmail = params.get('email')?.trim()
+    const resetToken = params.get('token')?.trim()
 
-    if (params.get('access') !== '1' || !invitedEmail) return
+    if (!resetToken && (params.get('access') !== '1' || !invitedEmail)) return
 
-    setSetupPurpose('firstAccess')
-    setSetupForm((current) => ({ ...current, email: invitedEmail }))
+    setSetupPurpose(params.get('reset') === '1' ? 'passwordReset' : 'firstAccess')
+    setSetupForm((current) => ({ ...current, email: invitedEmail || '', resetToken: resetToken || '' }))
     setAuthMode('setup')
     window.history.replaceState({}, document.title, window.location.pathname)
   }, [])
@@ -72,9 +77,30 @@ export function AuthPage({
     setAuthMode('login')
   }
 
+  async function requestResetCode() {
+    const resetEmail = setupForm.email.trim()
+    if (!resetEmail || isRequestingReset) return
+
+    setIsRequestingReset(true)
+    setResetNotice('')
+    try {
+      const result = await onRequestPasswordReset(resetEmail)
+      if (result.resetUrl && import.meta.env.DEV) {
+        setResetNotice(result.resetUrl)
+      } else {
+        setResetNotice(t('auth.resetCodeSent'))
+      }
+    } catch {
+      // The parent surfaces the API error beside the form.
+    } finally {
+      setIsRequestingReset(false)
+    }
+  }
+
   function openSetup(nextPurpose: SetupPurpose) {
     setSetupPurpose(nextPurpose)
     setAuthMode('setup')
+    setResetNotice('')
     onClearStatus()
   }
 
@@ -87,9 +113,7 @@ export function AuthPage({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h1 className="text-xl font-bold">{t('auth.signIn')}</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {t('auth.signInDesc')}
-                </p>
+                <p className="mt-1 text-sm text-muted-foreground">{t('auth.signInDesc')}</p>
               </div>
               <ClipboardList className="size-5 text-action" />
             </div>
@@ -114,14 +138,9 @@ export function AuthPage({
               <p className="text-xs font-bold uppercase text-muted-foreground">
                 {t('auth.setupCodeAccess')}
               </p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Button onClick={() => openSetup('firstAccess')} type="button" variant="outline">
-                  {t('auth.firstAccess')}
-                </Button>
-                <Button onClick={() => openSetup('passwordReset')} type="button" variant="outline">
-                  {t('auth.resetPassword')}
-                </Button>
-              </div>
+              <Button onClick={() => openSetup('passwordReset')} type="button" variant="outline">
+                {t('auth.resetPassword')}
+              </Button>
             </div>
           </section>
         ) : (
@@ -134,21 +153,31 @@ export function AuthPage({
               <Settings2 className="size-5 text-action" />
             </div>
             <form className="mt-5 grid gap-3" onSubmit={handleSetupPassword}>
-              <Input
+              {!(setupPurpose === 'passwordReset' && setupForm.resetToken) ? <Input
                 placeholder={t('auth.restaurantEmail')}
                 value={setupForm.email}
                 onChange={(event) =>
                   setSetupForm((current) => ({ ...current, email: event.target.value }))
                 }
-              />
-              <Input
+              /> : null}
+              {setupPurpose === 'firstAccess' && !setupForm.resetToken ? <Input
                 placeholder={t('auth.setupCode')}
-                value={setupForm.setupCode}
+                value={setupForm.setupCode || ''}
                 onChange={(event) =>
                   setSetupForm((current) => ({ ...current, setupCode: event.target.value }))
                 }
-              />
-              <Input
+              /> : null}
+              {setupPurpose === 'passwordReset' && !setupForm.resetToken ? (
+                <Button
+                  disabled={!setupForm.email.trim() || isRequestingReset}
+                  onClick={() => void requestResetCode()}
+                  type="button"
+                  variant="outline"
+                >
+                  {isRequestingReset ? t('auth.sendingResetCode') : t('auth.requestResetCode')}
+                </Button>
+              ) : null}
+              {setupPurpose === 'firstAccess' || setupForm.resetToken ? <Input
                 placeholder={
                   setupPurpose === 'firstAccess'
                     ? t('auth.createPassword')
@@ -159,11 +188,16 @@ export function AuthPage({
                 onChange={(event) =>
                   setSetupForm((current) => ({ ...current, password: event.target.value }))
                 }
-              />
+              /> : null}
+              {resetNotice ? (
+                <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                  {resetNotice}
+                </p>
+              ) : null}
               {status ? <p className="text-sm font-medium text-destructive">{status}</p> : null}
-              <Button disabled={isSettingPassword} type="submit">
+              {setupPurpose === 'firstAccess' || setupForm.resetToken ? <Button disabled={isSettingPassword} type="submit">
                 {isSettingPassword ? t('auth.savingPassword') : setupCopy.button}
-              </Button>
+              </Button> : null}
               <Button
                 onClick={() => {
                   setAuthMode('login')

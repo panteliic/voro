@@ -12,7 +12,8 @@ export type LoginPayload = {
 
 export type SetupPasswordPayload = {
   email: string
-  setupCode: string
+  setupCode?: string
+  resetToken?: string
   password: string
 }
 

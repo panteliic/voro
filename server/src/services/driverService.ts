@@ -17,6 +17,10 @@ const customerNearbyDistanceMeters = 250
 const pickupConfirmationDistanceMeters = 200
 const deliveryConfirmationDistanceMeters = 200
 const statusLocationMaxAgeMs = 45_000
+const maximumUsableGpsAccuracyMeters = 80
+const maximumClientLocationAgeMs = 60_000
+const maximumPlausibleSpeedMetersPerSecond = 55
+const locationJumpToleranceMeters = 75
 const locationAddressRefreshDistanceMeters = 250
 const locationAddressRefreshIntervalMs = 15 * 60 * 1000
 const locationAddressRequestDelayMs = 1_100
@@ -31,6 +35,66 @@ function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number)
   const a = Math.sin(latitudeDelta / 2) ** 2
     + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(longitudeDelta / 2) ** 2
   return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function optionalFiniteNumber(value: unknown, label: string, minimum: number, maximum: number) {
+  if (value === undefined || value === null) return null
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < minimum || parsed > maximum) {
+    throw new HttpError(400, `${label} is invalid.`)
+  }
+  return parsed
+}
+
+function optionalCapturedAt(value: unknown) {
+  if (value === undefined || value === null) return null
+  const date = new Date(typeof value === 'number' ? value : String(value))
+  if (Number.isNaN(date.getTime()) || date.getTime() > Date.now() + 10_000) {
+    throw new HttpError(400, 'Location timestamp is invalid.')
+  }
+  return date
+}
+
+export function isUsableLocationSample(
+  driver: DriverProfile,
+  sample: { latitude: number; longitude: number; accuracyMeters: number | null; speedMps: number | null; capturedAt: Date | null },
+) {
+  if (sample.accuracyMeters !== null && sample.accuracyMeters > maximumUsableGpsAccuracyMeters) return false
+  if (sample.capturedAt && Date.now() - sample.capturedAt.getTime() > maximumClientLocationAgeMs) return false
+  if (
+    driver.currentLatitude === null ||
+    driver.currentLongitude === null ||
+    driver.lastLocationAt === null
+  ) {
+    return true
+  }
+
+  const elapsedSeconds = Math.max(1, (Date.now() - driver.lastLocationAt.getTime()) / 1_000)
+  const accuracyAllowance = Math.max(20, (sample.accuracyMeters || 20) * 2)
+  const expectedMaximumSpeed = sample.speedMps === null
+    ? maximumPlausibleSpeedMetersPerSecond
+    : Math.min(maximumPlausibleSpeedMetersPerSecond, Math.max(20, sample.speedMps * 2 + 10))
+  const maximumDistance = locationJumpToleranceMeters + accuracyAllowance + elapsedSeconds * expectedMaximumSpeed
+  return haversineMeters(driver.currentLatitude, driver.currentLongitude, sample.latitude, sample.longitude) <= maximumDistance
+}
+
+function filteredDisplayLocation(
+  previous: { latitude: number; longitude: number } | null,
+  sample: { latitude: number; longitude: number; accuracyMeters: number | null },
+) {
+  if (!previous) return { latitude: sample.latitude, longitude: sample.longitude }
+
+  // A light accuracy-weighted smoothing removes GPS jitter while preserving
+  // enough movement for the route projection in the client to stay responsive.
+  const weight = sample.accuracyMeters === null || sample.accuracyMeters <= 15
+    ? 0.75
+    : sample.accuracyMeters <= 35
+      ? 0.6
+      : 0.45
+  return {
+    latitude: previous.latitude + (sample.latitude - previous.latitude) * weight,
+    longitude: previous.longitude + (sample.longitude - previous.longitude) * weight,
+  }
 }
 
 function hasFreshDriverLocation(driver: DriverProfile) {
@@ -259,7 +323,7 @@ export async function updatePresence(userId: number, payload: unknown) {
     throw new HttpError(400, 'Presence details are required.')
   }
 
-  const { isOnline, latitude, longitude } = payload as Record<string, unknown>
+  const { isOnline, latitude, longitude, accuracyMeters, headingDegrees, speedMps, capturedAt } = payload as Record<string, unknown>
 
   if (typeof isOnline !== 'boolean') {
     throw new HttpError(400, 'Online status must be true or false.')
@@ -296,27 +360,78 @@ export async function updatePresence(userId: number, payload: unknown) {
     throw new HttpError(400, 'Current location is required before going online.')
   }
 
+  const sampleAccuracyMeters = optionalFiniteNumber(accuracyMeters, 'Location accuracy', 0, 5_000)
+  const sampleHeadingDegrees = optionalFiniteNumber(headingDegrees, 'Location heading', 0, 360)
+  const sampleSpeedMps = optionalFiniteNumber(speedMps, 'Location speed', 0, 120)
+  const sampleCapturedAt = optionalCapturedAt(capturedAt)
+  const hasLocationSample = nextLatitude !== null && nextLongitude !== null
+  const usableSample = hasLocationSample && isUsableLocationSample(existingDriver, {
+    latitude: nextLatitude as number,
+    longitude: nextLongitude as number,
+    accuracyMeters: sampleAccuracyMeters,
+    speedMps: sampleSpeedMps,
+    capturedAt: sampleCapturedAt,
+  })
+  if (isOnline && hasLocationSample && !usableSample && existingDriver.currentLatitude === null) {
+    throw new HttpError(409, 'Waiting for a fresh, accurate GPS location before going online.')
+  }
+  const previousTracking = hasLocationSample
+    ? await driverRepository.getActiveDeliveryTracking(existingDriver.id)
+    : null
+  const displayLocation = usableSample && nextLatitude !== null && nextLongitude !== null
+    ? filteredDisplayLocation(
+        previousTracking?.displayLatitude !== null && previousTracking?.displayLatitude !== undefined &&
+          previousTracking.displayLongitude !== null && previousTracking.displayLongitude !== undefined
+          ? { latitude: previousTracking.displayLatitude, longitude: previousTracking.displayLongitude }
+          : null,
+        { latitude: nextLatitude, longitude: nextLongitude, accuracyMeters: sampleAccuracyMeters },
+      )
+    : null
+
   const driver = await driverRepository.updateDriverPresence(userId, {
     isOnline,
-    latitude: nextLatitude,
-    longitude: nextLongitude,
+    // Rejected observations are still retained for the active delivery audit,
+    // but must not move the operational presence or dispatch index.
+    latitude: usableSample ? nextLatitude : null,
+    longitude: usableSample ? nextLongitude : null,
   })
 
   if (!driver) {
     throw new HttpError(404, 'Driver account is not linked to a courier profile.')
   }
 
-  if (nextLatitude !== null && nextLongitude !== null) {
-    publishDriverLocation(userId, { latitude: nextLatitude, longitude: nextLongitude })
-    const activeDelivery = await driverRepository.recordActiveDeliveryLocation(driver.id, nextLatitude, nextLongitude)
+  if (hasLocationSample && nextLatitude !== null && nextLongitude !== null) {
+    const activeDelivery = await driverRepository.recordActiveDeliveryLocation(driver.id, {
+      latitude: nextLatitude,
+      longitude: nextLongitude,
+      displayLatitude: displayLocation?.latitude ?? null,
+      displayLongitude: displayLocation?.longitude ?? null,
+      accuracyMeters: sampleAccuracyMeters,
+      headingDegrees: sampleHeadingDegrees,
+      speedMps: sampleSpeedMps,
+      capturedAt: sampleCapturedAt,
+      isUsable: usableSample,
+    })
     if (activeDelivery) {
-      publishOrderTracking({
-        orderId: activeDelivery.orderId,
-        courier: { name: driver.name, latitude: nextLatitude, longitude: nextLongitude },
-        deliveryStatus: activeDelivery.deliveryStatus,
-      })
+      if (usableSample && displayLocation) {
+        publishDriverLocation(userId, { latitude: nextLatitude, longitude: nextLongitude })
+        publishOrderTracking({
+          orderId: activeDelivery.orderId,
+          courier: {
+            name: driver.name,
+            latitude: displayLocation.latitude,
+            longitude: displayLocation.longitude,
+            accuracyMeters: sampleAccuracyMeters,
+            headingDegrees: sampleHeadingDegrees,
+            recordedAt: new Date(),
+            isStale: false,
+          },
+          deliveryStatus: activeDelivery.deliveryStatus,
+        })
+      }
 
       if (
+        usableSample &&
         activeDelivery.deliveryStatus === 'on_the_way' &&
         activeDelivery.customerLatitude !== null &&
         activeDelivery.customerLongitude !== null
@@ -365,6 +480,10 @@ export async function acceptOffer(userId: number, offerId: number) {
         name: updatedDriver.name,
         latitude: updatedDriver.currentLatitude,
         longitude: updatedDriver.currentLongitude,
+        accuracyMeters: null,
+        headingDegrees: null,
+        recordedAt: updatedDriver.lastLocationAt,
+        isStale: true,
       },
       deliveryStatus: delivery.status,
     })
@@ -471,6 +590,10 @@ export async function updateDeliveryStatus(
       name: driver.name,
       latitude: driver.currentLatitude,
       longitude: driver.currentLongitude,
+      accuracyMeters: null,
+      headingDegrees: null,
+      recordedAt: driver.lastLocationAt,
+      isStale: true,
     },
     deliveryStatus: updated.status,
   })

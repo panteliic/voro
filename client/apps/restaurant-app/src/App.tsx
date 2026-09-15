@@ -3,7 +3,11 @@ import { BrowserRouter } from 'react-router-dom'
 import { useI18n } from './i18n/i18n'
 import { AuthPage } from './pages/AuthPage'
 import { DashboardPage } from './pages/DashboardPage'
-import { loginRestaurant, setupRestaurantPassword } from './services/authApi'
+import {
+  loginRestaurant,
+  requestRestaurantPasswordReset,
+  setupRestaurantPassword,
+} from './services/authApi'
 import { revokeSession, SessionExpiredError } from './services/apiClient'
 import {
   createCategory,
@@ -121,6 +125,16 @@ function App() {
     }
   }
 
+  async function handleRequestPasswordReset(email: string) {
+    setStatus('')
+    try {
+      return await requestRestaurantPasswordReset(email)
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : t('error.setPassword'))
+      throw error
+    }
+  }
+
   async function handleCreateCategory(payload: CategoryForm) {
     setIsSavingCategory(true)
     setStatus('')
@@ -128,9 +142,7 @@ function App() {
     try {
       const result = await createCategory(token, payload)
 
-      setDashboard((current) =>
-        current ? { ...current, categories: result.categories } : current,
-      )
+      setDashboard((current) => (current ? { ...current, categories: result.categories } : current))
       setStatus(t('status.categoryAdded'))
     } catch (error) {
       handleRequestError(error, t('error.addCategory'))
@@ -146,9 +158,7 @@ function App() {
     try {
       const result = await saveProduct(token, payload, editingProductId)
 
-      setDashboard((current) =>
-        current ? { ...current, products: result.products } : current,
-      )
+      setDashboard((current) => (current ? { ...current, products: result.products } : current))
       setStatus(editingProductId ? t('status.productUpdated') : t('status.productAdded'))
     } catch (error) {
       handleRequestError(error, t('error.saveProduct'))
@@ -189,7 +199,11 @@ function App() {
     setStatus('')
     try {
       const result = await updateRestaurantOperations(token, payload)
-      setDashboard((current) => current ? { ...current, restaurant: { ...current.restaurant, ...result.operations } } : current)
+      setDashboard((current) =>
+        current
+          ? { ...current, restaurant: { ...current.restaurant, ...result.operations } }
+          : current,
+      )
       setStatus('Delivery settings saved.')
     } catch (error) {
       handleRequestError(error, 'Delivery settings could not be saved.')
@@ -210,6 +224,7 @@ function App() {
         isSettingPassword={isSettingPassword}
         onClearStatus={() => setStatus('')}
         onLogin={handleLogin}
+        onRequestPasswordReset={handleRequestPasswordReset}
         onSetupPassword={handleSetupPassword}
         status={status}
       />

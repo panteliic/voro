@@ -1,26 +1,44 @@
 import { useEffect, useRef, useState } from 'react'
 import { AuthPage } from './pages/AuthPage'
 import { DashboardPage } from './pages/DashboardPage'
-import { acceptDeliveryOffer, declineDeliveryOffer, getDriverDashboard, updateDeliveryStatus, updateDriverPresence, withdrawFromDelivery } from './services/driverApi'
+import {
+  acceptDeliveryOffer,
+  declineDeliveryOffer,
+  getDriverDashboard,
+  updateDeliveryStatus,
+  updateDriverPresence,
+  withdrawFromDelivery,
+} from './services/driverApi'
 import { revokeSession, SessionExpiredError } from './services/apiClient'
-import { loginDriver, setupDriverPassword } from './services/authApi'
+import { loginDriver, requestDriverPasswordReset, setupDriverPassword } from './services/authApi'
 import type { AuthUser, LoginPayload, SetupPasswordPayload } from './types/auth'
 import type { DashboardResponse } from './types/driver'
 import { clearSession, storedToken, storedUser, storeSession } from './utils/storage'
 import { translate, type DriverLanguage } from './i18n'
 
-type Position = { latitude: number; longitude: number }
+type Position = {
+  latitude: number
+  longitude: number
+  accuracyMeters?: number
+  headingDegrees?: number
+  speedMps?: number
+  capturedAt?: string
+}
 
 const domacePalacinkeDemoPosition: Position = { latitude: 44.8144, longitude: 20.4399 }
 const locationFreshForMs = 45_000
 const presenceHeartbeatMs = 15_000
+const maximumUsableGpsAccuracyMeters = 80
+const maximumPlausibleSpeedMetersPerSecond = 55
+const locationJumpToleranceMeters = 75
 
 function canUseLocalDemoLocation() {
   return ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
 }
 
 function driverTranslation(key: string) {
-  const language: DriverLanguage = localStorage.getItem('voro-driver-language') === 'en' ? 'en' : 'sr'
+  const language: DriverLanguage =
+    localStorage.getItem('voro-driver-language') === 'en' ? 'en' : 'sr'
   return translate(language, key)
 }
 
@@ -28,8 +46,29 @@ function distanceMeters(first: Position, second: Position) {
   const earthRadius = 6_371_000
   const latitudeDelta = ((second.latitude - first.latitude) * Math.PI) / 180
   const longitudeDelta = ((second.longitude - first.longitude) * Math.PI) / 180
-  const a = Math.sin(latitudeDelta / 2) ** 2 + Math.cos((first.latitude * Math.PI) / 180) * Math.cos((second.latitude * Math.PI) / 180) * Math.sin(longitudeDelta / 2) ** 2
+  const a =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos((first.latitude * Math.PI) / 180) *
+      Math.cos((second.latitude * Math.PI) / 180) *
+      Math.sin(longitudeDelta / 2) ** 2
   return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function captureTime(position: Position) {
+  const parsed = position.capturedAt ? new Date(position.capturedAt).getTime() : Date.now()
+  return Number.isFinite(parsed) ? parsed : Date.now()
+}
+
+function isUsableGpsPosition(previous: Position | null, next: Position) {
+  if ((next.accuracyMeters ?? 0) > maximumUsableGpsAccuracyMeters) return false
+  if (!previous) return true
+
+  const elapsedSeconds = Math.max(1, (captureTime(next) - captureTime(previous)) / 1_000)
+  const expectedMaximumSpeed = next.speedMps === undefined
+    ? maximumPlausibleSpeedMetersPerSecond
+    : Math.min(maximumPlausibleSpeedMetersPerSecond, Math.max(20, next.speedMps * 2 + 10))
+  const allowedDistance = locationJumpToleranceMeters + Math.max(20, (next.accuracyMeters ?? 20) * 2) + elapsedSeconds * expectedMaximumSpeed
+  return distanceMeters(previous, next) <= allowedDistance
 }
 
 function App() {
@@ -42,7 +81,9 @@ function App() {
   const [isAccepting, setIsAccepting] = useState(false)
   const [isUpdatingDelivery, setIsUpdatingDelivery] = useState(false)
   const [position, setPosition] = useState<Position | null>(null)
-  const [isDemoLocation, setIsDemoLocation] = useState(() => canUseLocalDemoLocation() && localStorage.getItem('voro-driver-demo-location') === 'true')
+  const [isDemoLocation, setIsDemoLocation] = useState(
+    () => canUseLocalDemoLocation() && localStorage.getItem('voro-driver-demo-location') === 'true',
+  )
   const onlineRef = useRef(false)
   const wantsOnlineRef = useRef(true)
   const positionRef = useRef<Position | null>(null)
@@ -50,6 +91,7 @@ function App() {
   const lastLocationAtRef = useRef(0)
   const lastSentPosition = useRef<Position | null>(null)
   const lastPresenceSentAt = useRef(0)
+  const dashboardRequestRef = useRef<Promise<void> | null>(null)
 
   function endSession(message = '') {
     clearSession()
@@ -77,19 +119,30 @@ function App() {
 
   async function loadDashboard(nextToken = token, silently = false) {
     if (!nextToken) return
+    if (dashboardRequestRef.current) return dashboardRequestRef.current
 
     if (!silently) {
       setIsLoading(true)
       setStatus('')
     }
 
+    const request = getDriverDashboard(nextToken)
+      .then((nextDashboard) => {
+        setDashboard(nextDashboard)
+      })
+      .catch((error: unknown) => {
+        if (!silently || error instanceof SessionExpiredError) {
+          handleError(error, 'Podaci o dostavljaču nisu mogli da se učitaju.')
+        }
+      })
+    dashboardRequestRef.current = request
+
     try {
-      setDashboard(await getDriverDashboard(nextToken))
-    } catch (error) {
-      if (!silently || error instanceof SessionExpiredError) {
-        handleError(error, 'Podaci o dostavljaču nisu mogli da se učitaju.')
-      }
+      await request
     } finally {
+      if (dashboardRequestRef.current === request) {
+        dashboardRequestRef.current = null
+      }
       if (!silently) setIsLoading(false)
     }
   }
@@ -101,11 +154,14 @@ function App() {
       isOnline,
       ...(nextPosition || {}),
     })
-    setDashboard((current) => current ? { ...current, driver: response.driver } : current)
+    setDashboard((current) => (current ? { ...current, driver: response.driver } : current))
   }
 
   function hasFreshLocation() {
-    return isDemoLocationRef.current || (positionRef.current !== null && Date.now() - lastLocationAtRef.current <= locationFreshForMs)
+    return (
+      isDemoLocationRef.current ||
+      (positionRef.current !== null && Date.now() - lastLocationAtRef.current <= locationFreshForMs)
+    )
   }
 
   useEffect(() => {
@@ -121,7 +177,12 @@ function App() {
     const initialSync = window.setTimeout(() => {
       const canStayOnline = wantsOnlineRef.current && hasFreshLocation()
       onlineRef.current = canStayOnline
-      const initialPosition = canStayOnline && isDemoLocationRef.current ? domacePalacinkeDemoPosition : canStayOnline ? positionRef.current : null
+      const initialPosition =
+        canStayOnline && isDemoLocationRef.current
+          ? domacePalacinkeDemoPosition
+          : canStayOnline
+            ? positionRef.current
+            : null
       void publishPresence(canStayOnline, initialPosition)
         .catch((error) => {
           if (active) handleError(error, 'Status dostavljača nije mogao da se ažurira.')
@@ -131,7 +192,9 @@ function App() {
         })
     }, 0)
 
-    const refreshInterval = window.setInterval(() => void loadDashboard(token, true), 4_000)
+    const refreshInterval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadDashboard(token, true)
+    }, presenceHeartbeatMs)
     let watchId: number | null = null
 
     if ('geolocation' in navigator) {
@@ -139,10 +202,27 @@ function App() {
         (nextPosition) => {
           if (isDemoLocationRef.current) return
 
-          const next = { latitude: nextPosition.coords.latitude, longitude: nextPosition.coords.longitude }
-          setPosition(next)
-          positionRef.current = next
-          lastLocationAtRef.current = Date.now()
+          const accuracy = nextPosition.coords.accuracy
+          const heading = nextPosition.coords.heading
+          const speed = nextPosition.coords.speed
+          const next: Position = {
+            latitude: nextPosition.coords.latitude,
+            longitude: nextPosition.coords.longitude,
+            ...(Number.isFinite(accuracy) ? { accuracyMeters: accuracy } : {}),
+            ...(heading !== null && Number.isFinite(heading) && heading >= 0
+              ? { headingDegrees: heading }
+              : {}),
+            ...(speed !== null && Number.isFinite(speed) && speed >= 0
+              ? { speedMps: speed }
+              : {}),
+            ...(Number.isFinite(nextPosition.timestamp) ? { capturedAt: new Date(nextPosition.timestamp).toISOString() } : {}),
+          }
+          const usableForDisplay = isUsableGpsPosition(positionRef.current, next)
+          if (usableForDisplay) {
+            setPosition(next)
+            positionRef.current = next
+            lastLocationAtRef.current = captureTime(next)
+          }
 
           if (!onlineRef.current && wantsOnlineRef.current) {
             onlineRef.current = true
@@ -172,7 +252,8 @@ function App() {
           // courier unable to accept the offer currently shown on screen.
           if (isDemoLocationRef.current) return
 
-          const hasLocationPermission = locationError.code !== GeolocationPositionError.PERMISSION_DENIED
+          const hasLocationPermission =
+            locationError.code !== GeolocationPositionError.PERMISSION_DENIED
           if (hasLocationPermission && hasFreshLocation()) {
             setStatus(driverTranslation('status.gpsRefreshing'))
             return
@@ -206,7 +287,9 @@ function App() {
         return
       }
 
-      const heartbeatPosition = isDemoLocationRef.current ? domacePalacinkeDemoPosition : positionRef.current
+      const heartbeatPosition = isDemoLocationRef.current
+        ? domacePalacinkeDemoPosition
+        : positionRef.current
       void publishPresence(true, heartbeatPosition).catch((error) => {
         if (active) handleError(error, 'Status dostavljača nije mogao da se osveži.')
       })
@@ -216,9 +299,12 @@ function App() {
     // Immediately publish the latest GPS reading when the courier returns so
     // the server does not keep a stale position longer than necessary.
     const handleVisibilityChange = () => {
-      if (document.visibilityState !== 'visible' || !onlineRef.current || !hasFreshLocation()) return
+      if (document.visibilityState !== 'visible' || !onlineRef.current || !hasFreshLocation())
+        return
 
-      const latestPosition = isDemoLocationRef.current ? domacePalacinkeDemoPosition : positionRef.current
+      const latestPosition = isDemoLocationRef.current
+        ? domacePalacinkeDemoPosition
+        : positionRef.current
       void publishPresence(true, latestPosition).catch((error) => {
         if (active) handleError(error, 'Lokacija nije mogla da se osveži po povratku u aplikaciju.')
       })
@@ -271,6 +357,16 @@ function App() {
     }
   }
 
+  async function handleRequestPasswordReset(email: string) {
+    setStatus('')
+    try {
+      return await requestDriverPasswordReset(email)
+    } catch (error) {
+      handleError(error, driverTranslation('status.setupFailed'))
+      throw error
+    }
+  }
+
   async function handleSetOnline(isOnline: boolean) {
     setStatus('')
 
@@ -297,7 +393,14 @@ function App() {
     onlineRef.current = isOnline
 
     try {
-      await publishPresence(isOnline, isOnline ? (isDemoLocationRef.current ? domacePalacinkeDemoPosition : positionRef.current) : null)
+      await publishPresence(
+        isOnline,
+        isOnline
+          ? isDemoLocationRef.current
+            ? domacePalacinkeDemoPosition
+            : positionRef.current
+          : null,
+      )
       await loadDashboard(token, true)
     } catch (error) {
       onlineRef.current = !isOnline
@@ -317,7 +420,10 @@ function App() {
 
       // Refresh presence immediately before accepting. This removes the race
       // between the 15-second heartbeat and the server-side 45-second cutoff.
-      await publishPresence(true, isDemoLocationRef.current ? domacePalacinkeDemoPosition : positionRef.current)
+      await publishPresence(
+        true,
+        isDemoLocationRef.current ? domacePalacinkeDemoPosition : positionRef.current,
+      )
       await acceptDeliveryOffer(token, offerId)
       setStatus(driverTranslation('status.accepted'))
       await loadDashboard(token, true)
@@ -357,7 +463,11 @@ function App() {
 
     try {
       await updateDeliveryStatus(token, delivery.id, statusValue, proof)
-      setStatus(driverTranslation(statusValue === 'delivered' ? 'status.deliveryCompleted' : 'status.deliveryUpdated'))
+      setStatus(
+        driverTranslation(
+          statusValue === 'delivered' ? 'status.deliveryCompleted' : 'status.deliveryUpdated',
+        ),
+      )
       await loadDashboard(token, true)
     } catch (error) {
       handleError(error, driverTranslation('status.deliveryUpdateFailed'))
@@ -417,17 +527,29 @@ function App() {
       onlineRef.current = canStayOnline
       await publishPresence(canStayOnline, canStayOnline ? nextPosition : null)
       await loadDashboard(token, true)
-      setStatus(enabled ? 'Test lokacija je postavljena pored Domaćih palačinki.' : 'Test lokacija je isključena. Uključi GPS da bi ponovo bio online.')
+      setStatus(
+        enabled
+          ? 'Test lokacija je postavljena pored Domaćih palačinki.'
+          : 'Test lokacija je isključena. Uključi GPS da bi ponovo bio online.',
+      )
     } catch (error) {
       handleError(error, 'Test lokacija nije mogla da se postavi.')
     }
   }
 
   if (!token || !user) {
-    return <AuthPage isLoading={isLoading} isSettingPassword={isSettingPassword} onClearStatus={() => setStatus('')} onLogin={handleLogin} onSetupPassword={handleSetupPassword} status={status} />
+    return (
+      <AuthPage
+        isLoading={isLoading}
+        isSettingPassword={isSettingPassword}
+        onClearStatus={() => setStatus('')}
+        onLogin={handleLogin}
+        onRequestPasswordReset={handleRequestPasswordReset}
+        onSetupPassword={handleSetupPassword}
+        status={status}
+      />
+    )
   }
-
-  const locationKey = position ? `${position.latitude.toFixed(4)},${position.longitude.toFixed(4)}` : ''
 
   return (
     <DashboardPage
@@ -436,7 +558,6 @@ function App() {
       isLoading={isLoading}
       isDemoLocation={isDemoLocation}
       isUpdatingDelivery={isUpdatingDelivery}
-      locationKey={locationKey}
       onAcceptOffer={(offerId) => void handleAcceptOffer(offerId)}
       onDeclineOffer={(offerId) => void handleDeclineOffer(offerId)}
       onDemoLocationChange={(enabled) => void handleDemoLocationChange(enabled)}

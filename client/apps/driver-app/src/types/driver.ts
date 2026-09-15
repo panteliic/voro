@@ -154,4 +154,8 @@ export type UpdatePresencePayload = {
   isOnline: boolean
   latitude?: number
   longitude?: number
+  accuracyMeters?: number
+  headingDegrees?: number
+  speedMps?: number
+  capturedAt?: string
 }

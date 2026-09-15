@@ -16,16 +16,27 @@ export async function loginDriver(payload: LoginPayload) {
 }
 
 export async function setupDriverPassword(payload: SetupPasswordPayload) {
-  const verified = await publicRequest<{ resetToken: string }>(
-    '/auth/verify-password-reset-code',
-    {
-      email: payload.email,
-      code: payload.setupCode,
-    },
-  )
+  if (payload.resetToken) {
+    await publicRequest('/auth/reset-password', {
+      resetToken: payload.resetToken,
+      password: payload.password,
+    })
+    return
+  }
+  const verified = await publicRequest<{ resetToken: string }>('/auth/verify-password-reset-code', {
+    email: payload.email,
+    code: payload.setupCode,
+  })
 
   await publicRequest('/auth/reset-password', {
     resetToken: verified.resetToken,
     password: payload.password,
   })
+}
+
+export function requestDriverPasswordReset(email: string) {
+  return publicRequest<{ message: string; email: string; resetUrl?: string }>(
+    '/auth/request-password-reset',
+    { email },
+  )
 }

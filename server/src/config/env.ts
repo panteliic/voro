@@ -32,6 +32,15 @@ const observabilityToken = process.env.OBSERVABILITY_TOKEN?.trim() || "";
 const databaseUrl = process.env.DATABASE_URL?.trim() || "";
 const databaseSsl = process.env.DB_SSL === "true";
 const databaseSslRejectUnauthorized = process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false";
+function positiveEnvironmentNumber(name: string, fallback: number) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+// The delivery demo is deliberately impossible to enable in production. It is
+// useful for a local walkthrough, but real delivery location must always come
+// from the courier's device after deployment.
+const localDeliveryDemoEnabled = !isProduction && process.env.LOCAL_DELIVERY_DEMO !== "false";
 const driverAppUrl = process.env.DRIVER_APP_URL || (
   isProduction ? "https://voro-driver.pages.dev" : "http://localhost:5175"
 );
@@ -77,6 +86,12 @@ export const env = {
   paymentCardEncryptionKey,
   adminBootstrapToken,
   observabilityToken,
+  localDeliveryDemo: {
+    enabled: localDeliveryDemoEnabled,
+    intervalMs: Math.round(positiveEnvironmentNumber("LOCAL_DELIVERY_DEMO_INTERVAL_MS", 1_200)),
+    stepMeters: positiveEnvironmentNumber("LOCAL_DELIVERY_DEMO_STEP_METERS", 90),
+  },
+  deliveryTimeoutMinutes: positiveEnvironmentNumber("DELIVERY_TIMEOUT_MINUTES", 90),
   accessTokenTtl: process.env.ACCESS_TOKEN_TTL || "15m",
   refreshTokenTtlMs: Number(process.env.REFRESH_TOKEN_TTL_DAYS || 30) * 24 * 60 * 60 * 1000,
   redisUrl: process.env.REDIS_URL || `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`,

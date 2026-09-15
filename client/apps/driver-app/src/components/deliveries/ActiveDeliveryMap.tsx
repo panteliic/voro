@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Banknote, Clock3, CreditCard, KeyRound, MessageCircle, Navigation, Store } from 'lucide-react'
 import * as L from 'leaflet'
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
+import { matchPointToRoute, remainingRouteFromMatch, type RoutePoint } from '@voro/shared'
 import 'leaflet/dist/leaflet.css'
 import { translate, type DriverLanguage } from '../../i18n'
 import { getDriverDeliveryRoute } from '../../services/driverApi'
@@ -78,14 +79,15 @@ function AnimatedDriverMarker({ position, label }: { position: [number, number];
   return <Marker icon={driverIcon} position={displayedPosition}><Popup>{label}</Popup></Marker>
 }
 
-function MapViewport({ points }: { points: Array<[number, number]> }) {
+function MapViewport({ points, routeKey }: { points: RoutePoint[]; routeKey: string }) {
   const map = useMap()
+  const fittedRouteKey = useRef('')
 
   useEffect(() => {
-    if (points.length > 1) {
-      map.fitBounds(points, { padding: [36, 36], maxZoom: 16 })
-    }
-  }, [map, points])
+    if (fittedRouteKey.current === routeKey || points.length < 2) return
+    fittedRouteKey.current = routeKey
+    map.fitBounds(points, { padding: [36, 36], maxZoom: 16 })
+  }, [map, points, routeKey])
 
   return null
 }
@@ -124,7 +126,6 @@ export function ActiveDeliveryMap({
   delivery,
   language,
   token,
-  locationKey,
   isUpdating,
   onOpenChat,
   onUpdateStatus,
@@ -134,7 +135,6 @@ export function ActiveDeliveryMap({
   delivery: Delivery
   language: DriverLanguage
   token: string
-  locationKey: string
   isUpdating: boolean
   onOpenChat: () => void
   onUpdateStatus: (status: 'picked_up' | 'on_the_way' | 'delivered', proof?: { proofNote: string }) => void
@@ -143,17 +143,12 @@ export function ActiveDeliveryMap({
   const t = (key: string, values?: Record<string, string | number>) => translate(language, key, values)
   const [routeData, setRouteData] = useState<DriverRoute | null>(null)
   const [error, setError] = useState('')
-  const [refreshKey, setRefreshKey] = useState(0)
   const [isShowingPickupCode, setIsShowingPickupCode] = useState(false)
   const [deliveryProofNote, setDeliveryProofNote] = useState('')
+  const loadRouteRef = useRef<() => void>(() => undefined)
+  const rerouteStateRef = useRef({ offRouteSamples: 0, lastRerouteAt: 0 })
   const copy = deliveryCopy(delivery, language)
-  const shouldShowRoute = delivery.status !== 'picked_up'
-
   useEffect(() => {
-    if (!shouldShowRoute) {
-      return
-    }
-
     let active = true
 
     const loadRoute = () => {
@@ -171,38 +166,76 @@ export function ActiveDeliveryMap({
         })
     }
 
+    loadRouteRef.current = loadRoute
     loadRoute()
-    const interval = window.setInterval(() => setRefreshKey((current) => current + 1), 20_000)
 
     return () => {
       active = false
-      window.clearInterval(interval)
+      loadRouteRef.current = () => undefined
     }
-  }, [delivery.id, delivery.status, language, locationKey, refreshKey, shouldShowRoute, token])
+  }, [delivery.id, delivery.status, language, token])
 
-  const points = useMemo<Array<[number, number]>>(() => {
-    if (shouldShowRoute && routeData?.route.coordinates.length) {
-      return routeData.route.coordinates
+  useEffect(() => {
+    if (!currentLocation || !routeData) return
+
+    const match = matchPointToRoute(
+      [currentLocation.latitude, currentLocation.longitude],
+      routeData.route.coordinates,
+    )
+    if (match && match.distanceMeters <= 75) {
+      rerouteStateRef.current.offRouteSamples = 0
+      return
     }
 
-    const staticPoints: Array<[number, number]> = [
+    rerouteStateRef.current.offRouteSamples += 1
+    const now = Date.now()
+    if (rerouteStateRef.current.offRouteSamples >= 3 && now - rerouteStateRef.current.lastRerouteAt >= 30_000) {
+      rerouteStateRef.current.offRouteSamples = 0
+      rerouteStateRef.current.lastRerouteAt = now
+      loadRouteRef.current()
+    }
+  }, [currentLocation, routeData])
+
+  const mapTracking = useMemo(() => {
+    const rawPosition: RoutePoint | null = currentLocation
+      ? [currentLocation.latitude, currentLocation.longitude]
+      : routeData
+        ? [routeData.currentLocation.latitude, routeData.currentLocation.longitude]
+        : null
+    if (!rawPosition || !routeData?.route.coordinates.length) {
+      return { driverPosition: rawPosition, routePoints: routeData?.route.coordinates || [], etaMinutes: routeData?.route.etaMinutes || null }
+    }
+
+    const match = matchPointToRoute(rawPosition, routeData.route.coordinates)
+    if (!match || match.distanceMeters > 75) {
+      return { driverPosition: rawPosition, routePoints: routeData.route.coordinates, etaMinutes: routeData.route.etaMinutes }
+    }
+
+    const remainingRatio = Math.max(0, 1 - match.distanceAlongMeters / Math.max(1, match.totalDistanceMeters))
+    return {
+      driverPosition: match.position,
+      routePoints: remainingRouteFromMatch(routeData.route.coordinates, match),
+      etaMinutes: Math.max(1, Math.ceil(routeData.route.etaMinutes * remainingRatio)),
+    }
+  }, [currentLocation, routeData])
+
+  const points = useMemo<RoutePoint[]>(() => {
+    if (mapTracking.routePoints.length) return mapTracking.routePoints
+
+    const staticPoints: RoutePoint[] = [
       [delivery.restaurantLatitude, delivery.restaurantLongitude],
       [delivery.customerLatitude, delivery.customerLongitude],
     ]
-    return routeData
-      ? [[routeData.currentLocation.latitude, routeData.currentLocation.longitude], ...staticPoints]
+    return mapTracking.driverPosition
+      ? [mapTracking.driverPosition, ...staticPoints]
       : staticPoints
-  }, [delivery, routeData, shouldShowRoute])
+  }, [delivery, mapTracking])
   const targetIsRestaurant =
-    (shouldShowRoute && routeData?.destination.type === 'restaurant') ||
+    routeData?.destination.type === 'restaurant' ||
     (!routeData && (delivery.status === 'assigned' || delivery.status === 'arriving_to_restaurant'))
   const canShowPickupCode = Boolean(delivery.pickupCode) && (delivery.status === 'assigned' || delivery.status === 'arriving_to_restaurant')
   const canWithdraw = delivery.status === 'assigned' || delivery.status === 'arriving_to_restaurant'
-  const driverPosition: [number, number] | null = currentLocation
-    ? [currentLocation.latitude, currentLocation.longitude]
-    : routeData
-      ? [routeData.currentLocation.latitude, routeData.currentLocation.longitude]
-      : null
+  const driverPosition = mapTracking.driverPosition
   const driverLocation = driverPosition
     ? { latitude: driverPosition[0], longitude: driverPosition[1] }
     : null
@@ -238,10 +271,10 @@ export function ActiveDeliveryMap({
           <h1 className="mt-1 text-xl font-bold">{copy.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t('delivery.order', { id: delivery.orderId })} · {delivery.total.toFixed(0)} RSD</p>
         </div>
-        {shouldShowRoute && routeData ? (
+        {routeData ? (
           <div className="flex gap-2 text-sm font-bold">
             <span className="flex items-center gap-1 rounded-voro-md bg-muted px-3 py-2"><Navigation className="size-4 text-action" />{(routeData.route.distanceMeters / 1000).toFixed(1)} km</span>
-            <span className="flex items-center gap-1 rounded-voro-md bg-accent px-3 py-2 text-action"><Clock3 className="size-4" />{routeData.route.etaMinutes} min</span>
+            <span className="flex items-center gap-1 rounded-voro-md bg-accent px-3 py-2 text-action"><Clock3 className="size-4" />{mapTracking.etaMinutes || routeData.route.etaMinutes} min</span>
           </div>
         ) : null}
         <button className="inline-flex items-center justify-center gap-2 rounded-voro-md border border-line px-3 py-2 text-sm font-bold text-action hover:bg-accent" onClick={onOpenChat} type="button"><MessageCircle className="size-4" />{t('delivery.chat')}</button>
@@ -263,14 +296,13 @@ export function ActiveDeliveryMap({
           ) : null}
         </div>
       </div>
-      {shouldShowRoute && error ? <p className="px-5 py-3 text-sm text-destructive">{error}</p> : null}
-      {!shouldShowRoute ? <p className="border-b border-line px-5 py-3 text-sm text-muted-foreground">{t('delivery.routeAfterPickup')}</p> : null}
+      {error ? <p className="px-5 py-3 text-sm text-destructive">{error}</p> : null}
       <MapContainer center={points[0]} className="min-h-0 flex-1 w-full" scrollWheelZoom zoom={14}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {shouldShowRoute && routeData ? <Polyline color="#ef5a35" pathOptions={{ opacity: 0.9, weight: 6 }} positions={routeData.route.coordinates} /> : null}
+        {routeData ? <Polyline color="#ef5a35" pathOptions={{ opacity: 0.9, weight: 6 }} positions={mapTracking.routePoints} /> : null}
         {driverPosition ? <AnimatedDriverMarker label={t('delivery.currentLocation')} position={driverPosition} /> : null}
         <Marker icon={restaurantIcon} position={[delivery.restaurantLatitude, delivery.restaurantLongitude]}>
           <Popup><strong>{delivery.restaurantName}</strong><br />{t('delivery.pickup')}</Popup>
@@ -278,7 +310,7 @@ export function ActiveDeliveryMap({
         <Marker icon={customerIcon} position={[delivery.customerLatitude, delivery.customerLongitude]}>
           <Popup><strong>{delivery.customerName}</strong><br />{t('delivery.dropoff')}</Popup>
         </Marker>
-        <MapViewport points={points} />
+        <MapViewport points={points} routeKey={`${delivery.id}:${delivery.status}:${routeData?.route.coordinates.length || 0}:${routeData?.route.coordinates[0]?.join(',') || ''}`} />
       </MapContainer>
 
       <div className="grid gap-3 border-t border-line bg-card p-4 md:grid-cols-[1fr_auto] md:items-center">

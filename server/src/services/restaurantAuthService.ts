@@ -6,6 +6,7 @@ import * as restaurantAuthRepository from '../repositories/restaurantAuthReposit
 import { HttpError } from '../utils/httpError'
 import { generateOtp } from '../utils/otp'
 import { passwordValidationMessage } from '../utils/securityInput'
+import { assertEmailDeliveryAvailable, sendPasswordResetEmail, sendPasswordResetLinkEmail } from './mailService'
 
 type RestaurantAccessClaims = {
   restaurantUserId: number
@@ -21,7 +22,9 @@ type RestaurantRefreshClaims = Omit<RestaurantAccessClaims, 'type'> & {
   type: 'refresh'
 }
 
-function publicRestaurantUser(user: Awaited<ReturnType<typeof restaurantAuthRepository.findRestaurantUserById>>) {
+function publicRestaurantUser(
+  user: Awaited<ReturnType<typeof restaurantAuthRepository.findRestaurantUserById>>,
+) {
   if (!user) {
     return null
   }
@@ -97,7 +100,9 @@ async function issueTokenPair(
 
 function verifyRefreshToken(refreshToken: string) {
   try {
-    const decoded = jwt.verify(refreshToken, env.jwtSecret, { algorithms: ['HS256'] }) as RestaurantRefreshClaims
+    const decoded = jwt.verify(refreshToken, env.jwtSecret, {
+      algorithms: ['HS256'],
+    }) as RestaurantRefreshClaims
 
     if (
       decoded.type !== 'refresh' ||
@@ -106,7 +111,9 @@ function verifyRefreshToken(refreshToken: string) {
       !decoded.restaurantId ||
       !decoded.email ||
       !decoded.sessionId ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(decoded.sessionId)
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        decoded.sessionId,
+      )
     ) {
       throw new HttpError(401, 'Invalid restaurant refresh token.')
     }
@@ -117,7 +124,9 @@ function verifyRefreshToken(refreshToken: string) {
   }
 }
 
-function assertActiveRestaurantUser(user: Awaited<ReturnType<typeof restaurantAuthRepository.findRestaurantUserById>>) {
+function assertActiveRestaurantUser(
+  user: Awaited<ReturnType<typeof restaurantAuthRepository.findRestaurantUserById>>,
+) {
   if (!user || !user.isActive || !user.restaurantIsActive || !user.emailVerified) {
     throw new HttpError(403, 'Restaurant console access is not active.')
   }
@@ -194,7 +203,9 @@ export async function logout(payload: { refreshToken: string }) {
   }
 
   const decoded = verifyRefreshToken(payload.refreshToken)
-  const activeTokens = await restaurantAuthRepository.findActiveRefreshTokens(decoded.restaurantUserId)
+  const activeTokens = await restaurantAuthRepository.findActiveRefreshTokens(
+    decoded.restaurantUserId,
+  )
 
   for (const token of activeTokens) {
     if (await bcrypt.compare(payload.refreshToken, token.tokenHash)) {
@@ -213,24 +224,119 @@ export async function issuePasswordSetupCode(restaurantId: number) {
     throw new HttpError(404, 'Restaurant console account not found.')
   }
 
-  const setupCode = generateOtp()
-  await restaurantAuthRepository.saveSetupCode({
-    restaurantUserId: user.id,
-    codeHash: await bcrypt.hash(setupCode, 10),
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-  })
+  const setupCode = await createPasswordSetupCode(user.id, 7 * 24 * 60 * 60 * 1000)
 
   return { user: publicRestaurantUser(user)!, setupCode }
 }
 
-export async function setupPassword(payload: { email: string; setupCode: string; password: string }) {
-  if (!payload.email || !payload.setupCode || !payload.password) {
-    throw new HttpError(400, 'Email, setup code, and password are required.')
+export async function createPasswordSetupLink(restaurantId: number, appUrl = env.operatorApps.restaurantUrl) {
+  const user = await restaurantAuthRepository.findPrimaryRestaurantUser(restaurantId)
+  if (!user) throw new HttpError(404, 'Restaurant console account not found.')
+  const token = jwt.sign(
+    { restaurantUserId: user.id, email: user.email, type: 'restaurant_password_setup' },
+    env.jwtSecret,
+    { expiresIn: 7 * 24 * 60 * 60, jwtid: crypto.randomUUID() },
+  )
+  await restaurantAuthRepository.saveSetupCode({
+    restaurantUserId: user.id,
+    codeHash: await bcrypt.hash(token, 10),
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  })
+  const url = new URL(appUrl)
+  url.searchParams.set('access', '1')
+  url.searchParams.set('token', token)
+  url.searchParams.set('email', user.email)
+  return { user: publicRestaurantUser(user)!, setupUrl: url.toString() }
+}
+
+async function createPasswordSetupCode(restaurantUserId: number, ttlMs: number) {
+  const setupCode = generateOtp()
+  await restaurantAuthRepository.saveSetupCode({
+    restaurantUserId,
+    codeHash: await bcrypt.hash(setupCode, 10),
+    expiresAt: new Date(Date.now() + ttlMs),
+  })
+  return setupCode
+}
+
+function devCode(code: string) {
+  return env.isProduction || env.smtp.enabled ? undefined : code
+}
+
+export async function requestPasswordReset(email: string) {
+  if (!email) {
+    throw new HttpError(400, 'Email is required.')
+  }
+
+  assertEmailDeliveryAvailable()
+
+  const user = await restaurantAuthRepository.findRestaurantUserByEmail(email)
+  const genericResponse = {
+    message: 'If that email exists, a password reset link has been sent.',
+    email,
+  }
+
+  // Do not disclose whether an account exists or whether it is currently
+  // disabled. An active restaurant account gets a short-lived reset code;
+  // invitation codes remain valid for their existing seven-day lifetime.
+  if (!user || !user.isActive || !user.restaurantIsActive || !user.emailVerified) {
+    return genericResponse
+  }
+
+  const token = jwt.sign(
+    { restaurantUserId: user.id, email: user.email, type: 'restaurant_password_setup' },
+    env.jwtSecret,
+    { expiresIn: Math.floor(env.otpTtlMs / 1000), jwtid: crypto.randomUUID() },
+  )
+  const resetUrl = new URL(env.operatorApps.restaurantUrl)
+  resetUrl.searchParams.set('reset', '1')
+  resetUrl.searchParams.set('token', token)
+  resetUrl.searchParams.set('email', user.email)
+  await restaurantAuthRepository.saveSetupCode({
+    restaurantUserId: user.id,
+    codeHash: await bcrypt.hash(token, 10),
+    expiresAt: new Date(Date.now() + env.otpTtlMs),
+  })
+  await sendPasswordResetLinkEmail(user.email, resetUrl.toString(), 'customer')
+
+  return {
+    message: 'Password reset link sent.',
+    email: user.email,
+    resetUrl: env.isProduction || env.smtp.enabled ? undefined : resetUrl.toString(),
+  }
+}
+
+export async function setupPassword(payload: {
+  email: string
+  setupCode: string
+  resetToken?: string
+  password: string
+}) {
+  if ((!payload.email && !payload.resetToken) || (!payload.setupCode && !payload.resetToken) || !payload.password) {
+    throw new HttpError(400, 'Setup link and new password are required.')
   }
 
   const passwordError = passwordValidationMessage(payload.password)
   if (passwordError) {
     throw new HttpError(400, passwordError)
+  }
+
+  if (payload.resetToken) {
+    try {
+      const claims = jwt.verify(payload.resetToken, env.jwtSecret, { algorithms: ['HS256'] }) as { restaurantUserId?: number; email?: string; type?: string }
+      if (claims.type !== 'restaurant_password_setup' || !claims.restaurantUserId || !claims.email) throw new Error('invalid')
+      const user = await restaurantAuthRepository.findRestaurantUserById(claims.restaurantUserId)
+      if (!user || user.email.toLowerCase() !== claims.email.toLowerCase()) throw new Error('invalid')
+      assertActiveRestaurantUser(user)
+      const activeCode = await restaurantAuthRepository.findActiveSetupCode(user.email)
+      if (!activeCode || new Date() > activeCode.code.expiresAt || !(await bcrypt.compare(payload.resetToken, activeCode.code.codeHash))) throw new Error('invalid')
+      await restaurantAuthRepository.consumeSetupCode(activeCode.code.id)
+      await restaurantAuthRepository.updateRestaurantUserPassword({ userId: user.id, passwordHash: await bcrypt.hash(payload.password, 10) })
+      await restaurantAuthRepository.revokeAllRefreshTokens(user.id)
+      return { message: 'Restaurant password saved. You can sign in now.' }
+    } catch {
+      throw new HttpError(401, 'Invalid or expired restaurant password link.')
+    }
   }
 
   const result = await restaurantAuthRepository.findActiveSetupCode(payload.email)
@@ -246,6 +352,8 @@ export async function setupPassword(payload: { email: string; setupCode: string;
   const validCode = await bcrypt.compare(payload.setupCode, result.code.codeHash)
 
   if (!validCode) {
+    const attempts = await restaurantAuthRepository.recordSetupCodeAttempt(result.code.id)
+    if (attempts >= 5) await restaurantAuthRepository.consumeSetupCode(result.code.id)
     throw new HttpError(400, 'Invalid restaurant setup code.')
   }
 

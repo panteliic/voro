@@ -18,7 +18,7 @@ import type {
 import { HttpError } from '../utils/httpError'
 import { generateOtp } from '../utils/otp'
 import { passwordValidationMessage, sanitizePlainText } from '../utils/securityInput'
-import { assertEmailDeliveryAvailable, sendOtpEmail, sendPasswordResetEmail } from './mailService'
+import { assertEmailDeliveryAvailable, sendOtpEmail, sendPasswordResetEmail, sendPasswordResetLinkEmail } from './mailService'
 
 function devCode(code: string) {
   return env.isProduction || env.smtp.enabled ? undefined : code
@@ -96,11 +96,20 @@ function signRefreshToken(payload: { userId: number; email: string; role: string
   })
 }
 
-function signPasswordResetToken(payload: { userId: number; email: string }) {
+function signPasswordResetToken(payload: { userId: number; email: string }, ttlSeconds = 10 * 60) {
   return jwt.sign({ ...payload, type: 'password_reset' }, env.jwtSecret, {
-    expiresIn: '10m',
+    expiresIn: ttlSeconds,
     jwtid: crypto.randomUUID(),
   })
+}
+
+export async function createPasswordResetLink(user: { id: number; email: string }, appUrl = env.operatorApps.driverUrl, ttlSeconds = 60 * 60, mode: 'reset' | 'access' = 'reset') {
+  const token = signPasswordResetToken({ userId: user.id, email: user.email }, ttlSeconds)
+  await authRepository.savePasswordResetLinkToken({ userId: user.id, tokenHash: await bcrypt.hash(token, 10), expiresAt: new Date(Date.now() + ttlSeconds * 1_000) })
+  const url = new URL(appUrl)
+  url.searchParams.set(mode, '1')
+  url.searchParams.set('token', token)
+  return url.toString()
 }
 
 function refreshTokenDigest(refreshToken: string) {
@@ -628,15 +637,19 @@ export async function requestPasswordReset(payload: RequestPasswordResetPayload)
   const user = await authRepository.findUserByEmail(email)
 
   if (!user || !user.emailVerified) {
-    return { message: 'If that email exists, a password reset code has been sent.', email }
+    return { message: 'If that email exists, a password reset link has been sent.', email }
   }
 
-  const code = await issuePasswordResetCode(user.id, user.email)
+  const resetUrl = await createPasswordResetLink(
+    user,
+    user.roleName === 'courier' ? env.operatorApps.driverUrl : env.clientUrls[0],
+  )
+  await sendPasswordResetLinkEmail(user.email, resetUrl, user.roleName === 'courier' ? 'driver' : 'customer')
 
   return {
-    message: 'Password reset code sent.',
+    message: 'Password reset link sent.',
     email: user.email,
-    devCode: devCode(code),
+    resetUrl: env.isProduction || env.smtp.enabled ? undefined : resetUrl,
   }
 }
 
@@ -669,10 +682,17 @@ export async function verifyPasswordResetCode(payload: VerifyPasswordResetCodePa
 
   await authRepository.consumePasswordResetCode(resetCode.id)
 
+  const resetToken = signPasswordResetToken({ userId: user.id, email: user.email })
+  await authRepository.savePasswordResetLinkToken({
+    userId: user.id,
+    tokenHash: await bcrypt.hash(resetToken, 10),
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+  })
+
   return {
     message: 'Password reset code verified.',
     email: user.email,
-    resetToken: signPasswordResetToken({ userId: user.id, email: user.email }),
+    resetToken,
   }
 }
 
@@ -695,8 +715,16 @@ export async function resetPassword(payload: ResetPasswordPayload) {
     throw new HttpError(401, 'Invalid password reset token.')
   }
 
+  const activeTokens = await authRepository.findActivePasswordResetLinkTokens(user.id)
+  const matchingToken = await (async () => {
+    for (const token of activeTokens) if (await bcrypt.compare(resetToken, token.tokenHash)) return token
+    return null
+  })()
+  if (!matchingToken) throw new HttpError(401, 'Invalid or expired password reset link.')
+
   const passwordHash = await bcrypt.hash(password, 10)
   await authRepository.updateUserPassword({ userId: user.id, passwordHash })
+  await authRepository.consumePasswordResetLinkToken(matchingToken.id)
   await authRepository.revokeAllUserRefreshTokens(user.id)
 
   return { message: 'Password updated. You can sign in now.', email: user.email }

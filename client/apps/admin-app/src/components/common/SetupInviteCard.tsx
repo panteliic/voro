@@ -41,14 +41,14 @@ export function SetupInviteCard({ invite }: SetupInviteCardProps) {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-voro-md border border-line bg-card p-3">
+        {invite.setupCode ? <div className="rounded-voro-md border border-line bg-card p-3">
           <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{t('invite.accessLink')}</p>
           <p className="mt-1 truncate text-sm font-medium" title={invite.setupUrl}>{invite.setupUrl}</p>
           <Button className="mt-3 w-full" disabled={!invite.setupUrl} onClick={() => void copy(invite.setupUrl || '', 'link')} size="sm" type="button" variant="outline">
             {copied === 'link' ? <Check className="size-4" /> : <Copy className="size-4" />}
             {copied === 'link' ? t('invite.copied') : t('invite.copyLink')}
           </Button>
-        </div>
+        </div> : null}
         <div className="rounded-voro-md border border-line bg-card p-3">
           <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{t('invite.oneTimeCode')}</p>
           <p className="mt-1 font-mono text-xl font-bold tracking-[0.24em] text-action">{invite.setupCode}</p>

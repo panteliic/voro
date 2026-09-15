@@ -49,7 +49,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'theme.follows': 'Follows device ({theme})',
     'theme.reduceMotion': 'Reduce visual motion',
     'theme.reduceMotionDesc': 'Use calmer transitions across the app.',
-    'theme.description': 'Default is system. Choosing light or dark saves your preference on this device.',
+    'theme.description':
+      'Default is system. Choosing light or dark saves your preference on this device.',
 
     'auth.checkingSession': 'Checking session...',
     'loading.title': 'Preparing your Voro',
@@ -136,6 +137,7 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'nav.cart': 'Cart',
     'nav.favorites': 'Favorites',
     'nav.orders': 'Orders',
+    'nav.messages': 'Messages',
     'nav.addresses': 'Addresses',
     'nav.payments': 'Payments',
     'nav.settings': 'Settings',
@@ -165,7 +167,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'discovery.picks': 'Voro picks',
     'discovery.friend': 'there',
     'discovery.title': 'What are you in the mood for, {name}?',
-    'discovery.desc': 'Pick a cuisine, find a local favorite, and keep delivery details in one simple place.',
+    'discovery.desc':
+      'Pick a cuisine, find a local favorite, and keep delivery details in one simple place.',
     'discovery.deliveringTo': 'Delivering to',
     'discovery.addAddress': 'Add a delivery address',
 
@@ -177,7 +180,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
       'Cards, wallet balance, promo credits, invoices, and default payment method settings will live here.',
 
     'orders.title': 'Your orders',
-    'orders.empty': 'Your active and completed orders will appear here. Start with a restaurant that looks good to you.',
+    'orders.empty':
+      'Your active and completed orders will appear here. Start with a restaurant that looks good to you.',
     'orders.browse': 'Browse restaurants',
     'orders.loading': 'Loading your orders...',
     'orders.loadError': 'Could not load your orders.',
@@ -203,6 +207,18 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'orders.status.delivered': 'Delivered',
     'orders.status.cancelled': 'Cancelled',
 
+    'messages.kicker': 'DELIVERY CHAT',
+    'messages.title': 'Messages',
+    'messages.description': 'Reach your courier about access, handoff, or delivery details.',
+    'messages.loading': 'Loading conversations...',
+    'messages.loadError': 'Could not load your conversations.',
+    'messages.emptyTitle': 'No delivery conversations yet',
+    'messages.emptyDesc': 'When you have an active order, its courier chat will be available here.',
+    'messages.order': 'Order #{id}',
+    'messages.courier': 'Courier: {name}',
+    'messages.waitingForCourier': 'Waiting for a courier to be assigned',
+    'messages.open': 'Open chat',
+
     'map.deliveryRoute': 'Delivery route',
     'map.liveTracking': 'Live delivery tracking',
     'map.loadingTracking': 'Loading delivery tracking...',
@@ -211,7 +227,9 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'map.waitingForCourier': 'Waiting for courier',
     'map.courierToRestaurant': 'Courier is heading to the restaurant',
     'map.courierOnTheWay': 'Courier is on the way to you',
-    'map.routeStartsAfterPickup': 'The route appears after the courier picks up the order and starts toward you.',
+    'map.locationRefreshing': 'Courier location is refreshing',
+    'map.routeStartsAfterPickup':
+      'The route appears after the courier picks up the order and starts toward you.',
     'map.loadingRoute': 'Finding the best route...',
     'map.routeError': 'Could not load the delivery route.',
     'map.travelTime': 'Drive {min}–{max} min',
@@ -219,7 +237,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'map.deliveryPin': 'Your delivery address',
 
     'restaurants.title': 'Find restaurants',
-    'restaurants.desc': 'Browse restaurants by food type, like pizza, burgers, sushi, desserts, and healthy meals.',
+    'restaurants.desc':
+      'Browse restaurants by food type, like pizza, burgers, sushi, desserts, and healthy meals.',
     'restaurants.all': 'All',
     'restaurants.count': '{count} restaurants',
     'restaurants.loading': 'Loading restaurants...',
@@ -277,13 +296,15 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'checkout.paymentMethod': 'Payment method',
     'checkout.card': 'Card',
     'checkout.cash': 'Cash',
-    'checkout.cardDemoHint': 'Card payment is recorded as a demo until a payment processor is connected.',
+    'checkout.cardDemoHint':
+      'Card payment is recorded as a demo until a payment processor is connected.',
     'checkout.cashHint': 'Tell your courier how much cash you will give.',
     'checkout.cashTendered': 'Cash you will give the courier',
     'checkout.cashInsufficient': 'The entered amount needs to cover the total order price.',
     'checkout.changeDue': 'Change to return',
     'checkout.savingsAndTip': 'Savings and tip',
-    'checkout.codeHint': 'Use either a one-time promo code or a referral code. The discount is verified when you confirm.',
+    'checkout.codeHint':
+      'Use either a one-time promo code or a referral code. The discount is verified when you confirm.',
     'checkout.promoCode': 'Promo code',
     'checkout.referralCode': 'Referral code',
     'checkout.tip': 'Tip for the courier',
@@ -293,7 +314,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'cart.savedDescription': '{count} items · {total}. Continue whenever you are ready.',
     'cart.continue': 'Continue to cart',
     'cart.emptyTitle': 'Your cart is empty',
-    'cart.emptyDescription': 'Add dishes from a restaurant and they will stay here until you place the order.',
+    'cart.emptyDescription':
+      'Add dishes from a restaurant and they will stay here until you place the order.',
     'cart.browseRestaurants': 'Browse restaurants',
     'cart.backToMenu': 'Back to menu',
     'cart.fromRestaurant': 'From {name}',
@@ -333,7 +355,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'settings.support.label': 'Support',
     'settings.support.desc': 'Contact the Voro team about an order, payment, or your account.',
 
-    'account.description': 'Keep your customer profile accurate for receipts, delivery contact, and support.',
+    'account.description':
+      'Keep your customer profile accurate for receipts, delivery contact, and support.',
     'account.displayName': 'Display name',
     'account.phone': 'Phone number',
     'account.save': 'Save profile',
@@ -381,7 +404,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'delivery.evening': 'Evening',
     'delivery.defaultNotes': 'Default courier notes',
     'delivery.substitutions': 'Allow substitutions',
-    'delivery.substitutionsDesc': 'Let restaurants suggest similar items if something is unavailable.',
+    'delivery.substitutionsDesc':
+      'Let restaurants suggest similar items if something is unavailable.',
     'delivery.suggestionsError': 'Could not load suggestions.',
 
     'payments.description':
@@ -404,7 +428,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'payments.edit': 'Edit',
     'payments.showNumber': 'Show number',
     'payments.hideNumber': 'Hide number',
-    'payments.savedNumberHidden': 'Saved card numbers are masked. Enter the full number to replace it.',
+    'payments.savedNumberHidden':
+      'Saved card numbers are masked. Enter the full number to replace it.',
     'payments.cardNumber': 'Card number',
     'payments.cardNumberPlaceholder': '1234 5678 9012 3456',
     'payments.cardNumberInvalid': 'Enter a valid card number.',
@@ -420,7 +445,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'payments.saved': 'Payment method saved.',
     'payments.error': 'Could not save payment method.',
 
-    'notifications.description': 'Choose which updates should reach you and which ones should stay quiet.',
+    'notifications.description':
+      'Choose which updates should reach you and which ones should stay quiet.',
     'notifications.orderStatus': 'Order status',
     'notifications.orderStatusDesc': 'Preparation, pickup, and delivery updates.',
     'notifications.courierMessages': 'Courier messages',
@@ -451,9 +477,11 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'activity.deliveredTitle': 'Order #{id}: delivered',
     'activity.deliveredBody': 'Your delivery has been completed. Enjoy your meal!',
     'activity.newCourierTitle': 'Order #{id}: finding a new courier',
-    'activity.newCourierBody': 'Your courier could not complete pickup. We are finding another available courier now.',
+    'activity.newCourierBody':
+      'Your courier could not complete pickup. We are finding another available courier now.',
     'activity.courierNearbyTitle': 'Order #{id}: your courier is nearby',
-    'activity.courierNearbyBody': 'Your courier is close to your address. Please be ready to receive the order.',
+    'activity.courierNearbyBody':
+      'Your courier is close to your address. Please be ready to receive the order.',
 
     'chat.courierTitle': 'Courier chat',
     'chat.orderSubtitle': 'Order #{id} · live messages',
@@ -486,7 +514,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'orders.issue.courier': 'Courier issue',
     'orders.issue.other': 'Other',
     'orders.stars': '{count} stars',
-    'orders.cancelConfirm': 'Cancel order #{id}? This is possible before the restaurant accepts it.',
+    'orders.cancelConfirm':
+      'Cancel order #{id}? This is possible before the restaurant accepts it.',
     'orders.cancelError': 'Order could not be cancelled.',
 
     'map.messageCourier': 'Message courier',
@@ -533,11 +562,13 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'security.recommendations': 'Personalized recommendations',
     'security.recommendationsDesc': 'Use order history to improve suggestions.',
     'security.privacyTitle': 'Your data',
-    'security.privacyDesc': 'Download a copy of your account data or permanently close this customer account.',
+    'security.privacyDesc':
+      'Download a copy of your account data or permanently close this customer account.',
     'security.exportData': 'Download my data',
     'security.exported': 'Your data export has been downloaded.',
     'security.deleteAccount': 'Delete account',
-    'security.deleteConfirm': 'Type DELETE to permanently close your account. Order history will be anonymized and you will be signed out.',
+    'security.deleteConfirm':
+      'Type DELETE to permanently close your account. Order history will be anonymized and you will be signed out.',
     'security.deleteError': 'The account could not be deleted.',
   },
   sr: {
@@ -576,7 +607,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'theme.follows': 'Prati uređaj ({theme})',
     'theme.reduceMotion': 'Smanji animacije',
     'theme.reduceMotionDesc': 'Koristi mirnije prelaze kroz aplikaciju.',
-    'theme.description': 'Podrazumevano je sistemski. Izbor svetle ili tamne teme se pamti na ovom uređaju.',
+    'theme.description':
+      'Podrazumevano je sistemski. Izbor svetle ili tamne teme se pamti na ovom uređaju.',
 
     'auth.checkingSession': 'Provera sesije...',
     'loading.title': 'Pripremamo tvoj Voro',
@@ -662,6 +694,7 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'nav.cart': 'Korpa',
     'nav.favorites': 'Omiljeni',
     'nav.orders': 'Porudžbine',
+    'nav.messages': 'Poruke',
     'nav.addresses': 'Adrese',
     'nav.payments': 'Plaćanja',
     'nav.settings': 'Podešavanja',
@@ -691,7 +724,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'discovery.picks': 'Voro preporuka',
     'discovery.friend': 'prijatelju',
     'discovery.title': 'Šta ti se jede, {name}?',
-    'discovery.desc': 'Izaberi vrstu hrane, pronađi omiljeni lokal i drži sve detalje dostave na jednom mestu.',
+    'discovery.desc':
+      'Izaberi vrstu hrane, pronađi omiljeni lokal i drži sve detalje dostave na jednom mestu.',
     'discovery.deliveringTo': 'Dostava na',
     'discovery.addAddress': 'Dodaj adresu za dostavu',
 
@@ -703,7 +737,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
       'Ovde će biti kartice, wallet stanje, promo krediti, fakture i podrazumevano plaćanje.',
 
     'orders.title': 'Tvoje porudžbine',
-    'orders.empty': 'Aktivne i završene porudžbine će se pojaviti ovde. Počni tako što ćeš pronaći restoran koji ti se dopada.',
+    'orders.empty':
+      'Aktivne i završene porudžbine će se pojaviti ovde. Počni tako što ćeš pronaći restoran koji ti se dopada.',
     'orders.browse': 'Pronađi restoran',
     'orders.loading': 'Učitavanje porudžbina...',
     'orders.loadError': 'Porudžbine nisu mogle da se učitaju.',
@@ -729,6 +764,18 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'orders.status.delivered': 'Dostavljeno',
     'orders.status.cancelled': 'Otkazano',
 
+    'messages.kicker': 'CHAT ZA DOSTAVU',
+    'messages.title': 'Poruke',
+    'messages.description': 'Piši dostavljaču o pristupu, predaji ili detaljima dostave.',
+    'messages.loading': 'Učitavanje razgovora...',
+    'messages.loadError': 'Razgovori nisu mogli da se učitaju.',
+    'messages.emptyTitle': 'Još nema razgovora za dostavu',
+    'messages.emptyDesc': 'Kada imaš aktivnu porudžbinu, chat sa dostavljačem biće dostupan ovde.',
+    'messages.order': 'Porudžbina #{id}',
+    'messages.courier': 'Dostavljač: {name}',
+    'messages.waitingForCourier': 'Čeka se dodela dostavljača',
+    'messages.open': 'Otvori chat',
+
     'map.deliveryRoute': 'Ruta dostave',
     'map.liveTracking': 'Praćenje dostave uživo',
     'map.loadingTracking': 'Učitavanje praćenja dostave...',
@@ -737,7 +784,9 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'map.waitingForCourier': 'Čeka se dostavljač',
     'map.courierToRestaurant': 'Dostavljač ide ka restoranu',
     'map.courierOnTheWay': 'Dostavljač je na putu ka tebi',
-    'map.routeStartsAfterPickup': 'Ruta se prikazuje kada dostavljač preuzme porudžbinu i krene ka tebi.',
+    'map.locationRefreshing': 'Lokacija dostavljača se osvežava',
+    'map.routeStartsAfterPickup':
+      'Ruta se prikazuje kada dostavljač preuzme porudžbinu i krene ka tebi.',
     'map.loadingRoute': 'Tražimo najbolju rutu...',
     'map.routeError': 'Ruta dostave nije mogla da se učita.',
     'map.travelTime': 'Vožnja {min}–{max} min',
@@ -804,13 +853,15 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'checkout.paymentMethod': 'Način plaćanja',
     'checkout.card': 'Kartica',
     'checkout.cash': 'Gotovina',
-    'checkout.cardDemoHint': 'Plaćanje karticom se trenutno beleži kao demo dok ne povežemo payment procesor.',
+    'checkout.cardDemoHint':
+      'Plaćanje karticom se trenutno beleži kao demo dok ne povežemo payment procesor.',
     'checkout.cashHint': 'Unesi koliko novca daješ dostavljaču.',
     'checkout.cashTendered': 'Iznos koji daješ dostavljaču',
     'checkout.cashInsufficient': 'Uneti iznos mora da pokrije ukupnu cenu porudžbine.',
     'checkout.changeDue': 'Kusur za vraćanje',
     'checkout.savingsAndTip': 'Popust i napojnica',
-    'checkout.codeHint': 'Upotrebi kod za popust ili referral kod. Popust se proverava pri potvrdi porudžbine.',
+    'checkout.codeHint':
+      'Upotrebi kod za popust ili referral kod. Popust se proverava pri potvrdi porudžbine.',
     'checkout.promoCode': 'Kod za popust',
     'checkout.referralCode': 'Referral kod',
     'checkout.tip': 'Napojnica za dostavljača',
@@ -873,7 +924,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'account.referralCopied': 'Referral kod je kopiran.',
     'account.referralCopyError': 'Referral kod nije mogao da se kopira.',
 
-    'delivery.description': 'Podesi podrazumevanja koja dostavljač i restoran koriste pre svake porudžbine.',
+    'delivery.description':
+      'Podesi podrazumevanja koja dostavljač i restoran koriste pre svake porudžbine.',
     'delivery.savedLocations': 'Sačuvane lokacije',
     'delivery.savedLocationsDesc': 'Izaberi podrazumevanu adresu za dostavu ili dodaj novu.',
     'delivery.addAddress': 'Dodaj adresu',
@@ -908,7 +960,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'delivery.evening': 'Veče',
     'delivery.defaultNotes': 'Podrazumevana napomena dostavljaču',
     'delivery.substitutions': 'Dozvoli zamene',
-    'delivery.substitutionsDesc': 'Dozvoli restoranu da predloži slične stavke ako nešto nije dostupno.',
+    'delivery.substitutionsDesc':
+      'Dozvoli restoranu da predloži slične stavke ako nešto nije dostupno.',
     'delivery.suggestionsError': 'Predlozi nisu mogli da se učitaju.',
 
     'payments.description':
@@ -931,7 +984,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'payments.edit': 'Izmeni',
     'payments.showNumber': 'Prikaži broj',
     'payments.hideNumber': 'Sakrij broj',
-    'payments.savedNumberHidden': 'Sačuvani brojevi kartica su maskirani. Unesi pun broj da ga zameniš.',
+    'payments.savedNumberHidden':
+      'Sačuvani brojevi kartica su maskirani. Unesi pun broj da ga zameniš.',
     'payments.cardNumber': 'Broj kartice',
     'payments.cardNumberPlaceholder': '1234 5678 9012 3456',
     'payments.cardNumberInvalid': 'Unesi važeći broj kartice.',
@@ -964,7 +1018,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
 
     'activity.kicker': 'Voro aktivnosti',
     'activity.title': 'Obaveštenja',
-    'activity.description': 'Ažuriranja porudžbina, dostavljača, poruka i podrške stižu ovde u realnom vremenu.',
+    'activity.description':
+      'Ažuriranja porudžbina, dostavljača, poruka i podrške stižu ovde u realnom vremenu.',
     'activity.emptyTitle': 'Sve je pročitano',
     'activity.emptyDesc': 'Nova ažuriranja dostave će se pojaviti ovde.',
     'activity.loadError': 'Obaveštenja trenutno nisu dostupna.',
@@ -978,9 +1033,11 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'activity.deliveredTitle': 'Porudžbina #{id}: dostavljena',
     'activity.deliveredBody': 'Dostava je završena. Prijatno!',
     'activity.newCourierTitle': 'Porudžbina #{id}: tražimo novog dostavljača',
-    'activity.newCourierBody': 'Dostavljač nije mogao da preuzme porudžbinu. Tražimo drugog dostupnog dostavljača.',
+    'activity.newCourierBody':
+      'Dostavljač nije mogao da preuzme porudžbinu. Tražimo drugog dostupnog dostavljača.',
     'activity.courierNearbyTitle': 'Porudžbina #{id}: dostavljač je blizu',
-    'activity.courierNearbyBody': 'Dostavljač je blizu tvoje adrese. Pripremi se da preuzmeš porudžbinu.',
+    'activity.courierNearbyBody':
+      'Dostavljač je blizu tvoje adrese. Pripremi se da preuzmeš porudžbinu.',
 
     'chat.courierTitle': 'Chat sa dostavljačem',
     'chat.orderSubtitle': 'Porudžbina #{id} · poruke uživo',
@@ -1013,7 +1070,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'orders.issue.courier': 'Problem sa dostavljačem',
     'orders.issue.other': 'Ostalo',
     'orders.stars': '{count} zvezdica',
-    'orders.cancelConfirm': 'Otkaži porudžbinu #{id}? To je moguće pre prihvatanja od strane restorana.',
+    'orders.cancelConfirm':
+      'Otkaži porudžbinu #{id}? To je moguće pre prihvatanja od strane restorana.',
     'orders.cancelError': 'Porudžbina nije mogla da se otkaže.',
 
     'map.messageCourier': 'Piši dostavljaču',
@@ -1052,7 +1110,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'security.lastActive': 'Poslednja aktivnost: {date}',
     'security.signOutDevice': 'Odjavi uređaj',
     'security.signOutOthers': 'Odjavi ostale uređaje',
-    'security.signOutOthersConfirm': 'Odjaviti sve ostale uređaje? Ostaćeš prijavljen na ovom uređaju.',
+    'security.signOutOthersConfirm':
+      'Odjaviti sve ostale uređaje? Ostaćeš prijavljen na ovom uređaju.',
     'security.sessionSignedOut': 'Izabrani uređaj je odjavljen.',
     'security.otherSessionsSignedOut': 'Svi ostali uređaji su odjavljeni.',
     'security.sessionsEmpty': 'Nema aktivnih sesija za prikaz.',
@@ -1060,11 +1119,13 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'security.recommendations': 'Personalizovane preporuke',
     'security.recommendationsDesc': 'Koristi istoriju porudžbina za bolje preporuke.',
     'security.privacyTitle': 'Tvoji podaci',
-    'security.privacyDesc': 'Preuzmi kopiju podataka naloga ili trajno ugasi ovaj korisnički nalog.',
+    'security.privacyDesc':
+      'Preuzmi kopiju podataka naloga ili trajno ugasi ovaj korisnički nalog.',
     'security.exportData': 'Preuzmi moje podatke',
     'security.exported': 'Izvoz podataka je preuzet.',
     'security.deleteAccount': 'Obriši nalog',
-    'security.deleteConfirm': 'Upiši DELETE da trajno obrišeš nalog. Istorija porudžbina će biti anonimizovana, a bićeš odjavljen.',
+    'security.deleteConfirm':
+      'Upiši DELETE da trajno obrišeš nalog. Istorija porudžbina će biti anonimizovana, a bićeš odjavljen.',
     'security.deleteError': 'Nalog nije mogao da se obriše.',
   },
 }

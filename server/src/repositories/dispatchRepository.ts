@@ -32,6 +32,13 @@ export type RecoveredCourierAssignment = {
   courierId: number
 }
 
+export type ExpiredDelivery = {
+  orderId: number
+  customerUserId: number
+  courierUserId: number | null
+  status: string
+}
+
 type DispatchOrderRow = {
   id: string
   restaurant_latitude: string | null
@@ -394,4 +401,53 @@ export async function recoverStaleCourierAssignments(staleAfterSeconds = 120) {
   } finally {
     client.release()
   }
+}
+
+export async function expireOverdueDeliveries(timeoutMinutes: number) {
+  const result = await pool.query<{
+    order_id: string
+    customer_user_id: string
+    courier_user_id: string | null
+    status: string
+  }>(
+    `
+      WITH overdue AS (
+        SELECT delivery.id, delivery.order_id, delivery_status.name AS status
+        FROM delivery
+        INNER JOIN delivery_status ON delivery_status.id = delivery.status_id
+        WHERE delivery_status.name IN ('assigned', 'arriving_to_restaurant', 'picked_up', 'on_the_way')
+          AND delivery.updated_at < NOW() - ($1 * INTERVAL '1 minute')
+        FOR UPDATE SKIP LOCKED
+      ), changed AS (
+        UPDATE delivery
+        SET status_id = (SELECT id FROM delivery_status WHERE name = 'failed'),
+            failed_at = NOW(),
+            failure_reason = 'Delivery exceeded the configured time limit.',
+            updated_at = NOW()
+        FROM overdue
+        WHERE delivery.id = overdue.id
+        RETURNING delivery.order_id, overdue.status
+      )
+      , order_changed AS (
+        UPDATE "order"
+        SET status_id = (SELECT id FROM order_status WHERE name = 'cancelled'), updated_at = NOW()
+        FROM changed
+        WHERE "order".id = changed.order_id
+        RETURNING "order".id AS order_id, "order".user_id
+      )
+      SELECT order_changed.order_id, order_changed.user_id AS customer_user_id,
+             courier.user_id AS courier_user_id, changed.status
+      FROM order_changed
+      INNER JOIN changed ON changed.order_id = order_changed.order_id
+      LEFT JOIN delivery ON delivery.order_id = changed.order_id
+      LEFT JOIN courier ON courier.id = delivery.courier_id
+    `,
+    [Math.max(5, timeoutMinutes)],
+  )
+  return result.rows.map((row) => ({
+    orderId: Number(row.order_id),
+    customerUserId: Number(row.customer_user_id),
+    courierUserId: row.courier_user_id ? Number(row.courier_user_id) : null,
+    status: row.status,
+  })) satisfies ExpiredDelivery[]
 }

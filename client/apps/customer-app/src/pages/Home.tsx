@@ -3,10 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { MessageCircle, Settings, X } from 'lucide-react'
 import { createSocketClient } from '@voro/socket'
 import { DashboardSidebar } from '../components/dashboard/DashboardSidebar'
-import {
-  getDashboardView,
-  getSettingsSection,
-} from '../components/dashboard/utils/dashboardUtils'
+import { getDashboardView, getSettingsSection } from '../components/dashboard/utils/dashboardUtils'
 import { dashboardNavItems } from '../components/dashboard/data/dashboardData'
 import { customerNotificationText } from '../components/dashboard/utils/notificationText'
 import { OrdersPanel } from '../components/dashboard/OrdersPanel'
@@ -15,6 +12,7 @@ import { RestaurantMenuPanel } from '../components/dashboard/RestaurantMenuPanel
 import { CheckoutPanel } from '../components/dashboard/CheckoutPanel'
 import { CartPanel } from '../components/dashboard/CartPanel'
 import { NotificationsPanel } from '../components/dashboard/NotificationsPanel'
+import { MessagesPanel } from '../components/dashboard/MessagesPanel'
 import { SettingsPanel } from '../components/dashboard/settings/SettingsPanel'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import { logout, logoutUser } from '../features/auth/authSlice'
@@ -43,7 +41,8 @@ function Home() {
   const name = user?.name || 'korisnice'
   const displayName = profile?.user.name || user?.name || name
   const firstName = displayName.split(' ')[0] || displayName
-  const defaultAddress = profile?.addresses.find((address) => address.isDefault) || profile?.addresses[0]
+  const defaultAddress =
+    profile?.addresses.find((address) => address.isDefault) || profile?.addresses[0]
   const deliveryAddress = defaultAddress
     ? [defaultAddress.label, defaultAddress.street, defaultAddress.city].filter(Boolean).join(' · ')
     : ''
@@ -79,7 +78,9 @@ function Home() {
     socket.on('notification:new', (notification: CustomerNotification) => {
       window.dispatchEvent(new CustomEvent('voro:customer-notification', { detail: notification }))
       if (typeof notification.data.orderId === 'number') {
-        window.dispatchEvent(new CustomEvent('voro:customer-order-change', { detail: notification.data.orderId }))
+        window.dispatchEvent(
+          new CustomEvent('voro:customer-order-change', { detail: notification.data.orderId }),
+        )
       }
       if (notification.type !== 'new_message' && notification.type !== 'courier_nearby') return
       setMessageNotification(notification)
@@ -111,7 +112,9 @@ function Home() {
 
   useEffect(() => {
     const updateCartItemCount = () => {
-      setCartItemCount(loadCheckoutDraft()?.items.reduce((sum, item) => sum + item.quantity, 0) || 0)
+      setCartItemCount(
+        loadCheckoutDraft()?.items.reduce((sum, item) => sum + item.quantity, 0) || 0,
+      )
     }
 
     window.addEventListener(checkoutDraftChangedEvent, updateCartItemCount)
@@ -161,14 +164,11 @@ function Home() {
           {activeView === 'overview' ? (
             <RestaurantDiscoveryPanel deliveryAddress={deliveryAddress} userName={firstName} />
           ) : null}
-          {activeView === 'search' ? (
-            <RestaurantDiscoveryPanel showSearch />
-          ) : null}
+          {activeView === 'search' ? <RestaurantDiscoveryPanel showSearch /> : null}
           {activeView === 'cart' ? <CartPanel /> : null}
           {activeView === 'favorites' ? <RestaurantDiscoveryPanel favoritesOnly /> : null}
-          {activeView === 'orders' ? (
-            <OrdersPanel />
-          ) : null}
+          {activeView === 'orders' ? <OrdersPanel /> : null}
+          {activeView === 'messages' ? <MessagesPanel /> : null}
           {activeView === 'notifications' ? <NotificationsPanel /> : null}
           {activeView === 'restaurant' ? <RestaurantMenuPanel /> : null}
           {activeView === 'checkout' ? <CheckoutPanel profile={profile} /> : null}
@@ -183,8 +183,11 @@ function Home() {
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-[1000] border-t border-line bg-card px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-12px_24px_rgba(0,0,0,0.08)] lg:hidden">
-        <div className="grid grid-cols-7 gap-1">
-          {[...dashboardNavItems, { icon: Settings, id: 'settings' as const, path: '/settings' }].map(({ icon: Icon, id, path }) => {
+        <div className="grid grid-cols-8 gap-1">
+          {[
+            ...dashboardNavItems,
+            { icon: Settings, id: 'settings' as const, path: '/settings' },
+          ].map(({ icon: Icon, id, path }) => {
             const isActive = activeView === id
             const label = t(`nav.${id}`)
 
@@ -211,7 +214,41 @@ function Home() {
           })}
         </div>
       </nav>
-      {messageNotification ? <aside className="fixed bottom-24 right-4 z-[1400] flex w-[min(24rem,calc(100vw-2rem))] items-start gap-3 rounded-voro-lg border border-line bg-card p-3 shadow-2xl lg:bottom-5" role="status"><span className="grid size-9 shrink-0 place-items-center rounded-voro-md bg-accent text-action"><MessageCircle className="size-4" /></span><div className="min-w-0 flex-1"><p className="font-bold">{customerNotificationText(messageNotification, t).title}</p><p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{customerNotificationText(messageNotification, t).body}</p></div><button aria-label={t('common.close')} className="grid size-8 shrink-0 place-items-center rounded-voro-md hover:bg-muted" onClick={() => setMessageNotification(null)} type="button"><X className="size-4" /></button></aside> : null}
+      {messageNotification ? (
+        <aside
+          className="fixed bottom-24 right-4 z-[1400] flex w-[min(24rem,calc(100vw-2rem))] items-start gap-3 rounded-voro-lg border border-line bg-card p-3 shadow-2xl lg:bottom-5"
+          role="status"
+        >
+          <span className="grid size-9 shrink-0 place-items-center rounded-voro-md bg-accent text-action">
+            <MessageCircle className="size-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold">{customerNotificationText(messageNotification, t).title}</p>
+            <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+              {customerNotificationText(messageNotification, t).body}
+            </p>
+            <button
+              className="mt-2 text-sm font-bold text-action hover:underline"
+              onClick={() => {
+                const orderId = messageNotification.data.orderId
+                if (typeof orderId === 'number') navigate(`/messages?orderId=${orderId}`)
+                setMessageNotification(null)
+              }}
+              type="button"
+            >
+              {t('messages.open')}
+            </button>
+          </div>
+          <button
+            aria-label={t('common.close')}
+            className="grid size-8 shrink-0 place-items-center rounded-voro-md hover:bg-muted"
+            onClick={() => setMessageNotification(null)}
+            type="button"
+          >
+            <X className="size-4" />
+          </button>
+        </aside>
+      ) : null}
     </main>
   )
 }

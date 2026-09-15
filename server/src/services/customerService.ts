@@ -620,14 +620,15 @@ export async function getOrderRoute(userId: number, orderId: number) {
   }
 
   const isOnTheWay = locations.deliveryStatus === 'on_the_way'
-  const liveCourier = isOnTheWay && locations.courierId
-    ? await redisService.getLiveDriver(locations.courierId)
+  const trackingRecordedAt = locations.trackingRecordedAt || null
+  const trackingIsFresh = Boolean(
+    trackingRecordedAt && Date.now() - trackingRecordedAt.getTime() <= 45_000,
+  )
+  const courierLatitude = isOnTheWay && trackingIsFresh
+    ? locations.trackingLatitude
     : null
-  const courierLatitude = isOnTheWay
-    ? liveCourier?.currentLatitude ?? locations.courierLatitude
-    : null
-  const courierLongitude = isOnTheWay
-    ? liveCourier?.currentLongitude ?? locations.courierLongitude
+  const courierLongitude = isOnTheWay && trackingIsFresh
+    ? locations.trackingLongitude
     : null
 
   if (
@@ -662,11 +663,18 @@ export async function getOrderRoute(userId: number, orderId: number) {
       latitude: locations.deliveryLatitude,
       longitude: locations.deliveryLongitude,
     },
-    courier: isOnTheWay && locations.courierName
+    // The courier identity is available as soon as the delivery is assigned so
+    // the customer can open the delivery chat before pickup. Location remains
+    // private until the courier is on the way to the customer.
+    courier: locations.courierName
       ? {
-          name: liveCourier?.name || locations.courierName,
-          latitude: courierLatitude,
-          longitude: courierLongitude,
+          name: locations.courierName,
+          latitude: isOnTheWay ? locations.trackingLatitude : null,
+          longitude: isOnTheWay ? locations.trackingLongitude : null,
+          accuracyMeters: isOnTheWay ? locations.trackingAccuracyMeters : null,
+          headingDegrees: isOnTheWay ? locations.trackingHeadingDegrees : null,
+          recordedAt: isOnTheWay ? trackingRecordedAt : null,
+          isStale: isOnTheWay && !trackingIsFresh,
         }
       : null,
     deliveryStatus: locations.deliveryStatus || null,
@@ -686,17 +694,22 @@ export async function getOrderTracking(userId: number, orderId: number) {
   }
 
   const isOnTheWay = locations.deliveryStatus === 'on_the_way'
-  const liveCourier = isOnTheWay && locations.courierId
-    ? await redisService.getLiveDriver(locations.courierId)
-    : null
+  const trackingRecordedAt = locations.trackingRecordedAt || null
+  const trackingIsFresh = Boolean(
+    trackingRecordedAt && Date.now() - trackingRecordedAt.getTime() <= 45_000,
+  )
 
   return {
     orderId,
-    courier: isOnTheWay && locations.courierName
+    courier: locations.courierName
       ? {
-          name: liveCourier?.name || locations.courierName,
-          latitude: liveCourier?.currentLatitude ?? locations.courierLatitude,
-          longitude: liveCourier?.currentLongitude ?? locations.courierLongitude,
+          name: locations.courierName,
+          latitude: isOnTheWay ? locations.trackingLatitude : null,
+          longitude: isOnTheWay ? locations.trackingLongitude : null,
+          accuracyMeters: isOnTheWay ? locations.trackingAccuracyMeters : null,
+          headingDegrees: isOnTheWay ? locations.trackingHeadingDegrees : null,
+          recordedAt: isOnTheWay ? trackingRecordedAt : null,
+          isStale: isOnTheWay && !trackingIsFresh,
         }
       : null,
     deliveryStatus: locations.deliveryStatus || null,

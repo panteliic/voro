@@ -77,6 +77,40 @@ type DriverHistoryRow = {
   delivered_at: Date
 }
 
+type LocalDemoDeliveryRow = {
+  id: string
+  order_id: string
+  courier_id: string
+  courier_user_id: string
+  status: DriverDelivery['status']
+  order_status: string
+  courier_latitude: string | null
+  courier_longitude: string | null
+  restaurant_name: string
+  restaurant_latitude: string
+  restaurant_longitude: string
+  customer_name: string
+  customer_latitude: string
+  customer_longitude: string
+}
+
+export type LocalDemoDelivery = {
+  id: number
+  orderId: number
+  courierId: number
+  courierUserId: number
+  status: DriverDelivery['status']
+  orderStatus: string
+  courierLatitude: number | null
+  courierLongitude: number | null
+  restaurantName: string
+  restaurantLatitude: number
+  restaurantLongitude: number
+  customerName: string
+  customerLatitude: number
+  customerLongitude: number
+}
+
 type WorkSessionRow = {
   started_at: Date
   ended_at: Date | null
@@ -353,8 +387,17 @@ export async function expireStaleDriverPresence() {
 
 export async function recordActiveDeliveryLocation(
   courierId: number,
-  latitude: number,
-  longitude: number,
+  payload: {
+    latitude: number
+    longitude: number
+    displayLatitude: number | null
+    displayLongitude: number | null
+    accuracyMeters: number | null
+    headingDegrees: number | null
+    speedMps: number | null
+    capturedAt: Date | null
+    isUsable: boolean
+  },
 ) {
   const result = await pool.query<{
     order_id: string
@@ -382,8 +425,20 @@ export async function recordActiveDeliveryLocation(
         ORDER BY delivery.updated_at DESC
         LIMIT 1
       )
-      INSERT INTO delivery_location (delivery_id, courier_id, latitude, longitude)
-      SELECT id, courier_id, $2, $3
+      INSERT INTO delivery_location (
+        delivery_id,
+        courier_id,
+        latitude,
+        longitude,
+        display_latitude,
+        display_longitude,
+        accuracy_meters,
+        heading_degrees,
+        speed_mps,
+        captured_at,
+        is_usable
+      )
+      SELECT id, courier_id, $2, $3, $4, $5, $6, $7, $8, $9, $10
       FROM active_delivery
       RETURNING
         (SELECT order_id FROM active_delivery) AS order_id,
@@ -392,7 +447,18 @@ export async function recordActiveDeliveryLocation(
         (SELECT customer_latitude FROM active_delivery) AS customer_latitude,
         (SELECT customer_longitude FROM active_delivery) AS customer_longitude
     `,
-    [courierId, latitude, longitude],
+    [
+      courierId,
+      payload.latitude,
+      payload.longitude,
+      payload.displayLatitude,
+      payload.displayLongitude,
+      payload.accuracyMeters,
+      payload.headingDegrees,
+      payload.speedMps,
+      payload.capturedAt,
+      payload.isUsable,
+    ],
   )
 
   const row = result.rows[0]
@@ -403,6 +469,50 @@ export async function recordActiveDeliveryLocation(
         customerUserId: Number(row.customer_user_id),
         customerLatitude: row.customer_latitude === null ? null : Number(row.customer_latitude),
         customerLongitude: row.customer_longitude === null ? null : Number(row.customer_longitude),
+      }
+    : null
+}
+
+export async function getActiveDeliveryTracking(courierId: number) {
+  const result = await pool.query<{
+    delivery_id: string
+    display_latitude: string | null
+    display_longitude: string | null
+    recorded_at: Date | null
+  }>(
+    `
+      SELECT
+        delivery.id AS delivery_id,
+        tracking.display_latitude,
+        tracking.display_longitude,
+        tracking.recorded_at
+      FROM delivery
+      INNER JOIN delivery_status ON delivery_status.id = delivery.status_id
+      LEFT JOIN LATERAL (
+        SELECT display_latitude, display_longitude, recorded_at
+        FROM delivery_location
+        WHERE delivery_id = delivery.id
+          AND is_usable = TRUE
+          AND display_latitude IS NOT NULL
+          AND display_longitude IS NOT NULL
+        ORDER BY recorded_at DESC, id DESC
+        LIMIT 1
+      ) AS tracking ON TRUE
+      WHERE delivery.courier_id = $1
+        AND delivery_status.name NOT IN ('delivered', 'failed', 'cancelled')
+      ORDER BY delivery.updated_at DESC
+      LIMIT 1
+    `,
+    [courierId],
+  )
+
+  const row = result.rows[0]
+  return row
+    ? {
+        deliveryId: Number(row.delivery_id),
+        displayLatitude: row.display_latitude === null ? null : Number(row.display_latitude),
+        displayLongitude: row.display_longitude === null ? null : Number(row.display_longitude),
+        recordedAt: row.recorded_at,
       }
     : null
 }
@@ -423,6 +533,59 @@ export async function listActiveDeliveries(courierId: number) {
   )
 
   return result.rows.map(toDriverDelivery)
+}
+
+export async function listLocalDemoActiveDeliveries(): Promise<LocalDemoDelivery[]> {
+  const result = await pool.query<LocalDemoDeliveryRow>(
+    `
+      SELECT DISTINCT ON (courier.id)
+        delivery.id,
+        delivery.order_id,
+        courier.id AS courier_id,
+        courier.user_id AS courier_user_id,
+        delivery_status.name AS status,
+        order_status.name AS order_status,
+        courier.current_latitude AS courier_latitude,
+        courier.current_longitude AS courier_longitude,
+        restaurant.name AS restaurant_name,
+        restaurant.latitude AS restaurant_latitude,
+        restaurant.longitude AS restaurant_longitude,
+        customer.name AS customer_name,
+        COALESCE("order".delivery_latitude, address.latitude) AS customer_latitude,
+        COALESCE("order".delivery_longitude, address.longitude) AS customer_longitude
+      FROM delivery
+      INNER JOIN delivery_status ON delivery_status.id = delivery.status_id
+      INNER JOIN courier ON courier.id = delivery.courier_id
+      INNER JOIN "order" ON "order".id = delivery.order_id
+      INNER JOIN order_status ON order_status.id = "order".status_id
+      INNER JOIN restaurant ON restaurant.id = "order".restaurant_id
+      INNER JOIN "user" customer ON customer.id = "order".user_id
+      LEFT JOIN address ON address.id = "order".address_id
+      WHERE delivery_status.name IN ('assigned', 'arriving_to_restaurant', 'picked_up', 'on_the_way')
+        AND restaurant.latitude IS NOT NULL
+        AND restaurant.longitude IS NOT NULL
+        AND COALESCE("order".delivery_latitude, address.latitude) IS NOT NULL
+        AND COALESCE("order".delivery_longitude, address.longitude) IS NOT NULL
+      ORDER BY courier.id, delivery.updated_at DESC
+    `,
+  )
+
+  return result.rows.map((row) => ({
+    id: Number(row.id),
+    orderId: Number(row.order_id),
+    courierId: Number(row.courier_id),
+    courierUserId: Number(row.courier_user_id),
+    status: row.status,
+    orderStatus: row.order_status,
+    courierLatitude: row.courier_latitude === null ? null : Number(row.courier_latitude),
+    courierLongitude: row.courier_longitude === null ? null : Number(row.courier_longitude),
+    restaurantName: row.restaurant_name,
+    restaurantLatitude: Number(row.restaurant_latitude),
+    restaurantLongitude: Number(row.restaurant_longitude),
+    customerName: row.customer_name,
+    customerLatitude: Number(row.customer_latitude),
+    customerLongitude: Number(row.customer_longitude),
+  }))
 }
 
 export async function getActiveDelivery(courierId: number, deliveryId: number) {

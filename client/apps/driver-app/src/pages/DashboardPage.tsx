@@ -25,7 +25,6 @@ type DashboardPageProps = {
   isUpdatingDelivery: boolean
   showDemoLocation: boolean
   isDemoLocation: boolean
-  locationKey: string
   onRefresh: () => void
   onLogout: () => void
   onSetOnline: (isOnline: boolean) => void
@@ -47,7 +46,6 @@ export function DashboardPage({
   isLoading,
   isUpdatingDelivery,
   isDemoLocation,
-  locationKey,
   onAcceptOffer,
   onDeclineOffer,
   onLogout,
@@ -195,7 +193,7 @@ export function DashboardPage({
 
               {!driver?.isOnline ? <section className="rounded-voro-lg border border-dashed border-line bg-card p-8 text-center"><WifiOff className="mx-auto size-7 text-muted-foreground" /><h1 className="mt-3 font-bold">{t('home.offlineTitle')}</h1><p className="mt-1 text-sm text-muted-foreground">{t('home.offlineDesc')}</p></section> : null}
               {driver?.isOnline && !activeDelivery ? <DeliveryOffers isAccepting={isAccepting} language={language} offers={dashboard?.offers || []} onAccept={onAcceptOffer} onDecline={onDeclineOffer} token={token} /> : null}
-              {activeDelivery ? <ActiveDeliveryMap currentLocation={liveDriverLocation} delivery={activeDelivery} isUpdating={isUpdatingDelivery} language={language} locationKey={locationKey} onOpenChat={() => setIsDeliveryChatOpen(true)} onUpdateStatus={onUpdateDelivery} onWithdraw={onWithdrawFromDelivery} token={token} /> : null}
+              {activeDelivery ? <ActiveDeliveryMap currentLocation={liveDriverLocation} delivery={activeDelivery} isUpdating={isUpdatingDelivery} language={language} onOpenChat={() => setIsDeliveryChatOpen(true)} onUpdateStatus={onUpdateDelivery} onWithdraw={onWithdrawFromDelivery} token={token} /> : null}
               {activeDelivery ? null : (
                 <section className="rounded-voro-lg border border-line bg-card p-8 text-center"><Bike className="mx-auto size-8 text-action" /><h1 className="mt-3 text-xl font-bold">{t('home.readyTitle')}</h1><p className="mt-1 text-sm text-muted-foreground">{t('home.readyDesc')}</p><p className="mt-4 flex items-center justify-center gap-2 text-xs font-bold text-muted-foreground"><MapPinned className="size-4" />{t('home.locationHint')}</p></section>
               )}

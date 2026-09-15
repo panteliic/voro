@@ -83,6 +83,7 @@ function App() {
           <Route path="/cart" element={protectedHome} />
           <Route path="/favorites" element={protectedHome} />
           <Route path="/orders" element={protectedHome} />
+          <Route path="/messages" element={protectedHome} />
           <Route path="/notifications" element={protectedHome} />
           <Route path="/restaurants/:restaurantId" element={protectedHome} />
           <Route path="/checkout" element={protectedHome} />

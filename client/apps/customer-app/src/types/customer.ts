@@ -230,6 +230,10 @@ export type CustomerOrderRoute = {
     name: string
     latitude: number | null
     longitude: number | null
+    accuracyMeters: number | null
+    headingDegrees: number | null
+    recordedAt: string | null
+    isStale: boolean
   } | null
   deliveryStatus: string | null
   route: {

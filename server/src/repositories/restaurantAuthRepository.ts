@@ -102,6 +102,18 @@ export async function saveSetupCode(payload: {
   codeHash: string
   expiresAt: Date
 }) {
+  // A newly issued invitation or reset code replaces any prior unused code.
+  // Without this, consuming the newest code could make an older one valid
+  // again because lookup selects the latest unconsumed row.
+  await pool.query(
+    `
+      UPDATE restaurant_password_setup_code
+      SET consumed_at = NOW()
+      WHERE restaurant_user_id = $1 AND consumed_at IS NULL
+    `,
+    [payload.restaurantUserId],
+  )
+
   await pool.query(
     `
       INSERT INTO restaurant_password_setup_code (restaurant_user_id, code_hash, expires_at)
@@ -152,10 +164,9 @@ export async function findActiveSetupCode(email: string) {
 }
 
 export async function consumeSetupCode(codeId: number) {
-  await pool.query(
-    `UPDATE restaurant_password_setup_code SET consumed_at = NOW() WHERE id = $1`,
-    [codeId],
-  )
+  await pool.query(`UPDATE restaurant_password_setup_code SET consumed_at = NOW() WHERE id = $1`, [
+    codeId,
+  ])
 }
 
 export async function recordSetupCodeAttempt(codeId: number) {

@@ -18,6 +18,7 @@ import { connectRedis, disconnectRedis } from './services/redisService'
 import { initializeRealtime } from './services/realtimeService'
 import { logEvent, observeHttpRequest, trackError } from './services/observability'
 import { setDispatchWorkerReady } from './services/runtimeHealth'
+import { startLocalDeliveryDemoWorker, stopLocalDeliveryDemoWorker } from './workers/localDeliveryDemoWorker'
 
 const app = express()
 const server = http.createServer(app)
@@ -155,6 +156,7 @@ async function startServer() {
   server.listen(env.port, () => {
     logEvent('info', 'server_started', { port: env.port })
     startDispatchWorker()
+    startLocalDeliveryDemoWorker()
   })
 }
 
@@ -165,9 +167,13 @@ void startServer().catch((error) => {
 
 server.on('close', () => {
   stopDispatchWorker()
+  stopLocalDeliveryDemoWorker()
   void disconnectRedis()
 })
-process.once('exit', stopDispatchWorker)
+process.once('exit', () => {
+  stopDispatchWorker()
+  stopLocalDeliveryDemoWorker()
+})
 
 server.on('error', (error: NodeJS.ErrnoException) => {
   if (error.code === 'EADDRINUSE') {

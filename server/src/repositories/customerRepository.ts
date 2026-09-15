@@ -154,6 +154,11 @@ type CustomerOrderRouteRow = {
   courier_id: string | null
   courier_latitude: string | null
   courier_longitude: string | null
+  tracking_latitude: string | null
+  tracking_longitude: string | null
+  tracking_accuracy_meters: string | null
+  tracking_heading_degrees: string | null
+  tracking_recorded_at: Date | null
   delivery_status: string | null
 }
 
@@ -795,6 +800,11 @@ export async function getCustomerOrderRouteLocations(userId: number, orderId: nu
         courier.id AS courier_id,
         courier.current_latitude AS courier_latitude,
         courier.current_longitude AS courier_longitude,
+        tracking.display_latitude AS tracking_latitude,
+        tracking.display_longitude AS tracking_longitude,
+        tracking.accuracy_meters AS tracking_accuracy_meters,
+        tracking.heading_degrees AS tracking_heading_degrees,
+        tracking.recorded_at AS tracking_recorded_at,
         delivery_status.name AS delivery_status
       FROM "order" o
       INNER JOIN restaurant ON restaurant.id = o.restaurant_id
@@ -803,6 +813,16 @@ export async function getCustomerOrderRouteLocations(userId: number, orderId: nu
       LEFT JOIN delivery_status ON delivery_status.id = delivery.status_id
       LEFT JOIN courier ON courier.id = delivery.courier_id
       LEFT JOIN "user" driver ON driver.id = courier.user_id
+      LEFT JOIN LATERAL (
+        SELECT display_latitude, display_longitude, accuracy_meters, heading_degrees, recorded_at
+        FROM delivery_location
+        WHERE delivery_id = delivery.id
+          AND is_usable = TRUE
+          AND display_latitude IS NOT NULL
+          AND display_longitude IS NOT NULL
+        ORDER BY recorded_at DESC, id DESC
+        LIMIT 1
+      ) AS tracking ON TRUE
       WHERE o.user_id = $1 AND o.id = $2
     `,
     [userId, orderId],
@@ -825,6 +845,11 @@ export async function getCustomerOrderRouteLocations(userId: number, orderId: nu
     courierId: row.courier_id === null ? null : Number(row.courier_id),
     courierLatitude: row.courier_latitude === null ? null : Number(row.courier_latitude),
     courierLongitude: row.courier_longitude === null ? null : Number(row.courier_longitude),
+    trackingLatitude: row.tracking_latitude === null ? null : Number(row.tracking_latitude),
+    trackingLongitude: row.tracking_longitude === null ? null : Number(row.tracking_longitude),
+    trackingAccuracyMeters: row.tracking_accuracy_meters === null ? null : Number(row.tracking_accuracy_meters),
+    trackingHeadingDegrees: row.tracking_heading_degrees === null ? null : Number(row.tracking_heading_degrees),
+    trackingRecordedAt: row.tracking_recorded_at,
     deliveryStatus: row.delivery_status || '',
   }
 }

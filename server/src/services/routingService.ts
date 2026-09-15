@@ -9,14 +9,6 @@ type OsrmRouteResponse = {
   }>
 }
 
-function trafficFactor(hour: number) {
-  if (hour >= 7 && hour <= 9) return 0.5
-  if (hour >= 12 && hour <= 14) return 0.6
-  if (hour >= 17 && hour <= 19) return 0.45
-  if (hour >= 22 || hour <= 6) return 1
-  return 0.75
-}
-
 function validCoordinate(latitude: number, longitude: number) {
   return (
     Number.isFinite(latitude) &&
@@ -62,8 +54,11 @@ export async function findDrivingRoute(
     throw new HttpError(404, 'No driving route was found for these locations.')
   }
 
-  const baseMinutes = Math.max(1, Math.ceil((route.duration || 0) / 60))
-  const etaMinutes = Math.max(1, Math.ceil(baseMinutes / trafficFactor(new Date().getHours())))
+  // OSRM's duration is the only travel-time signal available here.  Applying
+  // a fixed multiplier by hour made the ETA look more precise while often
+  // doubling it.  Keep the provider estimate and communicate a modest range
+  // instead; a traffic-aware provider can replace this calculation later.
+  const etaMinutes = Math.max(1, Math.ceil((route.duration || 0) / 60))
 
   return {
     coordinates: path.map(([longitude, latitude]) => [latitude, longitude] as [number, number]),

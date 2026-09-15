@@ -12,6 +12,6 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['@voro/shared', '@voro/ui', '@voro/socket'],
+    include: ['@voro/ui', '@voro/socket'],
   },
 })

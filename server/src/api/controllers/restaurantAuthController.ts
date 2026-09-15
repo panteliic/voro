@@ -18,7 +18,11 @@ export async function login(req: Request, res: Response) {
 
 export async function refresh(req: Request, res: Response) {
   try {
-    res.json(await restaurantAuthService.refresh({ refreshToken: normalizeText(req.body.refreshToken) }))
+    res.json(
+      await restaurantAuthService.refresh({
+        refreshToken: normalizeText(req.body.refreshToken),
+      }),
+    )
   } catch (error) {
     sendError(error, res)
   }
@@ -26,7 +30,19 @@ export async function refresh(req: Request, res: Response) {
 
 export async function logout(req: Request, res: Response) {
   try {
-    res.json(await restaurantAuthService.logout({ refreshToken: normalizeText(req.body.refreshToken) }))
+    res.json(
+      await restaurantAuthService.logout({
+        refreshToken: normalizeText(req.body.refreshToken),
+      }),
+    )
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function requestPasswordReset(req: Request, res: Response) {
+  try {
+    res.json(await restaurantAuthService.requestPasswordReset(normalizeEmail(req.body.email)))
   } catch (error) {
     sendError(error, res)
   }
@@ -38,6 +54,7 @@ export async function setupPassword(req: Request, res: Response) {
       await restaurantAuthService.setupPassword({
         email: normalizeEmail(req.body.email),
         setupCode: normalizeText(req.body.setupCode),
+        resetToken: normalizeText(req.body.resetToken),
         password: normalizePassword(req.body.password),
       }),
     )

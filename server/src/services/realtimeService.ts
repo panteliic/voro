@@ -43,6 +43,10 @@ export type RealtimeOrderTracking = {
     name: string
     latitude: number | null
     longitude: number | null
+    accuracyMeters: number | null
+    headingDegrees: number | null
+    recordedAt: Date | null
+    isStale: boolean
   } | null
   deliveryStatus: string | null
 }

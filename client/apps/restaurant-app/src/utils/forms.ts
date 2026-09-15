@@ -17,6 +17,7 @@ export const emptyProduct: ProductForm = {
 export const emptySetup = {
   email: '',
   setupCode: '',
+  resetToken: '',
   password: '',
 }
 

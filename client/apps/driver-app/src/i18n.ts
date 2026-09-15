@@ -28,7 +28,8 @@ const dictionaries: Record<DriverLanguage, Record<string, string>> = {
     'settings.light': 'Light',
     'settings.dark': 'Dark',
     'settings.demoTitle': 'Local test: Domaće palačinke',
-    'settings.demoDesc': 'Places your test location around 1 km from the restaurant and does not use real GPS.',
+    'settings.demoDesc':
+      'Places your test location around 1 km from the restaurant and does not use real GPS.',
     'settings.demoOn': 'Test location enabled',
     'settings.demoOff': 'Enable test location',
     'offers.title': 'New delivery offers',
@@ -60,7 +61,8 @@ const dictionaries: Record<DriverLanguage, Record<string, string>> = {
     'delivery.showCode': 'Show code',
     'delivery.updating': 'Updating…',
     'delivery.routeUnavailable': 'The route is not available right now.',
-    'delivery.routeAfterPickup': 'The route to the customer will appear when you start the delivery.',
+    'delivery.routeAfterPickup':
+      'The route to the customer will appear when you start the delivery.',
     'delivery.currentLocation': 'Your current location',
     'delivery.pickup': 'Pickup',
     'delivery.dropoff': 'Delivery',
@@ -68,7 +70,8 @@ const dictionaries: Record<DriverLanguage, Record<string, string>> = {
     'delivery.navigate': 'Navigate',
     'delivery.waitForRestaurant': 'Wait for the restaurant to mark the order as ready.',
     'delivery.getCloserToRestaurant': 'Move within 200 m of the restaurant to confirm pickup.',
-    'delivery.getCloserToCustomer': 'Move within 200 m of the customer address to complete delivery.',
+    'delivery.getCloserToCustomer':
+      'Move within 200 m of the customer address to complete delivery.',
     'delivery.freshLocationRequired': 'A fresh GPS location is required to update delivery status.',
     'delivery.proofNote': 'Delivery note',
     'delivery.proofNotePlaceholder': 'Optional handoff detail',
@@ -95,16 +98,20 @@ const dictionaries: Record<DriverLanguage, Record<string, string>> = {
     'auth.password': 'Password',
     'auth.opening': 'Opening driver app...',
     'auth.open': 'Open driver app',
-    'auth.setupAccess': 'Setup code access',
+    'auth.setupAccess': 'Password link access',
     'auth.firstAccess': 'First access',
     'auth.resetPassword': 'Reset password',
     'auth.firstAccessTitle': 'First driver access',
     'auth.firstAccessDesc': 'Use the admin invite code once, then create your password.',
     'auth.createPassword': 'Create password',
     'auth.resetTitle': 'Password reset',
-    'auth.resetDesc': 'Use the new code from admin to replace the old password.',
+    'auth.resetDesc': 'Request a password reset link by email, then choose a new password.',
     'auth.setPassword': 'Set new password',
-    'auth.setupCode': 'Setup code from admin',
+    'auth.setupCode': 'Setup or reset code',
+    'auth.requestResetCode': 'Send reset link',
+    'auth.sendingResetCode': 'Sending reset link...',
+    'auth.resetCodeSent': 'If this email has an active account, a reset link has been sent.',
+    'auth.resetCodeDev': 'Development reset code: {code}',
     'auth.createDriverPassword': 'Create driver password',
     'auth.createNewPassword': 'Create new password',
     'auth.savingPassword': 'Saving password...',
@@ -132,16 +139,23 @@ const dictionaries: Record<DriverLanguage, Record<string, string>> = {
     'settings.pushError': 'Push notifications could not be enabled.',
     'delivery.chat': 'Chat',
     'delivery.withdraw': 'Can’t pick up',
-    'status.gpsRefreshing': 'GPS signal is refreshing. You stay online while the last location is fresh.',
-    'status.locationRequired': 'Location must stay enabled while you are online. Enable GPS permission to receive offers.',
-    'status.locationStale': 'GPS location was not refreshed in time, so you were automatically set offline.',
+    'status.gpsRefreshing':
+      'GPS signal is refreshing. You stay online while the last location is fresh.',
+    'status.locationRequired':
+      'Location must stay enabled while you are online. Enable GPS permission to receive offers.',
+    'status.locationStale':
+      'GPS location was not refreshed in time, so you were automatically set offline.',
     'status.passwordCreated': 'Password created. Sign in with your new password.',
-    'status.activeDeliveryOnline': 'You cannot go offline during an active delivery because the customer follows your location.',
-    'status.waitForGps': 'Turn on location and wait for an accurate GPS position before going online.',
-    'status.acceptGpsRequired': 'Turn on location and wait for a fresh GPS position before accepting the delivery.',
+    'status.activeDeliveryOnline':
+      'You cannot go offline during an active delivery because the customer follows your location.',
+    'status.waitForGps':
+      'Turn on location and wait for an accurate GPS position before going online.',
+    'status.acceptGpsRequired':
+      'Turn on location and wait for a fresh GPS position before accepting the delivery.',
     'status.accepted': 'Delivery accepted. The route to the restaurant is ready.',
     'status.declined': 'Offer declined.',
-    'status.withdrawn': 'The delivery was offered to other couriers again. The customer was notified.',
+    'status.withdrawn':
+      'The delivery was offered to other couriers again. The customer was notified.',
     'status.signInFailed': 'Sign in failed.',
     'status.setupFailed': 'Password could not be set.',
     'status.presenceFailed': 'Driver status could not be updated.',
@@ -192,7 +206,8 @@ const dictionaries: Record<DriverLanguage, Record<string, string>> = {
     'settings.light': 'Svetla',
     'settings.dark': 'Tamna',
     'settings.demoTitle': 'Lokalni test: Domaće palačinke',
-    'settings.demoDesc': 'Postavlja tvoju test lokaciju oko 1 km od restorana i ne koristi stvarni GPS.',
+    'settings.demoDesc':
+      'Postavlja tvoju test lokaciju oko 1 km od restorana i ne koristi stvarni GPS.',
     'settings.demoOn': 'Test lokacija uključena',
     'settings.demoOff': 'Uključi test lokaciju',
     'offers.title': 'Nove ponude za dostavu',
@@ -231,7 +246,8 @@ const dictionaries: Record<DriverLanguage, Record<string, string>> = {
     'delivery.codeDialog': 'Kod za preuzimanje',
     'delivery.navigate': 'Navigacija',
     'delivery.waitForRestaurant': 'Sačekaj da restoran označi porudžbinu kao spremnu.',
-    'delivery.getCloserToRestaurant': 'Priđi na najviše 200 m od restorana da potvrdiš preuzimanje.',
+    'delivery.getCloserToRestaurant':
+      'Priđi na najviše 200 m od restorana da potvrdiš preuzimanje.',
     'delivery.getCloserToCustomer': 'Priđi na najviše 200 m od adrese kupca da završiš dostavu.',
     'delivery.freshLocationRequired': 'Potrebna je sveža GPS lokacija za promenu statusa dostave.',
     'delivery.proofNote': 'Napomena o dostavi',
@@ -266,9 +282,13 @@ const dictionaries: Record<DriverLanguage, Record<string, string>> = {
     'auth.firstAccessDesc': 'Jednom iskoristi pozivni kod admina, zatim napravi lozinku.',
     'auth.createPassword': 'Napravi lozinku',
     'auth.resetTitle': 'Reset lozinke',
-    'auth.resetDesc': 'Unesi novi kod od admina da zameniš staru lozinku.',
+    'auth.resetDesc': 'Zatraži link za reset lozinke na email, zatim postavi novu lozinku.',
     'auth.setPassword': 'Postavi novu lozinku',
-    'auth.setupCode': 'Kod za podešavanje od admina',
+    'auth.setupCode': 'Kod za podešavanje ili reset',
+    'auth.requestResetCode': 'Pošalji link za reset',
+    'auth.sendingResetCode': 'Slanje linka za reset...',
+    'auth.resetCodeSent': 'Ako ovaj email ima aktivan nalog, link za reset je poslat.',
+    'auth.resetCodeDev': 'Razvojni kod za reset: {code}',
     'auth.createDriverPassword': 'Napravi lozinku dostavljača',
     'auth.createNewPassword': 'Napravi novu lozinku',
     'auth.savingPassword': 'Čuvanje lozinke...',
@@ -296,13 +316,19 @@ const dictionaries: Record<DriverLanguage, Record<string, string>> = {
     'settings.pushError': 'Push obaveštenja nisu mogla da se uključe.',
     'delivery.chat': 'Chat',
     'delivery.withdraw': 'Ne mogu da preuzmem',
-    'status.gpsRefreshing': 'GPS signal se osvežava. Ostaješ online dok je poslednja lokacija sveža.',
-    'status.locationRequired': 'Lokacija mora stalno biti uključena dok si online. Uključi GPS dozvolu da bi primao ponude.',
-    'status.locationStale': 'GPS lokacija nije osvežena na vreme, zato si automatski prebačen offline.',
+    'status.gpsRefreshing':
+      'GPS signal se osvežava. Ostaješ online dok je poslednja lokacija sveža.',
+    'status.locationRequired':
+      'Lokacija mora stalno biti uključena dok si online. Uključi GPS dozvolu da bi primao ponude.',
+    'status.locationStale':
+      'GPS lokacija nije osvežena na vreme, zato si automatski prebačen offline.',
     'status.passwordCreated': 'Lozinka je napravljena. Prijavi se novom lozinkom.',
-    'status.activeDeliveryOnline': 'Ne možeš biti offline dok je dostava aktivna, jer kupac prati tvoju lokaciju.',
-    'status.waitForGps': 'Uključi lokaciju i sačekaj preciznu GPS poziciju pre nego što postaneš online.',
-    'status.acceptGpsRequired': 'Uključi lokaciju i sačekaj svežu GPS poziciju pre prihvatanja vožnje.',
+    'status.activeDeliveryOnline':
+      'Ne možeš biti offline dok je dostava aktivna, jer kupac prati tvoju lokaciju.',
+    'status.waitForGps':
+      'Uključi lokaciju i sačekaj preciznu GPS poziciju pre nego što postaneš online.',
+    'status.acceptGpsRequired':
+      'Uključi lokaciju i sačekaj svežu GPS poziciju pre prihvatanja vožnje.',
     'status.accepted': 'Dostava je prihvaćena. Ruta do restorana je spremna.',
     'status.declined': 'Ponuda je odbijena.',
     'status.withdrawn': 'Dostava je ponovo ponuđena drugim dostavljačima. Kupac je obavešten.',
@@ -331,6 +357,12 @@ const dictionaries: Record<DriverLanguage, Record<string, string>> = {
   },
 }
 
-export function translate(language: DriverLanguage, key: string, values: Record<string, string | number> = {}) {
-  return (dictionaries[language][key] || key).replace(/\{(\w+)\}/g, (_, name: string) => String(values[name] ?? `{${name}}`))
+export function translate(
+  language: DriverLanguage,
+  key: string,
+  values: Record<string, string | number> = {},
+) {
+  return (dictionaries[language][key] || key).replace(/\{(\w+)\}/g, (_, name: string) =>
+    String(values[name] ?? `{${name}}`),
+  )
 }

@@ -39,6 +39,10 @@ export function getDashboardView(pathname: string): DashboardView {
     return 'orders'
   }
 
+  if (pathname.startsWith('/messages')) {
+    return 'messages'
+  }
+
   if (pathname.startsWith('/notifications')) {
     return 'notifications'
   }

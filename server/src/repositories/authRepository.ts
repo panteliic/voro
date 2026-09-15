@@ -371,6 +371,26 @@ export async function recordPasswordResetCodeAttempt(codeId: number) {
   return result.rows[0]?.attempts || 0
 }
 
+export async function savePasswordResetLinkToken(payload: { userId: number; tokenHash: string; expiresAt: Date }) {
+  await pool.query('UPDATE password_reset_link_token SET consumed_at = NOW() WHERE user_id = $1 AND consumed_at IS NULL', [payload.userId])
+  await pool.query(
+    'INSERT INTO password_reset_link_token (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
+    [payload.userId, payload.tokenHash, payload.expiresAt],
+  )
+}
+
+export async function findActivePasswordResetLinkTokens(userId: number) {
+  const result = await pool.query<{ id: string; token_hash: string; expires_at: Date }>(
+    'SELECT id, token_hash, expires_at FROM password_reset_link_token WHERE user_id = $1 AND consumed_at IS NULL AND expires_at > NOW() ORDER BY created_at DESC',
+    [userId],
+  )
+  return result.rows.map((row) => ({ id: Number(row.id), tokenHash: row.token_hash, expiresAt: row.expires_at }))
+}
+
+export async function consumePasswordResetLinkToken(tokenId: number) {
+  await pool.query('UPDATE password_reset_link_token SET consumed_at = NOW() WHERE id = $1 AND consumed_at IS NULL', [tokenId])
+}
+
 export async function saveRefreshToken(payload: {
   userId: number;
   tokenHash: string;

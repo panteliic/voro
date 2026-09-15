@@ -4,6 +4,7 @@ import {
   HomeIcon,
   Moon,
   CreditCard,
+  MessageCircle,
   ReceiptText,
   Search,
   ShoppingBasket,
@@ -20,6 +21,7 @@ export const dashboardNavItems: DashboardNavItem[] = [
   { id: 'cart', label: 'Cart', path: '/cart', icon: ShoppingBasket },
   { id: 'favorites', label: 'Favorites', path: '/favorites', icon: Heart },
   { id: 'orders', label: 'Orders', path: '/orders', icon: ReceiptText },
+  { id: 'messages', label: 'Messages', path: '/messages', icon: MessageCircle },
   { id: 'notifications', label: 'Notifications', path: '/notifications', icon: Bell },
 ]
 

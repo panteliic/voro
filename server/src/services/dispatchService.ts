@@ -5,6 +5,7 @@ import * as redisService from "./redisService";
 import { notifyUser } from "./notificationService";
 import { logEvent, trackError } from "./observability";
 import { pool } from "../database/pool";
+import { env } from "../config/env";
 
 const offerWindowMs = 60_000;
 const retryDelayMs = 30_000;
@@ -231,6 +232,22 @@ export async function runDispatchCycle() {
         }),
       ]),
     );
+
+    const expiredDeliveries = await dispatchRepository.expireOverdueDeliveries(env.deliveryTimeoutMinutes);
+    await Promise.all(expiredDeliveries.flatMap((delivery) => [
+      notifyUser(delivery.customerUserId, {
+        type: "delivery_failed",
+        title: `Order #${delivery.orderId}: delivery timed out`,
+        body: "The delivery took too long and was automatically stopped. Please contact support if you need help.",
+        data: { orderId: delivery.orderId, reason: "timeout" },
+      }),
+      ...(delivery.courierUserId ? [notifyUser(delivery.courierUserId, {
+        type: "delivery_failed",
+        title: `Delivery #${delivery.orderId} stopped automatically`,
+        body: "This delivery exceeded the configured time limit.",
+        data: { orderId: delivery.orderId, reason: "timeout" },
+      })] : []),
+    ]));
 
     const queuedOrderIds = await redisService.dequeueDispatchBatch();
     const now = Date.now();
