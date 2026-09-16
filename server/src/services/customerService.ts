@@ -34,6 +34,22 @@ export async function searchAddressSuggestions(query: string) {
   return { suggestions: await geocodingService.searchAddressSuggestions(query) };
 }
 
+export async function resolveCurrentAddress(latitude: number, longitude: number) {
+  const location = await geocodingService.reverseGeocodeAddress(latitude, longitude)
+  return {
+    location: {
+      id: `current-${latitude.toFixed(5)}-${longitude.toFixed(5)}`,
+      label: location.displayName,
+      street: location.street || location.displayName,
+      city: location.city || '',
+      postalCode: location.postalCode || '',
+      country: location.country || 'Serbia',
+      latitude: location.latitude,
+      longitude: location.longitude,
+    },
+  }
+}
+
 const deliveryEstimateByStatus = {
   pending: { min: 35, max: 45 },
   accepted: { min: 25, max: 35 },

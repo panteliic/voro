@@ -52,7 +52,7 @@ export function DriverLocationMap({ driver }: { driver: Driver }) {
       {hasLocation ? (
         <div className="h-72 sm:h-80">
           <MapContainer center={point} className="size-full" scrollWheelZoom zoom={16}>
-            <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
             <Marker icon={driverPin} position={point}>
               <Popup>
                 <strong>{driver.name}</strong><br />

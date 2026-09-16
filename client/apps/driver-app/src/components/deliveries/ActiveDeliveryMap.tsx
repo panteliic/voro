@@ -299,8 +299,8 @@ export function ActiveDeliveryMap({
       {error ? <p className="px-5 py-3 text-sm text-destructive">{error}</p> : null}
       <MapContainer center={points[0]} className="min-h-0 flex-1 w-full" scrollWheelZoom zoom={14}>
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
         {routeData ? <Polyline color="#ef5a35" pathOptions={{ opacity: 0.9, weight: 6 }} positions={mapTracking.routePoints} /> : null}
         {driverPosition ? <AnimatedDriverMarker label={t('delivery.currentLocation')} position={driverPosition} /> : null}

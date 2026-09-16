@@ -244,6 +244,12 @@ export const customerApi = {
     return request<Record<string, unknown>>('/customer/privacy/export', { cache: 'no-store' })
   },
 
+  resolveCurrentAddress(latitude: number, longitude: number) {
+    return request<{ location: LocationSuggestion }>(
+      `/customer/current-address?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}`,
+    ).then((result) => result.location)
+  },
+
   deletePersonalAccount(confirmation: string) {
     return request<{ deleted: true }>('/customer/privacy/account', {
       method: 'DELETE',

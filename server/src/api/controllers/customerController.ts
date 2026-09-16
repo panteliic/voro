@@ -18,6 +18,11 @@ function queryText(value: unknown) {
   return String(param || '').trim()
 }
 
+function queryNumber(value: unknown) {
+  const parsedValue = Number(queryText(value))
+  return Number.isFinite(parsedValue) ? parsedValue : Number.NaN
+}
+
 export async function getProfile(req: Request, res: Response) {
   try {
     res.json(await customerService.getCustomerProfile(auth(req).userId))
@@ -29,6 +34,17 @@ export async function getProfile(req: Request, res: Response) {
 export async function searchAddressSuggestions(req: Request, res: Response) {
   try {
     res.json(await customerService.searchAddressSuggestions(queryText(req.query.q)))
+  } catch (error) {
+    sendError(error, res)
+  }
+}
+
+export async function resolveCurrentAddress(req: Request, res: Response) {
+  try {
+    res.json(await customerService.resolveCurrentAddress(
+      queryNumber(req.query.latitude),
+      queryNumber(req.query.longitude),
+    ))
   } catch (error) {
     sendError(error, res)
   }

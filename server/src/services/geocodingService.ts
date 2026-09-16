@@ -25,6 +25,10 @@ export type GeocodedLocation = {
   latitude: number
   longitude: number
   displayName: string
+  street?: string
+  city?: string
+  postalCode?: string
+  country?: string
 }
 
 export type AddressSuggestion = {
@@ -221,6 +225,14 @@ export async function reverseGeocodeAddress(latitude: number, longitude: number)
       throw new HttpError(404, 'No address was found for this courier location.')
     }
 
-    return { latitude, longitude, displayName }
+    return {
+      latitude,
+      longitude,
+      displayName,
+      street,
+      city,
+      postalCode: address?.postcode || '',
+      country: address?.country || 'Serbia',
+    }
   })
 }

@@ -10,7 +10,7 @@ import {
   Switch,
   Textarea,
 } from '@voro/ui'
-import { MapPin, Truck } from 'lucide-react'
+import { LocateFixed, MapPin, Truck } from 'lucide-react'
 import { useI18n } from '../../../i18n/i18n'
 import { customerApi } from '../../../services/customerApi'
 import { searchLocations } from '../../../services/locationSearchApi'
@@ -84,6 +84,7 @@ export function DeliverySettings({
   const [searchError, setSearchError] = useState('')
   const [status, setStatus] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [isUsingCurrentLocation, setIsUsingCurrentLocation] = useState(false)
 
   useEffect(() => {
     const address = addresses.find((item) => item.id === editingAddressId) || null
@@ -159,6 +160,46 @@ export function DeliverySettings({
     setSuggestions([])
     setSearchError('')
     setStatus(t('delivery.selected'))
+  }
+
+  function handleUseCurrentLocation() {
+    if (!navigator.geolocation) {
+      setStatus(t('delivery.currentLocationUnavailable'))
+      return
+    }
+
+    setIsUsingCurrentLocation(true)
+    setStatus('')
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        void customerApi.resolveCurrentAddress(position.coords.latitude, position.coords.longitude)
+          .then((location) => {
+            setAddressForm((current) => ({
+              ...current,
+              street: location.street,
+              city: location.city,
+              postalCode: location.postalCode,
+              country: location.country,
+              latitude: location.latitude,
+              longitude: location.longitude,
+            }))
+            setSuggestions([])
+            setSearchError('')
+            setStatus(t('delivery.currentLocationFilled'))
+          })
+          .catch((error: unknown) => {
+            setStatus(error instanceof Error ? error.message : t('delivery.currentLocationUnavailable'))
+          })
+          .finally(() => setIsUsingCurrentLocation(false))
+      },
+      (error) => {
+        setStatus(error.code === error.PERMISSION_DENIED
+          ? t('delivery.currentLocationDenied')
+          : t('delivery.currentLocationUnavailable'))
+        setIsUsingCurrentLocation(false)
+      },
+      { enableHighAccuracy: true, maximumAge: 60_000, timeout: 10_000 },
+    )
   }
 
   async function updatePreferences(nextPreferences: CustomerPreferences) {
@@ -258,6 +299,13 @@ export function DeliverySettings({
         </div>
 
         <div className="grid min-w-0 gap-4 rounded-voro-lg border border-line bg-background p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-voro-md border border-action/30 bg-accent/40 p-3">
+            <p className="text-sm text-content">{t('delivery.currentLocationHint')}</p>
+            <Button disabled={isUsingCurrentLocation} onClick={handleUseCurrentLocation} type="button" variant="outline">
+              <LocateFixed className="size-4" />
+              {isUsingCurrentLocation ? t('delivery.locating') : t('delivery.useCurrentLocation')}
+            </Button>
+          </div>
           <div className="grid min-w-0 gap-3 sm:grid-cols-2">
             <label className="grid min-w-0 gap-2 text-sm font-bold text-content">
               {t('delivery.placeName')}
