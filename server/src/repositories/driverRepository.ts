@@ -358,7 +358,7 @@ export async function expireStaleDriverPresence() {
         UPDATE courier
         SET is_online = FALSE, is_available = FALSE, updated_at = NOW()
         WHERE is_online = TRUE
-          AND (last_location_at IS NULL OR last_location_at < NOW() - INTERVAL '45 seconds')
+          AND (last_location_at IS NULL OR last_location_at < NOW() - INTERVAL '120 seconds')
         RETURNING id
       `,
     )
@@ -636,7 +636,7 @@ export async function listPendingOffers(courierId: number) {
         AND offer.expires_at > NOW()
         AND job.status IN ('matching', 'waiting_for_driver')
         AND courier.is_online = TRUE
-        AND courier.last_location_at >= NOW() - INTERVAL '45 seconds'
+          AND courier.last_location_at >= NOW() - INTERVAL '120 seconds'
         AND restaurant.latitude IS NOT NULL
         AND restaurant.longitude IS NOT NULL
         AND COALESCE("order".delivery_latitude, address.latitude) IS NOT NULL
@@ -687,7 +687,7 @@ export async function acceptDispatchOffer(courierId: number, offerId: number) {
           AND is_available = TRUE
           AND current_latitude IS NOT NULL
           AND current_longitude IS NOT NULL
-          AND last_location_at >= NOW() - INTERVAL '45 seconds'
+          AND last_location_at >= NOW() - INTERVAL '120 seconds'
         FOR UPDATE
       `,
       [courierId],

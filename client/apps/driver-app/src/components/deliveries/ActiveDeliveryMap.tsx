@@ -8,6 +8,9 @@ import { translate, type DriverLanguage } from '../../i18n'
 import { getDriverDeliveryRoute } from '../../services/driverApi'
 import type { Delivery, DriverRoute } from '../../types/driver'
 
+const cartoBasemapKey = import.meta.env.VITE_CARTO_BASEMAP_KEY?.trim()
+const cartoTileUrl = `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png${cartoBasemapKey ? `?key=${encodeURIComponent(cartoBasemapKey)}` : ''}`
+
 const driverIcon = L.divIcon({
   className: 'voro-driver-pin',
   html: '<span style="display:grid;height:38px;width:38px;place-items:center;border:3px solid white;border-radius:50%;background:#2c6bed;box-shadow:0 4px 12px rgba(0,0,0,.25);font-size:18px">🛵</span>',
@@ -300,7 +303,7 @@ export function ActiveDeliveryMap({
       <MapContainer center={points[0]} className="min-h-0 flex-1 w-full" scrollWheelZoom zoom={14}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          url={cartoTileUrl}
         />
         {routeData ? <Polyline color="#ef5a35" pathOptions={{ opacity: 0.9, weight: 6 }} positions={mapTracking.routePoints} /> : null}
         {driverPosition ? <AnimatedDriverMarker label={t('delivery.currentLocation')} position={driverPosition} /> : null}

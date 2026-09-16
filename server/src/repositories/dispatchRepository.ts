@@ -166,7 +166,7 @@ export async function listAvailableOnlineCouriers() {
         AND courier.is_available = TRUE
         AND courier.current_latitude IS NOT NULL
         AND courier.current_longitude IS NOT NULL
-        AND courier.last_location_at >= NOW() - INTERVAL '45 seconds'
+        AND courier.last_location_at >= NOW() - INTERVAL '120 seconds'
       ORDER BY courier.last_location_at DESC NULLS LAST, courier.id ASC
     `,
   )

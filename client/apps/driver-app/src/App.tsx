@@ -26,7 +26,10 @@ type Position = {
 }
 
 const domacePalacinkeDemoPosition: Position = { latitude: 44.8144, longitude: 20.4399 }
-const locationFreshForMs = 45_000
+// Browsers can briefly pause or delay GPS samples even when permission is
+// granted. Keep the courier online through a short gap; server-side dispatch
+// still requires a recently refreshed location before offering new work.
+const locationFreshForMs = 120_000
 const presenceHeartbeatMs = 15_000
 const maximumUsableGpsAccuracyMeters = 80
 const maximumPlausibleSpeedMetersPerSecond = 55
@@ -252,9 +255,7 @@ function App() {
           // courier unable to accept the offer currently shown on screen.
           if (isDemoLocationRef.current) return
 
-          const hasLocationPermission =
-            locationError.code !== GeolocationPositionError.PERMISSION_DENIED
-          if (hasLocationPermission && hasFreshLocation()) {
+          if (locationError.code !== GeolocationPositionError.PERMISSION_DENIED) {
             setStatus(driverTranslation('status.gpsRefreshing'))
             return
           }
@@ -269,7 +270,7 @@ function App() {
           }
           setStatus(driverTranslation('status.locationRequired'))
         },
-        { enableHighAccuracy: true, maximumAge: 5_000, timeout: locationFreshForMs },
+        { enableHighAccuracy: true, maximumAge: 5_000, timeout: 60_000 },
       )
     }
 

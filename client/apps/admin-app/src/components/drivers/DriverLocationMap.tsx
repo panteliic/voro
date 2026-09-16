@@ -6,6 +6,9 @@ import 'leaflet/dist/leaflet.css'
 import { useI18n } from '../../i18n/i18n'
 import type { Driver } from '../../types/driver'
 
+const cartoBasemapKey = import.meta.env.VITE_CARTO_BASEMAP_KEY?.trim()
+const cartoTileUrl = `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png${cartoBasemapKey ? `?key=${encodeURIComponent(cartoBasemapKey)}` : ''}`
+
 const driverPin = L.divIcon({
   className: 'voro-driver-location-pin',
   html: '<span style="display:grid;height:38px;width:38px;place-items:center;border:3px solid white;border-radius:50%;background:#2c6bed;box-shadow:0 4px 12px rgba(0,0,0,.28);font-size:18px">🛵</span>',
@@ -52,7 +55,7 @@ export function DriverLocationMap({ driver }: { driver: Driver }) {
       {hasLocation ? (
         <div className="h-72 sm:h-80">
           <MapContainer center={point} className="size-full" scrollWheelZoom zoom={16}>
-            <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+            <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' url={cartoTileUrl} />
             <Marker icon={driverPin} position={point}>
               <Popup>
                 <strong>{driver.name}</strong><br />
