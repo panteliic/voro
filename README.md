@@ -91,7 +91,7 @@ flowchart LR
 - Redis for catalog/address caching, dispatch queueing, rate limits, and live courier presence/geo lookup.
 - A background dispatch worker that offers eligible orders to nearby available couriers.
 - Socket.IO in-app events plus Web Push subscriptions for customer and courier notifications.
-- OpenStreetMap tiles and OSRM routing for map and route visualisation.
+- OpenStreetMap road data and locally executed A* routing for map routes and courier movement.
 
 ## Tech stack
 
@@ -261,9 +261,9 @@ npm run simulate:driver
 
 Default behavior:
 
-1. Finds **Marko Jovanović's** active delivery and follows the OSRM driving route to that delivery's restaurant. If he has no active delivery, it falls back to **Domaće palačinke**.
+1. Finds **Marko Jovanović's** active delivery and follows the locally calculated A* driving route to that delivery's restaurant. If he has no active delivery, it falls back to **Domaće palačinke**.
 2. Waits in front of the restaurant.
-3. When the driver app marks the delivery as **On the way**, follows the OSRM driving route to the customer.
+3. When the driver app marks the delivery as **On the way**, follows the locally calculated A* driving route to the customer.
 4. Keeps the courier position live on the customer tracking map.
 
 Useful options:
@@ -367,7 +367,7 @@ For delivery-grade, always-on tracking, package the driver workspace as a native
 
 - Card checkout is a local/demo payment flow until a payment processor is connected.
 - Cash orders retain the tendered amount and calculated change for the driver.
-- Map tiles and driving routes require network access to OpenStreetMap and the public OSRM service.
+- Map tiles and A* driving routes require network access to OpenStreetMap road data.
 
 ## Author
 

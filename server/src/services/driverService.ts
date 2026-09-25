@@ -130,37 +130,11 @@ function requireNearbyDeliveryStop(
   }
 }
 
-function straightLineRouteEstimate(
-  start: { latitude: number; longitude: number },
-  end: { latitude: number; longitude: number },
-) {
-  // A resilient fallback when the public routing provider is unavailable.
-  // Urban motorcycle/car travel is deliberately estimated conservatively.
-  const directDistanceMeters = Math.round(haversineMeters(
-    start.latitude,
-    start.longitude,
-    end.latitude,
-    end.longitude,
-  ))
-  const distanceMeters = Math.max(100, Math.round(directDistanceMeters * 1.28))
-  const etaMinutes = Math.max(1, Math.ceil((distanceMeters / 1000 / 18) * 60 + 1))
-
-  return {
-    distanceMeters,
-    etaMinutes,
-    etaRange: { min: etaMinutes, max: etaMinutes + 5 },
-  }
-}
-
 async function routeEstimate(
   start: { latitude: number; longitude: number },
   end: { latitude: number; longitude: number },
 ) {
-  try {
-    return await routingService.findDrivingRoute(start, end)
-  } catch {
-    return straightLineRouteEstimate(start, end)
-  }
+  return routingService.findDrivingRoute(start, end)
 }
 
 function scheduleDriverLocationAddressRefresh(driver: DriverProfile) {

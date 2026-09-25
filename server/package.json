@@ -27,6 +27,7 @@
     "test:security": "npm run build && node dist/scripts/securitySmokeTest.js",
     "test:api": "npm run build && node dist/scripts/apiIntegrationSmokeTest.js",
     "test:tracking": "npm run build && node dist/scripts/trackingQualitySmokeTest.js",
+    "test:routing": "npm run build && node dist/scripts/aStarRoutingSmokeTest.js",
     "test": "npm run test:security",
     "start": "node dist/index.js",
     "start:render": "node dist/database/migrate.js && node dist/index.js"

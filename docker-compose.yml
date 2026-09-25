@@ -193,6 +193,7 @@ services:
         VITE_API_URL: ${VITE_API_URL:-http://api.localhost}
         VITE_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
         VITE_AUTH0_GOOGLE_ENABLED: ${VITE_AUTH0_GOOGLE_ENABLED:-true}
+        VITE_CARTO_BASEMAP_KEY: ${VITE_CARTO_BASEMAP_KEY:-}
     restart: unless-stopped
 
   restaurant-app:
@@ -201,6 +202,7 @@ services:
       args:
         APP_NAME: restaurant-app
         VITE_API_URL: ${VITE_API_URL:-http://api.localhost}
+        VITE_CARTO_BASEMAP_KEY: ${VITE_CARTO_BASEMAP_KEY:-}
     restart: unless-stopped
 
   driver-app:
@@ -210,6 +212,7 @@ services:
         APP_NAME: driver-app
         VITE_API_URL: ${VITE_API_URL:-http://api.localhost}
         VITE_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+        VITE_CARTO_BASEMAP_KEY: ${VITE_CARTO_BASEMAP_KEY:-}
     restart: unless-stopped
 
   admin-app:
@@ -218,6 +221,7 @@ services:
       args:
         APP_NAME: admin-app
         VITE_API_URL: ${VITE_API_URL:-http://api.localhost}
+        VITE_CARTO_BASEMAP_KEY: ${VITE_CARTO_BASEMAP_KEY:-}
     restart: unless-stopped
 
 volumes:

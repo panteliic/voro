@@ -241,6 +241,7 @@ export type CustomerOrderRoute = {
     distanceMeters: number
     etaMinutes: number
     etaRange: { min: number; max: number }
+    algorithm: 'a-star'
   } | null
 }
 

@@ -32,6 +32,7 @@ const observabilityToken = process.env.OBSERVABILITY_TOKEN?.trim() || "";
 const databaseUrl = process.env.DATABASE_URL?.trim() || "";
 const databaseSsl = process.env.DB_SSL === "true";
 const databaseSslRejectUnauthorized = process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false";
+const osmMapApiUrl = process.env.OSM_MAP_API_URL?.trim() || "https://api.openstreetmap.org/api/0.6/map";
 function positiveEnvironmentNumber(name: string, fallback: number) {
   const value = Number(process.env[name]);
   return Number.isFinite(value) && value > 0 ? value : fallback;
@@ -90,6 +91,10 @@ export const env = {
     enabled: localDeliveryDemoEnabled,
     intervalMs: Math.round(positiveEnvironmentNumber("LOCAL_DELIVERY_DEMO_INTERVAL_MS", 1_200)),
     stepMeters: positiveEnvironmentNumber("LOCAL_DELIVERY_DEMO_STEP_METERS", 90),
+  },
+  routing: {
+    osmMapApiUrl,
+    osmMapTimeoutMs: Math.round(positiveEnvironmentNumber("OSM_MAP_TIMEOUT_MS", 25_000)),
   },
   deliveryTimeoutMinutes: positiveEnvironmentNumber("DELIVERY_TIMEOUT_MINUTES", 90),
   accessTokenTtl: process.env.ACCESS_TOKEN_TTL || "15m",

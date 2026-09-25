@@ -62,11 +62,13 @@ export type DriverOfferRouteEstimate = {
     distanceMeters: number
     etaMinutes: number
     etaRange: { min: number; max: number }
+    algorithm: 'a-star'
   }
   toCustomer: {
     distanceMeters: number
     etaMinutes: number
     etaRange: { min: number; max: number }
+    algorithm: 'a-star'
   }
   total: {
     distanceMeters: number
@@ -117,6 +119,7 @@ export type DriverRoute = {
     distanceMeters: number
     etaMinutes: number
     etaRange: { min: number; max: number }
+    algorithm: 'a-star'
   }
 }
 

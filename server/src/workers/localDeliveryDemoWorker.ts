@@ -128,10 +128,11 @@ async function moveTowards(state: SimulationState, destination: Position) {
         ...route.coordinates.slice(1).map(([latitude, longitude]) => ({ latitude, longitude })),
       ]
     } catch (error) {
-      // A local demo should keep moving even if public OSRM is temporarily
-      // unavailable. The customer map will request its own route again.
-      trackError('local_delivery_demo_route_fallback', error)
-      state.route = [state.position, destination]
+      // Do not replace the road route with a straight line: both the map and
+      // courier movement must follow the same A* result. The next tick retries
+      // after recording the temporary road-graph failure.
+      trackError('local_delivery_demo_route_failed', error)
+      throw error
     }
     state.destinationKey = destinationKey
     state.nextRoutePointIndex = 1
