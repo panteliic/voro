@@ -300,7 +300,8 @@ export function ActiveDeliveryMap({
         </div>
       </div>
       {error ? <p className="px-5 py-3 text-sm text-destructive">{error}</p> : null}
-      <MapContainer center={points[0]} className="min-h-0 flex-1 w-full" scrollWheelZoom zoom={14}>
+      {/* Keep a usable map height when the delivery details fill a small screen. */}
+      <MapContainer center={points[0]} className="h-[50dvh] min-h-[20rem] w-full shrink-0 md:h-[32rem]" scrollWheelZoom zoom={14}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           url={cartoTileUrl}
