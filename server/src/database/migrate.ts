@@ -1,6 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { pool } from './pool'
+import { encryptExistingMessages } from './encryptExistingMessages'
 
 async function ensureMigrationsTable() {
   await pool.query(`
@@ -50,6 +51,7 @@ async function migrate() {
     await runMigration(file, sql)
   }
 
+  await encryptExistingMessages()
   await pool.end()
 }
 

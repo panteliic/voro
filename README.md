@@ -376,3 +376,9 @@ Nikola Pantelić
 ---
 
 Built as an educational full-stack delivery platform.
+
+### Message encryption
+
+Order message bodies use AES-256-GCM encryption at rest. Set `MESSAGE_ENCRYPTION_KEY` to a random 32-byte hex key. Generate it with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Keep it outside version control, stable across instances and restarts, and backed up separately from the database. Losing or replacing it makes encrypted messages unreadable.
+
+Run `npm run migrate` in `server` before starting the updated server. Migration encrypts existing messages in resumable batches and removes chat previews from stored notifications. New notifications contain a generic prompt. Existing backups may still contain plaintext. Authorized API users and administrators still receive readable messages; the server holds the key. Use HTTPS/WSS for transport. This is not end-to-end encryption.

@@ -144,6 +144,7 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.docker}
+      MESSAGE_ENCRYPTION_KEY: ${MESSAGE_ENCRYPTION_KEY:?Set MESSAGE_ENCRYPTION_KEY in .env.docker}
       PAYMENT_CARD_ENCRYPTION_KEY: ${PAYMENT_CARD_ENCRYPTION_KEY:?Set PAYMENT_CARD_ENCRYPTION_KEY in .env.docker}
       CLIENT_URLS: ${CLIENT_URLS:-http://localhost,http://restaurant.localhost,http://driver.localhost,http://admin.localhost}
       SMTP_HOST: ${SMTP_HOST:-}

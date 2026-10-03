@@ -26,6 +26,9 @@ const smtpEnabled = Boolean(
 const isProduction = process.env.NODE_ENV === "production";
 const jwtSecret = process.env.JWT_SECRET || (isProduction ? "" : "voro_secret_key");
 const paymentCardEncryptionKey = process.env.PAYMENT_CARD_ENCRYPTION_KEY || "";
+if (isProduction && !/^[a-f0-9]{64}$/i.test(process.env.MESSAGE_ENCRYPTION_KEY?.trim() || "")) {
+  throw new Error("MESSAGE_ENCRYPTION_KEY must be a random 32-byte hex key in production.");
+}
 const seedDemoData = process.env.SEED_DEMO_DATA === "true";
 const adminBootstrapToken = process.env.ADMIN_BOOTSTRAP_TOKEN?.trim() || "";
 const observabilityToken = process.env.OBSERVABILITY_TOKEN?.trim() || "";
@@ -85,6 +88,7 @@ export const env = {
   seedDemoData,
   jwtSecret,
   paymentCardEncryptionKey,
+  messageEncryptionKey: process.env.MESSAGE_ENCRYPTION_KEY?.trim() || "",
   adminBootstrapToken,
   observabilityToken,
   localDeliveryDemo: {

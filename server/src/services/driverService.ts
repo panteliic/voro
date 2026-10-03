@@ -636,7 +636,7 @@ export async function sendOrderMessage(userId: number, orderId: number, bodyValu
     await notifyUser(customerUserId, {
       type: 'new_message',
       title: `New message for order #${orderId}`,
-      body,
+      body: 'Open the conversation to read your new message.',
       data: { orderId },
     })
   }

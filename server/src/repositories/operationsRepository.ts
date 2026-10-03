@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg'
 import { pool } from '../database/pool'
+import { encryptMessage, decryptMessage } from '../utils/messageCrypto'
 
 type RestaurantOperationsRow = {
   id: string
@@ -65,6 +66,7 @@ type MessageRow = {
   sender_role: 'customer' | 'courier'
   sender_name: string
   body: string
+  body_encrypted: boolean
   read_at: Date | null
   created_at: Date
 }
@@ -157,7 +159,7 @@ function toMessage(row: MessageRow) {
     senderUserId: Number(row.sender_user_id),
     senderRole: row.sender_role,
     senderName: row.sender_name,
-    body: row.body,
+    body: row.body_encrypted ? decryptMessage(row.body, row.order_id, row.sender_user_id) : row.body,
     readAt: row.read_at,
     createdAt: row.created_at,
   }
@@ -518,11 +520,11 @@ export async function createOrderMessage(
 
   const result = await pool.query<MessageRow>(
     `
-      INSERT INTO order_message (order_id, sender_user_id, sender_role, body)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO order_message (order_id, sender_user_id, sender_role, body, body_encrypted)
+      VALUES ($1, $2, $3, $4, TRUE)
       RETURNING *, (SELECT name FROM "user" WHERE id = $2) AS sender_name
     `,
-    [orderId, userId, role, body],
+    [orderId, userId, role, encryptMessage(body, orderId, userId)],
   )
   return toMessage(result.rows[0])
 }
